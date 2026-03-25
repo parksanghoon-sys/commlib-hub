@@ -1,28 +1,28 @@
 namespace CommLib.Domain.Configuration;
 
 /// <summary>
-/// Represents the retry policy used when reconnecting to a device.
+/// 장치 재연결 시 사용하는 재시도 정책을 나타냅니다.
 /// </summary>
 public sealed class ReconnectOptions
 {
     /// <summary>
-    /// Gets the reconnect strategy name.
+    /// 재연결 전략 이름을 가져옵니다.
     /// </summary>
     public string Type { get; init; } = "None";
     /// <summary>
-    /// Gets the maximum number of reconnect attempts.
+    /// 최대 재연결 시도 횟수를 가져옵니다.
     /// </summary>
     public int MaxAttempts { get; init; }
     /// <summary>
-    /// Gets the base delay in milliseconds used by backoff-based strategies.
+    /// 백오프 기반 전략에서 사용하는 기본 지연 시간(밀리초)을 가져옵니다.
     /// </summary>
     public int BaseDelayMs { get; init; } = 500;
     /// <summary>
-    /// Gets the maximum delay in milliseconds for retry backoff.
+    /// 재시도 백오프의 최대 지연 시간(밀리초)을 가져옵니다.
     /// </summary>
     public int MaxDelayMs { get; init; } = 10000;
     /// <summary>
-    /// Gets the fixed reconnect interval in milliseconds for interval-based strategies.
+    /// 간격 기반 전략에서 사용하는 고정 재연결 간격(밀리초)을 가져옵니다.
     /// </summary>
     public int IntervalMs { get; init; } = 3000;
 }

@@ -4,15 +4,15 @@ using CommLib.Domain.Configuration;
 namespace CommLib.Application.Configuration;
 
 /// <summary>
-/// Maps raw JSON-backed device configuration into strongly typed runtime profiles.
+/// 원시 JSON 기반 장치 설정을 강한 형식의 런타임 프로필로 변환합니다.
 /// </summary>
 public static class DeviceProfileMapper
 {
     /// <summary>
-    /// Converts a raw device profile into a validated transport-specific profile object graph.
+    /// 원시 장치 프로필을 검증 가능한 전송별 프로필 객체 그래프로 변환합니다.
     /// </summary>
-    /// <param name="raw">The raw device profile loaded from configuration.</param>
-    /// <returns>A strongly typed device profile instance.</returns>
+    /// <param name="raw">설정에서 읽어온 원시 장치 프로필입니다.</param>
+    /// <returns>강한 형식의 장치 프로필 인스턴스입니다.</returns>
     public static DeviceProfile Map(DeviceProfileRaw raw)
     {
         var transportType = raw.Transport.GetProperty("Type").GetString();
@@ -40,11 +40,11 @@ public static class DeviceProfileMapper
     }
 
     /// <summary>
-    /// Deserializes the supplied transport JSON into a specific transport options type.
+    /// 지정한 전송 JSON을 특정 전송 옵션 형식으로 역직렬화합니다.
     /// </summary>
-    /// <typeparam name="T">The transport options type to deserialize.</typeparam>
-    /// <param name="element">The JSON element to deserialize.</param>
-    /// <returns>A deserialized transport options instance.</returns>
+    /// <typeparam name="T">역직렬화할 전송 옵션 형식입니다.</typeparam>
+    /// <param name="element">역직렬화할 JSON 요소입니다.</param>
+    /// <returns>역직렬화된 전송 옵션 인스턴스입니다.</returns>
     private static T Deserialize<T>(JsonElement element)
     {
         return element.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web))

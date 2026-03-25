@@ -3,40 +3,40 @@ using System.Text.Json;
 namespace CommLib.Domain.Configuration;
 
 /// <summary>
-/// Represents the raw device configuration read directly from JSON input.
+/// JSON 입력에서 직접 읽어온 원시 장치 설정을 나타냅니다.
 /// </summary>
 public sealed class DeviceProfileRaw
 {
     /// <summary>
-    /// Gets the unique identifier of the device.
+    /// 장치의 고유 식별자를 가져옵니다.
     /// </summary>
     public string DeviceId { get; init; } = string.Empty;
     /// <summary>
-    /// Gets the display name supplied by configuration.
+    /// 설정에서 제공한 표시 이름을 가져옵니다.
     /// </summary>
     public string DisplayName { get; init; } = string.Empty;
     /// <summary>
-    /// Gets a value indicating whether the device is enabled.
+    /// 장치가 활성화되어 있는지 여부를 가져옵니다.
     /// </summary>
     public bool Enabled { get; init; } = true;
     /// <summary>
-    /// Gets the raw JSON payload for the transport section before transport-specific mapping.
+    /// 전송 형식별 매핑 전에 사용하는 전송 섹션의 원시 JSON 값을 가져옵니다.
     /// </summary>
     public JsonElement Transport { get; init; }
     /// <summary>
-    /// Gets the protocol configuration section.
+    /// 프로토콜 설정 섹션을 가져옵니다.
     /// </summary>
     public ProtocolOptions Protocol { get; init; } = new();
     /// <summary>
-    /// Gets the serializer configuration section.
+    /// 직렬화기 설정 섹션을 가져옵니다.
     /// </summary>
     public SerializerOptions Serializer { get; init; } = new();
     /// <summary>
-    /// Gets the reconnect configuration section.
+    /// 재연결 설정 섹션을 가져옵니다.
     /// </summary>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>
-    /// Gets the request/response configuration section.
+    /// 요청/응답 설정 섹션을 가져옵니다.
     /// </summary>
     public RequestResponseOptions RequestResponse { get; init; } = new();
 }

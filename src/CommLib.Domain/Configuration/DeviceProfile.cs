@@ -1,40 +1,40 @@
 namespace CommLib.Domain.Configuration;
 
 /// <summary>
-/// Represents the validated runtime configuration for a single device endpoint.
+/// 단일 장치 엔드포인트에 대한 검증된 런타임 설정을 나타냅니다.
 /// </summary>
 public sealed class DeviceProfile
 {
     /// <summary>
-    /// Gets the unique identifier of the device.
+    /// 장치의 고유 식별자를 가져옵니다.
     /// </summary>
     public required string DeviceId { get; init; }
     /// <summary>
-    /// Gets the display name shown to operators or logs.
+    /// 운영자 화면이나 로그에 표시할 이름을 가져옵니다.
     /// </summary>
     public required string DisplayName { get; init; }
     /// <summary>
-    /// Gets a value indicating whether the device should be started during bootstrap.
+    /// 부트스트랩 시 장치를 시작해야 하는지 여부를 가져옵니다.
     /// </summary>
     public bool Enabled { get; init; } = true;
     /// <summary>
-    /// Gets the validated transport configuration for the device.
+    /// 장치에 대한 검증된 전송 설정을 가져옵니다.
     /// </summary>
     public required TransportOptions Transport { get; init; }
     /// <summary>
-    /// Gets the protocol settings applied to messages for this device.
+    /// 이 장치의 메시지에 적용할 프로토콜 설정을 가져옵니다.
     /// </summary>
     public required ProtocolOptions Protocol { get; init; }
     /// <summary>
-    /// Gets the serializer settings used to encode outbound messages.
+    /// 송신 메시지 인코딩에 사용할 직렬화기 설정을 가져옵니다.
     /// </summary>
     public required SerializerOptions Serializer { get; init; }
     /// <summary>
-    /// Gets the reconnect policy for recovering lost connections.
+    /// 끊어진 연결을 복구할 때 사용할 재연결 정책을 가져옵니다.
     /// </summary>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>
-    /// Gets request/response flow control settings for this device.
+    /// 이 장치의 요청/응답 흐름 제어 설정을 가져옵니다.
     /// </summary>
     public RequestResponseOptions RequestResponse { get; init; } = new();
 }

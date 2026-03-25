@@ -5,15 +5,15 @@ using CommLib.Infrastructure.Transport;
 namespace CommLib.Infrastructure.Factories;
 
 /// <summary>
-/// Creates transport stubs based on transport option types.
+/// 전송 옵션 형식에 따라 전송 스텁을 생성합니다.
 /// </summary>
 public sealed class TransportFactory : ITransportFactory
 {
     /// <summary>
-    /// Creates a transport implementation matching the supplied transport options.
+    /// 지정한 전송 옵션에 맞는 전송 구현을 생성합니다.
     /// </summary>
-    /// <param name="options">The transport options describing the desired transport.</param>
-    /// <returns>A transport implementation appropriate for the supplied options.</returns>
+    /// <param name="options">생성할 전송을 설명하는 전송 옵션입니다.</param>
+    /// <returns>전달된 옵션에 맞는 전송 구현입니다.</returns>
     public ITransport Create(TransportOptions options)
     {
         return options switch

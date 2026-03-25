@@ -1,12 +1,12 @@
 namespace CommLib.Domain.Protocol;
 
 /// <summary>
-/// Defines the protocol abstraction applied to device message framing.
+/// 장치 메시지 프레이밍에 적용되는 프로토콜 추상을 정의합니다.
 /// </summary>
 public interface IProtocol
 {
     /// <summary>
-    /// Gets the protocol name.
+    /// 프로토콜 이름을 가져옵니다.
     /// </summary>
     string Name { get; }
 }

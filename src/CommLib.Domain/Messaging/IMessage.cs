@@ -1,12 +1,12 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// Represents the minimal contract shared by all messages.
+/// 모든 메시지가 공통으로 따르는 최소 계약을 나타냅니다.
 /// </summary>
 public interface IMessage
 {
     /// <summary>
-    /// Gets the message type or command identifier.
+    /// 메시지 형식 또는 명령 식별자를 가져옵니다.
     /// </summary>
     ushort MessageId { get; }
 }

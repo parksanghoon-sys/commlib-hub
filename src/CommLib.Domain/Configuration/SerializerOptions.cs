@@ -1,12 +1,12 @@
 namespace CommLib.Domain.Configuration;
 
 /// <summary>
-/// Represents serializer selection settings for device messages.
+/// 장치 메시지에 사용할 직렬화기 선택 설정을 나타냅니다.
 /// </summary>
 public sealed class SerializerOptions
 {
     /// <summary>
-    /// Gets the serializer implementation name.
+    /// 직렬화기 구현 이름을 가져옵니다.
     /// </summary>
     public string Type { get; init; } = "AutoBinary";
 }

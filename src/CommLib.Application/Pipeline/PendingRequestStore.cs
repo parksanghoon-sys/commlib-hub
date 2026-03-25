@@ -1,38 +1,38 @@
 namespace CommLib.Application.Pipeline;
 
 /// <summary>
-/// Tracks request correlation identifiers that are waiting for responses.
+/// 응답을 기다리는 요청의 상관관계 식별자를 추적합니다.
 /// </summary>
 public sealed class PendingRequestStore
 {
     /// <summary>
-    /// Stores pending request identifiers with their registration timestamp.
+    /// 대기 중인 요청 식별자와 등록 시각을 저장합니다.
     /// </summary>
     private readonly Dictionary<Guid, DateTimeOffset> _pending = new();
 
     /// <summary>
-    /// Registers a correlation identifier as pending.
+    /// 상관관계 식별자를 대기 상태로 등록합니다.
     /// </summary>
-    /// <param name="correlationId">The request correlation identifier to track.</param>
+    /// <param name="correlationId">추적할 요청 상관관계 식별자입니다.</param>
     public void Register(Guid correlationId)
     {
         _pending[correlationId] = DateTimeOffset.UtcNow;
     }
 
     /// <summary>
-    /// Determines whether the specified correlation identifier is currently pending.
+    /// 지정한 상관관계 식별자가 현재 대기 중인지 확인합니다.
     /// </summary>
-    /// <param name="correlationId">The request correlation identifier to check.</param>
-    /// <returns><see langword="true"/> if the request is pending; otherwise, <see langword="false"/>.</returns>
+    /// <param name="correlationId">확인할 요청 상관관계 식별자입니다.</param>
+    /// <returns>대기 중이면 <see langword="true"/> 이고, 아니면 <see langword="false"/> 입니다.</returns>
     public bool Exists(Guid correlationId)
     {
         return _pending.ContainsKey(correlationId);
     }
 
     /// <summary>
-    /// Removes a correlation identifier from the pending set.
+    /// 상관관계 식별자를 대기 집합에서 제거합니다.
     /// </summary>
-    /// <param name="correlationId">The request correlation identifier to complete.</param>
+    /// <param name="correlationId">완료 처리할 요청 상관관계 식별자입니다.</param>
     public void Complete(Guid correlationId)
     {
         _pending.Remove(correlationId);

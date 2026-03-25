@@ -1,30 +1,30 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// Represents a logical messaging session for a single device.
+/// 단일 장치에 대한 논리적 메시징 세션을 나타냅니다.
 /// </summary>
 public interface IDeviceSession
 {
     /// <summary>
-    /// Gets the identifier of the device associated with the session.
+    /// 세션과 연결된 장치 식별자를 가져옵니다.
     /// </summary>
     string DeviceId { get; }
 
     /// <summary>
-    /// Enqueues a fire-and-forget message for transmission.
+    /// 응답을 기다리지 않는 메시지를 전송 대기열에 넣습니다.
     /// </summary>
-    /// <param name="message">The outbound message to send.</param>
-    /// <returns>A handle that completes when the message has been accepted for sending.</returns>
+    /// <param name="message">전송할 송신 메시지입니다.</param>
+    /// <returns>메시지가 전송 대상으로 수락되면 완료되는 핸들입니다.</returns>
     ISendResult Send(IMessage message);
 
     /// <summary>
-    /// Enqueues a request message and returns handles for send completion and response completion.
+    /// 요청 메시지를 대기열에 넣고 전송 완료와 응답 완료를 위한 핸들을 반환합니다.
     /// </summary>
-    /// <typeparam name="TRequest">The concrete request message type.</typeparam>
-    /// <typeparam name="TResponse">The expected response message type.</typeparam>
-    /// <param name="request">The request message to transmit.</param>
-    /// <param name="timeout">The optional response timeout override.</param>
-    /// <returns>A handle for awaiting both send completion and the eventual response.</returns>
+    /// <typeparam name="TRequest">구체적인 요청 메시지 형식입니다.</typeparam>
+    /// <typeparam name="TResponse">기대하는 응답 메시지 형식입니다.</typeparam>
+    /// <param name="request">전송할 요청 메시지입니다.</param>
+    /// <param name="timeout">선택적인 응답 대기 시간 재정의 값입니다.</param>
+    /// <returns>전송 완료와 최종 응답을 모두 기다릴 수 있는 핸들입니다.</returns>
     ISendResult<TResponse> Send<TRequest, TResponse>(
         TRequest request,
         TimeSpan? timeout = null)

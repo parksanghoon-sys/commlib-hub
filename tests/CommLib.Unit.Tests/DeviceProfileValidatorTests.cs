@@ -2,15 +2,15 @@ using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using Xunit;
 
-namespace CommLib.Application.Tests;
+namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// Verifies device profile validation rules for valid and invalid configuration.
+/// 유효한 설정과 잘못된 설정에 대한 장치 프로필 검증 규칙을 확인합니다.
 /// </summary>
 public sealed class DeviceProfileValidatorTests
 {
     /// <summary>
-    /// Ensures TCP profiles with out-of-range ports are rejected.
+    /// 범위를 벗어난 포트를 가진 TCP 프로필은 거부되는지 확인합니다.
     /// </summary>
     [Fact]
     public void Validate_TcpInvalidPort_Throws()
@@ -33,7 +33,7 @@ public sealed class DeviceProfileValidatorTests
     }
 
     /// <summary>
-    /// Ensures a valid serial profile passes validation without throwing.
+    /// 유효한 시리얼 프로필은 예외 없이 검증을 통과하는지 확인합니다.
     /// </summary>
     [Fact]
     public void Validate_ValidSerial_DoesNotThrow()

@@ -1,24 +1,24 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// Represents the asynchronous result of queueing or sending a message.
+/// 메시지 큐잉 또는 전송의 비동기 결과를 나타냅니다.
 /// </summary>
 public interface ISendResult
 {
     /// <summary>
-    /// Gets a task that completes when the message has been accepted for sending.
+    /// 메시지가 전송 대상으로 수락되면 완료되는 작업을 가져옵니다.
     /// </summary>
     Task SendCompletedTask { get; }
 }
 
 /// <summary>
-/// Represents the asynchronous result of a request that expects a typed response.
+/// 형식화된 응답을 기대하는 요청의 비동기 결과를 나타냅니다.
 /// </summary>
-/// <typeparam name="TResponse">The expected response message type.</typeparam>
+/// <typeparam name="TResponse">기대하는 응답 메시지 형식입니다.</typeparam>
 public interface ISendResult<TResponse> : ISendResult
 {
     /// <summary>
-    /// Gets a task that completes when the typed response arrives.
+    /// 형식화된 응답이 도착하면 완료되는 작업을 가져옵니다.
     /// </summary>
     Task<TResponse> ResponseTask { get; }
 }

@@ -1,12 +1,12 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// Represents a message that initiates a request expecting a correlated response.
+/// 상관관계가 있는 응답을 기대하는 요청 메시지를 나타냅니다.
 /// </summary>
 public interface IRequestMessage : IMessage
 {
     /// <summary>
-    /// Gets the correlation identifier used to match the request with a response.
+    /// 요청과 응답을 연결할 때 사용하는 상관관계 식별자를 가져옵니다.
     /// </summary>
     Guid CorrelationId { get; }
 }

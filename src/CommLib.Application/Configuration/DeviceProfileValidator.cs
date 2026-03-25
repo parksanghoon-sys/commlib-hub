@@ -3,14 +3,14 @@ using CommLib.Domain.Configuration;
 namespace CommLib.Application.Configuration;
 
 /// <summary>
-/// Validates device profiles before they are used by the runtime.
+/// 장치 프로필이 런타임에서 사용되기 전에 유효한지 검증합니다.
 /// </summary>
 public static class DeviceProfileValidator
 {
     /// <summary>
-    /// Validates the supplied profile and throws when required fields or ranges are invalid.
+    /// 지정한 프로필을 검증하고 필수 항목이나 범위가 잘못되면 예외를 발생시킵니다.
     /// </summary>
-    /// <param name="profile">The device profile to validate.</param>
+    /// <param name="profile">검증할 장치 프로필입니다.</param>
     public static void ValidateAndThrow(DeviceProfile profile)
     {
         if (string.IsNullOrWhiteSpace(profile.DeviceId))

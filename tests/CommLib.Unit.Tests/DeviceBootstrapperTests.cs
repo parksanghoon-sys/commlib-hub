@@ -3,15 +3,15 @@ using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using Xunit;
 
-namespace CommLib.Application.Tests;
+namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// Verifies bootstrap behavior for enabled and disabled device profiles.
+/// 활성화 여부에 따른 부트스트랩 동작을 검증합니다.
 /// </summary>
 public sealed class DeviceBootstrapperTests
 {
     /// <summary>
-    /// Ensures bootstrap connects only profiles marked as enabled.
+    /// 부트스트랩이 활성화된 프로필만 연결하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task StartAsync_ConnectsOnlyEnabledProfiles()
@@ -48,21 +48,21 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
-    /// Provides a minimal in-memory connection manager used for bootstrap testing.
+    /// 부트스트랩 테스트에 사용하는 최소한의 인메모리 연결 관리자입니다.
     /// </summary>
     private sealed class FakeConnectionManager : IConnectionManager
     {
         /// <summary>
-        /// Gets the list of device identifiers passed to <see cref="ConnectAsync(DeviceProfile, CancellationToken)"/>.
+        /// <see cref="ConnectAsync(DeviceProfile, CancellationToken)"/> 에 전달된 장치 식별자 목록을 가져옵니다.
         /// </summary>
         public List<string> ConnectedIds { get; } = new();
 
         /// <summary>
-        /// Records the connected device identifier.
+        /// 연결 요청된 장치 식별자를 기록합니다.
         /// </summary>
-        /// <param name="profile">The profile passed by the bootstrapper.</param>
-        /// <param name="cancellationToken">A token that could cancel the operation.</param>
-        /// <returns>A completed task.</returns>
+        /// <param name="profile">부트스트래퍼가 전달한 장치 프로필입니다.</param>
+        /// <param name="cancellationToken">작업 취소에 사용할 토큰입니다.</param>
+        /// <returns>완료된 작업입니다.</returns>
         public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
         {
             ConnectedIds.Add(profile.DeviceId);
@@ -70,10 +70,10 @@ public sealed class DeviceBootstrapperTests
         }
 
         /// <summary>
-        /// Returns no active session for the fake implementation.
+        /// 가짜 구현에서는 활성 세션을 반환하지 않습니다.
         /// </summary>
-        /// <param name="deviceId">The requested device identifier.</param>
-        /// <returns>Always <see langword="null"/>.</returns>
+        /// <param name="deviceId">조회할 장치 식별자입니다.</param>
+        /// <returns>항상 <see langword="null"/> 을 반환합니다.</returns>
         public IDeviceSession? GetSession(string deviceId) => null;
     }
 }
