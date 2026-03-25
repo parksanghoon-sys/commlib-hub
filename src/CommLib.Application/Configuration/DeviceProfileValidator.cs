@@ -2,8 +2,15 @@ using CommLib.Domain.Configuration;
 
 namespace CommLib.Application.Configuration;
 
+/// <summary>
+/// Validates device profiles before they are used by the runtime.
+/// </summary>
 public static class DeviceProfileValidator
 {
+    /// <summary>
+    /// Validates the supplied profile and throws when required fields or ranges are invalid.
+    /// </summary>
+    /// <param name="profile">The device profile to validate.</param>
     public static void ValidateAndThrow(DeviceProfile profile)
     {
         if (string.IsNullOrWhiteSpace(profile.DeviceId))

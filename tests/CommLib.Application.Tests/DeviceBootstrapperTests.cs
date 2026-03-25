@@ -5,8 +5,14 @@ using Xunit;
 
 namespace CommLib.Application.Tests;
 
+/// <summary>
+/// Verifies bootstrap behavior for enabled and disabled device profiles.
+/// </summary>
 public sealed class DeviceBootstrapperTests
 {
+    /// <summary>
+    /// Ensures bootstrap connects only profiles marked as enabled.
+    /// </summary>
     [Fact]
     public async Task StartAsync_ConnectsOnlyEnabledProfiles()
     {
@@ -41,16 +47,33 @@ public sealed class DeviceBootstrapperTests
         Assert.Contains("enabled-1", manager.ConnectedIds);
     }
 
+    /// <summary>
+    /// Provides a minimal in-memory connection manager used for bootstrap testing.
+    /// </summary>
     private sealed class FakeConnectionManager : IConnectionManager
     {
+        /// <summary>
+        /// Gets the list of device identifiers passed to <see cref="ConnectAsync(DeviceProfile, CancellationToken)"/>.
+        /// </summary>
         public List<string> ConnectedIds { get; } = new();
 
+        /// <summary>
+        /// Records the connected device identifier.
+        /// </summary>
+        /// <param name="profile">The profile passed by the bootstrapper.</param>
+        /// <param name="cancellationToken">A token that could cancel the operation.</param>
+        /// <returns>A completed task.</returns>
         public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
         {
             ConnectedIds.Add(profile.DeviceId);
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Returns no active session for the fake implementation.
+        /// </summary>
+        /// <param name="deviceId">The requested device identifier.</param>
+        /// <returns>Always <see langword="null"/>.</returns>
         public IDeviceSession? GetSession(string deviceId) => null;
     }
 }

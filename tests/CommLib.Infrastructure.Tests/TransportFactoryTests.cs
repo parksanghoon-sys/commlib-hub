@@ -5,8 +5,14 @@ using Xunit;
 
 namespace CommLib.Infrastructure.Tests;
 
+/// <summary>
+/// Verifies transport factory behavior for supported transport option types.
+/// </summary>
 public sealed class TransportFactoryTests
 {
+    /// <summary>
+    /// Ensures TCP client options create a TCP transport instance.
+    /// </summary>
     [Fact]
     public void Create_TcpOptions_ReturnsTcpTransport()
     {
@@ -22,6 +28,9 @@ public sealed class TransportFactoryTests
         Assert.IsType<TcpTransport>(transport);
     }
 
+    /// <summary>
+    /// Ensures serial transport options create a serial transport instance.
+    /// </summary>
     [Fact]
     public void Create_SerialOptions_ReturnsSerialTransport()
     {

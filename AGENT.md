@@ -3,16 +3,16 @@
 ## 목적
 
 이 저장소는 C# 기반 장치 통신 프레임워크를 구현한다.
-현재 범위는 HTTP를 제외한 TCP, UDP, Serial, Multicast 장치를 config json으로 등록하고,
-공통된 세션/메시지/프로토콜 모델로 사용하는 것이다.
+현재 범위는 HTTP를 제외한 TCP, UDP, Serial, Multicast 장치를 `appsettings.json` 기반으로 등록하고,
+공통 세션, 메시지, 프로토콜 모델로 확장 가능하게 구성하는 것이다.
 
 핵심 목표:
-- Clean Architecture 유지
+- Clean Architecture 준수
 - OOP 기반 인터페이스 설계
 - config json 기반 장치 등록
 - Channel 기반 thread-safe 파이프라인
-- Send / Request-Response / Chain 지원 가능한 방향 유지
-- TDD 3색 원칙 준수
+- Send / Request-Response / Chain 을 고려한 구조 유지
+- TDD 3단계 사이클 준수
 - 기능별 커밋 강제
 - hook 을 통한 skill gate 강제
 - 보안 기본값 강제
@@ -21,7 +21,7 @@
 
 ## 필수 작업 순서
 
-모든 비사소한 작업은 반드시 아래 순서를 따른다.
+모든 비슷한 작업은 반드시 아래 순서를 따른다.
 
 1. `00-skill-gate`
 2. `01-architecture-review`
@@ -37,11 +37,11 @@
 
 ## hook 규칙
 
-`.agents/hooks` 의 스크립트는 아래를 강제한다.
+`.agents/hooks` 스크립트는 아래를 강제한다.
 
 - 작업 시작 전 skill gate 수행
-- 구현 전 docs/current-plan.md 작성 확인
-- Domain/Application 변경 시 architecture review 선행 여부 확인
+- 구현 전 `docs/current-plan.md` 작성 확인
+- Domain/Application 변경 시 architecture review 수행 여부 확인
 - test 없이 구현 커밋 금지
 - security 영향 파일 변경 시 security review 누락 금지
 
@@ -52,16 +52,16 @@
 의존 방향:
 
 ```text
-Host/Console → Hosting → Application → Domain
-                         → Infrastructure → Domain
+Host/Console -> Hosting -> Application -> Domain
+                         -> Infrastructure -> Domain
 ```
 
 금지:
-- Domain → Infrastructure 참조
-- Application 에서 구체 Transport 직접 new
+- Domain 에서 Infrastructure 참조
+- Application 에서 구체 Transport 직접 `new`
 - 설정 바인딩과 실행 로직 혼합
 - 무제한 queue
-- timeout 없는 request/response 제공
+- timeout 없는 request/response 설계
 - payload 전체 로그 출력
 
 ---
@@ -74,36 +74,36 @@ Host/Console → Hosting → Application → Domain
 - Serial
 - Multicast
 
-### 나중에 추가
+### 후속 확장 후보
 - Http / Rest
 - gRPC
 - WebSocket
 
 ---
 
-## config json 정책
+## config json 원칙
 
 장치 등록은 반드시 `appsettings.json` 의 `CommLib:Devices` 배열을 사용한다.
 
 규칙:
-- 추상 타입 직접 바인딩 금지
-- `DeviceProfileRaw` 로 먼저 바인딩
-- Mapper 로 구체 TransportOptions 생성
-- Validator 로 검증 후 사용
-- `Enabled=false` 장치는 연결하지 않음
+- 추상 타입에 직접 바인딩하지 않는다.
+- 먼저 `DeviceProfileRaw` 로 바인딩한다.
+- Mapper 로 구체 `TransportOptions` 를 생성한다.
+- Validator 로 검증 후 사용한다.
+- `Enabled=false` 장치는 연결하지 않는다.
 
 ---
 
-## TDD 3색 원칙
+## TDD 3단계 원칙
 
 ### Red
-실패 테스트를 먼저 작성한다.
+실패하는 테스트를 먼저 작성한다.
 
 ### Green
 가장 작은 코드로 테스트를 통과시킨다.
 
 ### Refactor
-테스트가 유지된 상태에서만 중복 제거와 구조 개선을 한다.
+테스트가 유지되는 상태에서만 중복 제거와 구조 개선을 수행한다.
 
 금지:
 - 테스트 없이 구현 시작
@@ -127,10 +127,10 @@ type(scope): summary
 - security(hosting): reject invalid device configuration
 
 규칙:
-- 한 커밋에 한 기능
-- test 커밋과 feat 커밋은 가능하면 분리
-- 보안 관련 변경은 `security:` 또는 `fix:` 명시
-- architecture review 가 필요한 변경은 plan 과 review 없이 커밋 금지
+- 한 커밋에는 한 목적만 담는다.
+- test 커밋과 feat 커밋은 가능하면 분리한다.
+- 보안 관련 변경은 `security:` 또는 `fix:` 로 명시한다.
+- architecture review 가 필요한 변경은 plan 과 review 없이 커밋하지 않는다.
 
 ---
 
@@ -141,16 +141,16 @@ type(scope): summary
 - unknown message id 는 거부한다.
 - config 값은 validator 로 검증한다.
 - 장치별 endpoint allow-list 정책을 고려한다.
-- secret 은 설정 파일에 평문 저장하지 않는다.
+- secret 과 설정 파일을 평문으로 노출하지 않는다.
 - malformed frame 반복 시 차단 전략을 둔다.
-- correlation 응답은 타입/세션까지 검증한다.
+- correlation 응답은 대상 세션까지 검증한다.
 
 ---
 
 ## 현재 구현 우선순위
 
 1. Domain 계약
-2. config raw → profile mapper
+2. config raw -> profile mapper
 3. validator
 4. transport factory
 5. bootstrapper
@@ -168,5 +168,14 @@ type(scope): summary
 - 관련 테스트 존재
 - Mapper / Validator 테스트 통과
 - 보안 체크리스트 확인
-- 기능별 커밋 가능 상태
+- 기능별 커밋 가능한 상태
 - hook 규칙 위반 없음
+
+---
+
+## 주석 규칙
+
+- 새 C# 파일을 만들 때는 클래스, 인터페이스, 레코드, public 메서드, public 프로퍼티에 XML 문서 주석을 작성한다.
+- 새 클래스나 인터페이스를 추가할 때 주석은 기본적으로 한글로 작성한다.
+- 구현 의도가 바로 드러나지 않는 private 필드나 메서드도 필요하면 한글 XML 주석 또는 짧은 한글 설명 주석을 남긴다.
+- 주석은 이름을 반복하지 말고 역할, 사용 시점, 반환 의미가 드러나도록 작성한다.

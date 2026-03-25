@@ -4,8 +4,14 @@ using Xunit;
 
 namespace CommLib.Application.Tests;
 
+/// <summary>
+/// Verifies device profile validation rules for valid and invalid configuration.
+/// </summary>
 public sealed class DeviceProfileValidatorTests
 {
+    /// <summary>
+    /// Ensures TCP profiles with out-of-range ports are rejected.
+    /// </summary>
     [Fact]
     public void Validate_TcpInvalidPort_Throws()
     {
@@ -26,6 +32,9 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    /// <summary>
+    /// Ensures a valid serial profile passes validation without throwing.
+    /// </summary>
     [Fact]
     public void Validate_ValidSerial_DoesNotThrow()
     {

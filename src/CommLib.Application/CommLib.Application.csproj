@@ -3,6 +3,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>장치 프로필 매핑, 검증, 부트스트랩, 세션 흐름 등 애플리케이션 계층 유스케이스를 담당하는 프로젝트입니다.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommLib.Domain\CommLib.Domain.csproj" />

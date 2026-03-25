@@ -5,8 +5,14 @@ using Xunit;
 
 namespace CommLib.Application.Tests;
 
+/// <summary>
+/// Verifies raw device profile mapping into strongly typed profiles.
+/// </summary>
 public sealed class DeviceProfileMapperTests
 {
+    /// <summary>
+    /// Ensures TCP client transport JSON maps to the concrete TCP transport options type.
+    /// </summary>
     [Fact]
     public void Map_TcpClientTransport_ReturnsConcreteTransport()
     {
@@ -24,6 +30,9 @@ public sealed class DeviceProfileMapperTests
         Assert.IsType<TcpClientTransportOptions>(profile.Transport);
     }
 
+    /// <summary>
+    /// Ensures unknown transport discriminator values are rejected.
+    /// </summary>
     [Fact]
     public void Map_UnknownTransport_Throws()
     {
