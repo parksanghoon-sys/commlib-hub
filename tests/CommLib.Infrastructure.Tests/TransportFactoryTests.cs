@@ -3,7 +3,7 @@ using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Transport;
 using Xunit;
 
-namespace CommLib.Unit.Tests;
+namespace CommLib.Infrastructure.Tests;
 
 /// <summary>
 /// 지원하는 전송 옵션 형식에 대한 전송 팩토리 동작을 검증합니다.

@@ -14,6 +14,7 @@
 - Application: mapping / validation / bootstrap / session orchestration
 - Infrastructure: factory / transport / serializer / protocol skeleton
 - Hosting: DI 및 config binding
+- Clean Architecture 방향 유지 확인
 
 ## TDD Plan
 1. DeviceProfileMapper tests

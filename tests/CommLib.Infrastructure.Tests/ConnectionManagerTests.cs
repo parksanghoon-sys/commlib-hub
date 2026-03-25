@@ -3,7 +3,7 @@ using CommLib.Domain.Transport;
 using CommLib.Infrastructure.Sessions;
 using Xunit;
 
-namespace CommLib.Unit.Tests;
+namespace CommLib.Infrastructure.Tests;
 
 /// <summary>
 /// 연결 관리자의 세션 등록 동작을 검증합니다.
@@ -18,20 +18,7 @@ public sealed class ConnectionManagerTests
     {
         var factory = new FakeTransportFactory();
         var manager = new ConnectionManager(factory);
-        var profile = new DeviceProfile
-        {
-            DeviceId = "device-1",
-            DisplayName = "Device 1",
-            Enabled = true,
-            Transport = new TcpClientTransportOptions
-            {
-                Type = "TcpClient",
-                Host = "127.0.0.1",
-                Port = 502
-            },
-            Protocol = new ProtocolOptions(),
-            Serializer = new SerializerOptions()
-        };
+        var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
 
@@ -45,27 +32,51 @@ public sealed class ConnectionManagerTests
     public async Task ConnectAsync_RegistersSessionAccessibleByDeviceId()
     {
         var manager = new ConnectionManager(new FakeTransportFactory());
-        var profile = new DeviceProfile
-        {
-            DeviceId = "device-1",
-            DisplayName = "Device 1",
-            Enabled = true,
-            Transport = new TcpClientTransportOptions
-            {
-                Type = "TcpClient",
-                Host = "127.0.0.1",
-                Port = 502
-            },
-            Protocol = new ProtocolOptions(),
-            Serializer = new SerializerOptions()
-        };
+        var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
 
-        var session = manager.GetSession("device-1");
+        var session = manager.GetSession(profile.DeviceId);
 
         Assert.NotNull(session);
-        Assert.Equal("device-1", session.DeviceId);
+        Assert.Equal(profile.DeviceId, session.DeviceId);
+    }
+
+    /// <summary>
+    /// 서로 다른 장치 프로필을 순서대로 연결하면 각 장치별 세션이 각각 유지되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_MultipleProfiles_RegistersEachSessionIndependently()
+    {
+        var manager = new ConnectionManager(new FakeTransportFactory());
+        var firstProfile = CreateTcpProfile("device-1", 502);
+        var secondProfile = CreateTcpProfile("device-2", 503);
+
+        await manager.ConnectAsync(firstProfile);
+        await manager.ConnectAsync(secondProfile);
+
+        Assert.Equal("device-1", manager.GetSession("device-1")?.DeviceId);
+        Assert.Equal("device-2", manager.GetSession("device-2")?.DeviceId);
+    }
+
+    /// <summary>
+    /// 같은 장치를 다시 연결하면 새 세션으로 교체되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_SameDeviceConnectedTwice_ReplacesSession()
+    {
+        var manager = new ConnectionManager(new FakeTransportFactory());
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await manager.ConnectAsync(profile);
+        var firstSession = manager.GetSession("device-1");
+
+        await manager.ConnectAsync(profile);
+        var secondSession = manager.GetSession("device-1");
+
+        Assert.NotNull(firstSession);
+        Assert.NotNull(secondSession);
+        Assert.NotSame(firstSession, secondSession);
     }
 
     /// <summary>
@@ -79,6 +90,30 @@ public sealed class ConnectionManagerTests
         var session = manager.GetSession("missing-device");
 
         Assert.Null(session);
+    }
+
+    /// <summary>
+    /// 테스트에 사용할 TCP 장치 프로필을 생성합니다.
+    /// </summary>
+    /// <param name="deviceId">생성할 장치 식별자입니다.</param>
+    /// <param name="port">생성할 장치 포트입니다.</param>
+    /// <returns>테스트용 TCP 장치 프로필입니다.</returns>
+    private static DeviceProfile CreateTcpProfile(string deviceId = "device-1", int port = 502)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = deviceId,
+            DisplayName = deviceId,
+            Enabled = true,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = "127.0.0.1",
+                Port = port
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
     }
 
     /// <summary>
