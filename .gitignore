@@ -1,0 +1,32 @@
+# Build output
+bin/
+obj/
+
+# Test output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# .NET CLI local state
+.dotnet/
+.templateengine/
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Logs
+*.log
