@@ -54,4 +54,57 @@ public sealed class DeviceProfileValidatorTests
 
         DeviceProfileValidator.ValidateAndThrow(profile);
     }
+
+    /// <summary>
+    /// 최대 프레임 길이가 0 이하이면 거부되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_InvalidMaxFrameLength_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "tcp-02",
+            DisplayName = "TCP 02",
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = "127.0.0.1",
+                Port = 502
+            },
+            Protocol = new ProtocolOptions
+            {
+                MaxFrameLength = 0
+            },
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 최대 대기 요청 수가 0 이하이면 거부되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_InvalidMaxPendingRequests_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "tcp-03",
+            DisplayName = "TCP 03",
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = "127.0.0.1",
+                Port = 502
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions(),
+            RequestResponse = new RequestResponseOptions
+            {
+                MaxPendingRequests = 0
+            }
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
 }
