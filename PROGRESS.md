@@ -104,3 +104,10 @@
 - [x] 요청 응답 timeout 시 pending 정리와 `TimeoutException` 반환 경로 추가
 - [x] 큐 포화 상태에서 요청 전송 실패 시 응답 task도 함께 실패하고 pending 누수가 없는지 테스트 보강
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`25`개 테스트)
+
+### 7. 작업 업데이트 (Governance / Bootstrapper)
+- [x] `AGENT.md`에 브랜치 전략, issue 연결, PR 체크 규칙을 명시해 다음 세션에서도 반복 적용되도록 정리
+- [x] `docs/current-plan.md`에 branch / issue / PR 메모 추가
+- [x] `DeviceBootstrapperTests`에 연결 실패 예외 전파 검증 추가
+- [x] `DeviceBootstrapperTests`에 중간 연결 실패 시 후속 프로필 중단 검증 추가
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`27`개 테스트)

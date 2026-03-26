@@ -38,3 +38,8 @@
 - test: session / connection 경계 조건 테스트 추가
 - test(infra): transport factory 테스트 세분화
 - docs: 진행 현황과 다음 작업 갱신
+## Branch / Issue / PR Notes
+- 현재 브랜치 목적이 단일 작업 주제와 맞는지 매 작업 전 확인
+- 가능하면 이슈 단위 브랜치 사용: `type/issue-<id>-short-topic`
+- PR 준비 시 변경 목적, 테스트 결과, 잔여 리스크를 함께 정리
+- 다음 세션으로 넘길 항목은 PROGRESS와 PR 관점에서 동시에 추적
