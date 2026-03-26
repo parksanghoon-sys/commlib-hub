@@ -69,6 +69,26 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
+    /// 요청 큐가 가득 찬 상태에서 요청을 보내면 응답 작업은 완료되지 않은 채 유지되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task Send_RequestWhenQueueIsFull_KeepsResponseTaskPending()
+    {
+        var session = new DeviceSession("device-1");
+
+        for (ushort messageId = 0; messageId < 64; messageId++)
+        {
+            var accepted = session.Send(new FakeMessage(messageId));
+            await accepted.SendCompletedTask;
+        }
+
+        var overflow = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(1000));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await overflow.SendCompletedTask);
+        Assert.False(overflow.ResponseTask.IsCompleted);
+    }
+
+    /// <summary>
     /// 테스트용 일반 메시지입니다.
     /// </summary>
     /// <param name="messageId">메시지 식별자입니다.</param>

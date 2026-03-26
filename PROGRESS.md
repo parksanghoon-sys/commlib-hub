@@ -71,3 +71,30 @@
 - [ ] `DeviceProfileValidator` 보안성 검증 항목 확장
 - [ ] `CommLib.Infrastructure.Tests`와 `CommLib.Unit.Tests` 경계 재검토
 - [ ] 브랜치 단위 `push/PR` 흐름 시범 적용
+## 2026-03-26
+
+### 1. 오늘 완료한 작업
+- [x] `DeviceSessionTests`에 요청 큐 포화 상태에서 `ResponseTask`가 미완료 상태로 유지되는지 검증하는 테스트 추가
+- [x] 요청 전송 실패 시 `SendCompletedTask`와 `ResponseTask`의 상태가 분리되어 유지되는 현재 동작을 테스트로 문서화
+
+### 2. 검증 결과
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과
+- [x] `CommLib.Unit.Tests` 22개 테스트 통과 확인
+
+### 3. 현재 남은 상태
+- [x] 워크트리 기준 미커밋 변경은 `tests/CommLib.Unit.Tests/DeviceSessionTests.cs` 1건만 존재
+- [x] 최근 테스트 작업 흐름은 `6766e9b`, `5c053ff`, `93cc8bd`, `a805b21` 커밋까지 이어진 상태
+- [x] `PROGRESS.md`에 오늘 기준 진행 상황과 후속 작업 정리
+
+### 4. 남은 잔여 일감
+- [ ] `DeviceSession`의 큐 포화 시 요청 추적 엔트리가 실제로 누수되지 않는지 구현과 테스트를 함께 재점검
+- [ ] `DeviceBootstrapper` 경계 조건 테스트를 더 보강해 연결 순서, 예외 전파, 취소 흐름 누락 케이스 점검
+- [ ] `DeviceProfileValidator` 검증 규칙의 경계값/조합 케이스 추가
+- [ ] `CommLib.Unit.Tests`와 `CommLib.Infrastructure.Tests` 사이 책임 경계를 다시 점검해 테스트 위치가 흔들리는 케이스 정리
+- [ ] 현재 단일 미커밋 변경을 기준으로 다음 커밋 메시지 단위 정리 후 `push/PR` 흐름 진행
+### 5. 실제 구현 / TDD 남은 양 추정
+- [x] 추정 기준: 현재 소스와 테스트 커버리지를 기준으로 남은 범위를 체감 공정으로 정리
+- [ ] 실제 구현 남은 양: 전체 프로젝트 기준으로는 기본 골격이 갖춰져 있어 약 `20~30%` 정도 남은 상태로 판단
+- [ ] 실제 구현 남은 양: `DeviceSession` 요청-응답 흐름만 기준으로 보면 응답 완료, 추적 저장소 연계, timeout/cleanup 경로가 아직 없어 약 `50~60%` 남은 상태로 판단
+- [ ] TDD 남은 양: 현재는 기본 성공/실패/일부 경계 케이스까지 확보됐고, 전체 테스트 주도 보강 범위는 약 `35~40%` 남은 상태로 판단
+- [ ] TDD 우선 대상: `DeviceSession` 응답 완료/타임아웃/정리 흐름 -> `DeviceBootstrapper` 예외 및 취소 경계 -> `DeviceProfileValidator` 조합/경계값 확장
