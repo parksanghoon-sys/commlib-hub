@@ -92,6 +92,22 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 연결 후 송신하면 세션 outbound 큐가 비워진 상태로 유지되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task SendAsync_ConnectedDevice_DrainsSessionOutboundQueue()
+    {
+        var manager = CreateManager();
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        await manager.SendAsync(profile.DeviceId, new FakeMessage(42));
+
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        Assert.False(session.TryDequeueOutbound(out _));
+    }
+
+    /// <summary>
     /// 연결되지 않은 장치 식별자로 송신하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]

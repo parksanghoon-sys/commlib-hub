@@ -35,19 +35,42 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
+    /// 일반 메시지를 송신하면 outbound 큐에서 같은 메시지를 꺼낼 수 있는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task Send_MessageWithinQueueCapacity_EnqueuesOutboundMessage()
+    {
+        var session = new DeviceSession("device-1");
+        var message = new FakeMessage(1);
+
+        var result = session.Send(message);
+
+        await result.SendCompletedTask;
+        var dequeued = session.TryDequeueOutbound(out var outbound);
+
+        Assert.True(dequeued);
+        Assert.Same(message, outbound);
+    }
+
+    /// <summary>
     /// 요청 메시지를 송신하면 응답 작업이 대기 상태로 시작되는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task Send_RequestMessage_ReturnsPendingResponseTask()
     {
         var session = new DeviceSession("device-1");
+        var request = new FakeRequestMessage(10);
 
-        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(10));
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
 
         await result.SendCompletedTask;
+        var dequeued = session.TryDequeueOutbound(out var outbound);
+
         Assert.True(result.SendCompletedTask.IsCompletedSuccessfully);
         Assert.False(result.ResponseTask.IsCompleted);
         Assert.Equal(1, session.PendingRequestCount);
+        Assert.True(dequeued);
+        Assert.Same(request, outbound);
     }
 
     /// <summary>

@@ -201,6 +201,19 @@ public sealed class DeviceBootstrapperTests
         }
 
         /// <summary>
+        /// 부트스트랩 테스트에서는 송신 기능을 사용하지 않습니다.
+        /// </summary>
+        /// <param name="deviceId">메시지를 보낼 장치 식별자입니다.</param>
+        /// <param name="message">전송할 메시지입니다.</param>
+        /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
+        /// <returns>완료 작업입니다.</returns>
+        public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
         /// 가짜 구현에서는 활성 세션을 반환하지 않습니다.
         /// </summary>
         /// <param name="deviceId">조회할 장치 식별자입니다.</param>

@@ -80,6 +80,16 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
+    /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.
+    /// </summary>
+    /// <param name="message">꺼낸 outbound 메시지입니다.</param>
+    /// <returns>꺼낼 메시지가 있으면 <see langword="true"/>이고, 없으면 <see langword="false"/>입니다.</returns>
+    public bool TryDequeueOutbound(out IMessage? message)
+    {
+        return _outbound.Reader.TryRead(out message);
+    }
+
+    /// <summary>
     /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
     /// </summary>
     /// <typeparam name="TResponse">완료할 응답 형식입니다.</typeparam>

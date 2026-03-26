@@ -62,12 +62,17 @@ public sealed class ConnectionManager : IConnectionManager
     /// <returns>전송 작업입니다.</returns>
     public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
     {
+        if (!_sessions.TryGetValue(deviceId, out var session))
+        {
+            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
+        }
+
         if (!_senders.TryGetValue(deviceId, out var sender))
         {
             throw new InvalidOperationException($"No sender registered for device '{deviceId}'.");
         }
 
-        return sender.SendAsync(message, cancellationToken);
+        return SendFromSessionAsync(session, sender, message, cancellationToken);
     }
 
     /// <summary>
@@ -79,5 +84,22 @@ public sealed class ConnectionManager : IConnectionManager
     {
         _sessions.TryGetValue(deviceId, out var session);
         return session;
+    }
+
+    private static async Task SendFromSessionAsync(
+        IDeviceSession session,
+        TransportMessageSender sender,
+        IMessage message,
+        CancellationToken cancellationToken)
+    {
+        var result = session.Send(message);
+        await result.SendCompletedTask.ConfigureAwait(false);
+
+        if (!session.TryDequeueOutbound(out var outbound) || outbound is null)
+        {
+            throw new InvalidOperationException($"Session '{session.DeviceId}' did not expose an outbound message.");
+        }
+
+        await sender.SendAsync(outbound, cancellationToken).ConfigureAwait(false);
     }
 }
