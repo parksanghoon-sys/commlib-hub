@@ -80,6 +80,41 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 한 장치를 재연결해도 다른 장치 세션은 그대로 유지되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_ReconnectingOneDevice_DoesNotReplaceOtherDeviceSession()
+    {
+        var manager = new ConnectionManager(new FakeTransportFactory());
+        var firstProfile = CreateTcpProfile("device-1", 502);
+        var secondProfile = CreateTcpProfile("device-2", 503);
+
+        await manager.ConnectAsync(firstProfile);
+        await manager.ConnectAsync(secondProfile);
+        var secondSessionBeforeReconnect = manager.GetSession("device-2");
+
+        await manager.ConnectAsync(firstProfile);
+        var secondSessionAfterReconnect = manager.GetSession("device-2");
+
+        Assert.NotNull(secondSessionBeforeReconnect);
+        Assert.Same(secondSessionBeforeReconnect, secondSessionAfterReconnect);
+    }
+
+    /// <summary>
+    /// 전송 생성에 실패하면 예외를 그대로 전달하고 세션을 남기지 않는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_WhenTransportFactoryThrows_DoesNotRegisterSession()
+    {
+        var manager = new ConnectionManager(new ThrowingTransportFactory());
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+
+        Assert.Null(manager.GetSession(profile.DeviceId));
+    }
+
+    /// <summary>
     /// 알 수 없는 장치 식별자를 조회하면 세션이 없음을 확인합니다.
     /// </summary>
     [Fact]
@@ -147,5 +182,21 @@ public sealed class ConnectionManagerTests
         /// 가짜 전송 이름을 가져옵니다.
         /// </summary>
         public string Name => "FakeTransport";
+    }
+
+    /// <summary>
+    /// 전송 생성 요청 시 예외를 발생시키는 가짜 팩토리입니다.
+    /// </summary>
+    private sealed class ThrowingTransportFactory : ITransportFactory
+    {
+        /// <summary>
+        /// 항상 예외를 발생시켜 생성 실패 상황을 재현합니다.
+        /// </summary>
+        /// <param name="options">생성 요청에 사용된 전송 옵션입니다.</param>
+        /// <returns>반환되지 않습니다.</returns>
+        public ITransport Create(TransportOptions options)
+        {
+            throw new InvalidOperationException("Transport creation failed.");
+        }
     }
 }
