@@ -59,6 +59,11 @@ public sealed class MessageFrameEncoderTests
             LastMessage = message;
             return _payload;
         }
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class FakeProtocol : IProtocol

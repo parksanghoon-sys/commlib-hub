@@ -320,6 +320,12 @@ public sealed class ConnectionManagerTests
         {
             return System.Text.Encoding.UTF8.GetBytes(message.MessageId.ToString());
         }
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            var text = System.Text.Encoding.UTF8.GetString(payload);
+            return new FakeMessage(ushort.Parse(text));
+        }
     }
 
     private sealed class ThrowingTransportFactory : ITransportFactory

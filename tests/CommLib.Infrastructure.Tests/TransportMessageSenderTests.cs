@@ -58,6 +58,11 @@ public sealed class TransportMessageSenderTests
         }
 
         public byte[] Serialize(IMessage message) => _payload;
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class FakeProtocol : IProtocol
