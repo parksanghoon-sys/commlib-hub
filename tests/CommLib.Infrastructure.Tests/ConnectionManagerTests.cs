@@ -1,4 +1,6 @@
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
+using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;
 using CommLib.Infrastructure.Sessions;
 using Xunit;
@@ -6,32 +8,62 @@ using Xunit;
 namespace CommLib.Infrastructure.Tests;
 
 /// <summary>
-/// 연결 관리자의 세션 등록 동작을 검증합니다.
+/// 연결 관리자의 세션 등록과 송신기 조립 동작을 검증합니다.
 /// </summary>
 public sealed class ConnectionManagerTests
 {
     /// <summary>
-    /// 연결 시 장치 프로필의 전송 옵션으로 전송 팩토리를 호출하는지 확인합니다.
+    /// 연결 시 장치 프로필의 transport 설정으로 transport factory를 호출하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task ConnectAsync_TransportFactoryIsCalledWithProfileTransport()
     {
-        var factory = new FakeTransportFactory();
-        var manager = new ConnectionManager(factory);
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
         var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
 
-        Assert.Same(profile.Transport, factory.LastOptions);
+        Assert.Same(profile.Transport, transportFactory.LastOptions);
     }
 
     /// <summary>
-    /// 장치 프로필을 연결하면 장치 식별자로 조회 가능한 세션이 등록되는지 확인합니다.
+    /// 연결 시 프로필의 protocol 설정으로 protocol factory를 호출하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_ProtocolFactoryIsCalledWithProfileProtocol()
+    {
+        var protocolFactory = new FakeProtocolFactory();
+        var manager = CreateManager(protocolFactory: protocolFactory);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        Assert.Same(profile.Protocol, protocolFactory.LastOptions);
+    }
+
+    /// <summary>
+    /// 연결 시 프로필의 serializer 설정으로 serializer factory를 호출하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_SerializerFactoryIsCalledWithProfileSerializer()
+    {
+        var serializerFactory = new FakeSerializerFactory();
+        var manager = CreateManager(serializerFactory: serializerFactory);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        Assert.Same(profile.Serializer, serializerFactory.LastOptions);
+    }
+
+    /// <summary>
+    /// 장치 프로필을 연결하면 장치 식별자로 조회 가능한 세션을 등록하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task ConnectAsync_RegistersSessionAccessibleByDeviceId()
     {
-        var manager = new ConnectionManager(new FakeTransportFactory());
+        var manager = CreateManager();
         var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
@@ -43,12 +75,42 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 서로 다른 장치 프로필을 순서대로 연결하면 각 장치별 세션이 각각 유지되는지 확인합니다.
+    /// 연결 후 같은 장치 식별자로 메시지를 보내면 조립된 sender를 통해 transport까지 전달되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task SendAsync_ConnectedDevice_SendsEncodedFrameThroughTransport()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        await manager.SendAsync(profile.DeviceId, new FakeMessage(42));
+
+        Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4', (byte)'2' }, transportFactory.Transport.LastFrame);
+        Assert.Equal(1, transportFactory.Transport.SendCount);
+    }
+
+    /// <summary>
+    /// 연결되지 않은 장치 식별자로 송신하면 예외를 발생시키는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task SendAsync_UnknownDevice_Throws()
+    {
+        var manager = CreateManager();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.SendAsync("missing-device", new FakeMessage(1)));
+
+        Assert.Contains("missing-device", exception.Message);
+    }
+
+    /// <summary>
+    /// 서로 다른 장치 프로필을 연결하면 각 장치별 세션이 독립적으로 유지되는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task ConnectAsync_MultipleProfiles_RegistersEachSessionIndependently()
     {
-        var manager = new ConnectionManager(new FakeTransportFactory());
+        var manager = CreateManager();
         var firstProfile = CreateTcpProfile("device-1", 502);
         var secondProfile = CreateTcpProfile("device-2", 503);
 
@@ -60,12 +122,12 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 같은 장치를 다시 연결하면 새 세션으로 교체되는지 확인합니다.
+    /// 같은 장치를 다시 연결하면 새 세션으로 교체하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task ConnectAsync_SameDeviceConnectedTwice_ReplacesSession()
     {
-        var manager = new ConnectionManager(new FakeTransportFactory());
+        var manager = CreateManager();
         var profile = CreateTcpProfile("device-1", 502);
 
         await manager.ConnectAsync(profile);
@@ -85,7 +147,7 @@ public sealed class ConnectionManagerTests
     [Fact]
     public async Task ConnectAsync_ReconnectingOneDevice_DoesNotReplaceOtherDeviceSession()
     {
-        var manager = new ConnectionManager(new FakeTransportFactory());
+        var manager = CreateManager();
         var firstProfile = CreateTcpProfile("device-1", 502);
         var secondProfile = CreateTcpProfile("device-2", 503);
 
@@ -101,12 +163,12 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 전송 생성에 실패하면 예외를 그대로 전달하고 세션을 남기지 않는지 확인합니다.
+    /// transport 생성이 실패하면 예외를 그대로 전달하고 세션을 남기지 않는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task ConnectAsync_WhenTransportFactoryThrows_DoesNotRegisterSession()
     {
-        var manager = new ConnectionManager(new ThrowingTransportFactory());
+        var manager = CreateManager(transportFactory: new ThrowingTransportFactory());
         var profile = CreateTcpProfile("device-1", 502);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
@@ -115,24 +177,29 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 알 수 없는 장치 식별자를 조회하면 세션이 없음을 확인합니다.
+    /// 존재하지 않는 장치 식별자를 조회하면 세션이 없음을 확인합니다.
     /// </summary>
     [Fact]
     public void GetSession_UnknownDevice_ReturnsNull()
     {
-        var manager = new ConnectionManager(new FakeTransportFactory());
+        var manager = CreateManager();
 
         var session = manager.GetSession("missing-device");
 
         Assert.Null(session);
     }
 
-    /// <summary>
-    /// 테스트에 사용할 TCP 장치 프로필을 생성합니다.
-    /// </summary>
-    /// <param name="deviceId">생성할 장치 식별자입니다.</param>
-    /// <param name="port">생성할 장치 포트입니다.</param>
-    /// <returns>테스트용 TCP 장치 프로필입니다.</returns>
+    private static ConnectionManager CreateManager(
+        ITransportFactory? transportFactory = null,
+        IProtocolFactory? protocolFactory = null,
+        ISerializerFactory? serializerFactory = null)
+    {
+        return new ConnectionManager(
+            transportFactory ?? new FakeTransportFactory(),
+            protocolFactory ?? new FakeProtocolFactory(),
+            serializerFactory ?? new FakeSerializerFactory());
+    }
+
     private static DeviceProfile CreateTcpProfile(string deviceId = "device-1", int port = 502)
     {
         return new DeviceProfile
@@ -146,66 +213,101 @@ public sealed class ConnectionManagerTests
                 Host = "127.0.0.1",
                 Port = port
             },
-            Protocol = new ProtocolOptions(),
-            Serializer = new SerializerOptions()
+            Protocol = new ProtocolOptions
+            {
+                Type = "LengthPrefixed"
+            },
+            Serializer = new SerializerOptions
+            {
+                Type = "AutoBinary"
+            }
         };
     }
 
-    /// <summary>
-    /// 테스트용 전송 팩토리 호출 정보를 기록하는 가짜 구현입니다.
-    /// </summary>
+    private sealed record FakeMessage(ushort MessageId) : IMessage;
+
     private sealed class FakeTransportFactory : ITransportFactory
     {
-        /// <summary>
-        /// 마지막으로 전달된 전송 옵션을 가져옵니다.
-        /// </summary>
         public TransportOptions? LastOptions { get; private set; }
 
-        /// <summary>
-        /// 전달된 전송 옵션을 기록하고 가짜 전송 객체를 반환합니다.
-        /// </summary>
-        /// <param name="options">생성 요청에 사용된 전송 옵션입니다.</param>
-        /// <returns>테스트용 가짜 전송 객체입니다.</returns>
+        public FakeTransport Transport { get; } = new();
+
         public ITransport Create(TransportOptions options)
         {
             LastOptions = options;
-            return new FakeTransport();
+            return Transport;
         }
     }
 
-    /// <summary>
-    /// 테스트에서만 사용하는 가짜 전송 구현입니다.
-    /// </summary>
     private sealed class FakeTransport : ITransport
     {
-        /// <summary>
-        /// 가짜 전송 이름을 가져옵니다.
-        /// </summary>
         public string Name => "FakeTransport";
 
-        /// <summary>
-        /// 가짜 구현에서는 프레임을 그대로 수락합니다.
-        /// </summary>
-        /// <param name="frame">전송할 프레임입니다.</param>
-        /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
-        /// <returns>완료 작업입니다.</returns>
+        public byte[]? LastFrame { get; private set; }
+
+        public int SendCount { get; private set; }
+
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            LastFrame = frame.ToArray();
+            SendCount++;
             return Task.CompletedTask;
         }
     }
 
-    /// <summary>
-    /// 전송 생성 요청 시 예외를 발생시키는 가짜 팩토리입니다.
-    /// </summary>
+    private sealed class FakeProtocolFactory : IProtocolFactory
+    {
+        public ProtocolOptions? LastOptions { get; private set; }
+
+        public IProtocol Create(ProtocolOptions options)
+        {
+            LastOptions = options;
+            return new FakeProtocol();
+        }
+    }
+
+    private sealed class FakeProtocol : IProtocol
+    {
+        public string Name => "FakeProtocol";
+
+        public byte[] Encode(ReadOnlySpan<byte> payload)
+        {
+            var frame = new byte[payload.Length + 4];
+            frame[3] = (byte)payload.Length;
+            payload.CopyTo(frame.AsSpan(4));
+            return frame;
+        }
+
+        public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
+        {
+            payload = Array.Empty<byte>();
+            bytesConsumed = 0;
+            return false;
+        }
+    }
+
+    private sealed class FakeSerializerFactory : ISerializerFactory
+    {
+        public SerializerOptions? LastOptions { get; private set; }
+
+        public ISerializer Create(SerializerOptions options)
+        {
+            LastOptions = options;
+            return new FakeSerializer();
+        }
+    }
+
+    private sealed class FakeSerializer : ISerializer
+    {
+        public byte[] Serialize(IMessage message)
+        {
+            return System.Text.Encoding.UTF8.GetBytes(message.MessageId.ToString());
+        }
+    }
+
     private sealed class ThrowingTransportFactory : ITransportFactory
     {
-        /// <summary>
-        /// 항상 예외를 발생시켜 생성 실패 상황을 재현합니다.
-        /// </summary>
-        /// <param name="options">생성 요청에 사용된 전송 옵션입니다.</param>
-        /// <returns>반환되지 않습니다.</returns>
         public ITransport Create(TransportOptions options)
         {
             throw new InvalidOperationException("Transport creation failed.");

@@ -1,7 +1,10 @@
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
+using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;
+using CommLib.Infrastructure.Protocol;
+using CommLib.Infrastructure.Transport;
 
 namespace CommLib.Infrastructure.Sessions;
 
@@ -10,42 +13,68 @@ namespace CommLib.Infrastructure.Sessions;
 /// </summary>
 public sealed class ConnectionManager : IConnectionManager
 {
-    /// <summary>
-    /// 장치 전송을 초기화할 때 사용하는 전송 팩토리를 저장합니다.
-    /// </summary>
     private readonly ITransportFactory _transportFactory;
-    /// <summary>
-    /// 장치 식별자를 기준으로 활성 세션을 저장합니다.
-    /// </summary>
+    private readonly IProtocolFactory _protocolFactory;
+    private readonly ISerializerFactory _serializerFactory;
     private readonly Dictionary<string, IDeviceSession> _sessions = new();
+    private readonly Dictionary<string, TransportMessageSender> _senders = new();
 
     /// <summary>
     /// <see cref="ConnectionManager"/> 클래스의 새 인스턴스를 초기화합니다.
     /// </summary>
-    /// <param name="transportFactory">장치 프로필에 맞는 전송을 생성하는 팩토리입니다.</param>
-    public ConnectionManager(ITransportFactory transportFactory)
+    /// <param name="transportFactory">장치 전송을 생성하는 transport factory입니다.</param>
+    /// <param name="protocolFactory">장치 프로토콜을 생성하는 protocol factory입니다.</param>
+    /// <param name="serializerFactory">메시지 serializer를 생성하는 serializer factory입니다.</param>
+    public ConnectionManager(
+        ITransportFactory transportFactory,
+        IProtocolFactory protocolFactory,
+        ISerializerFactory serializerFactory)
     {
         _transportFactory = transportFactory;
+        _protocolFactory = protocolFactory;
+        _serializerFactory = serializerFactory;
     }
 
     /// <summary>
-    /// 지정한 장치 프로필에 대한 전송을 만들고 세션을 등록합니다.
+    /// 지정한 장치 프로필에 대한 전송을 만들고 세션 및 송신기를 등록합니다.
     /// </summary>
     /// <param name="profile">연결할 장치 프로필입니다.</param>
-    /// <param name="cancellationToken">연결 작업을 취소할 수 있는 토큰입니다.</param>
-    /// <returns>세션 등록이 끝나면 완료되는 작업입니다.</returns>
+    /// <param name="cancellationToken">연결 작업 취소 토큰입니다.</param>
+    /// <returns>등록 작업입니다.</returns>
     public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
-        _ = _transportFactory.Create(profile.Transport);
+        var transport = _transportFactory.Create(profile.Transport);
+        var protocol = _protocolFactory.Create(profile.Protocol);
+        var serializer = _serializerFactory.Create(profile.Serializer);
+        var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
+
+        _senders[profile.DeviceId] = sender;
         _sessions[profile.DeviceId] = new DeviceSession(profile.DeviceId);
         return Task.CompletedTask;
     }
 
     /// <summary>
+    /// 지정한 장치 식별자로 메시지를 전송합니다.
+    /// </summary>
+    /// <param name="deviceId">메시지를 보낼 장치 식별자입니다.</param>
+    /// <param name="message">전송할 메시지입니다.</param>
+    /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
+    /// <returns>전송 작업입니다.</returns>
+    public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
+    {
+        if (!_senders.TryGetValue(deviceId, out var sender))
+        {
+            throw new InvalidOperationException($"No sender registered for device '{deviceId}'.");
+        }
+
+        return sender.SendAsync(message, cancellationToken);
+    }
+
+    /// <summary>
     /// 장치 식별자로 활성 세션을 조회합니다.
     /// </summary>
-    /// <param name="deviceId">조회할 장치 세션의 식별자입니다.</param>
-    /// <returns>활성 세션이 있으면 반환하고, 없으면 <see langword="null"/> 을 반환합니다.</returns>
+    /// <param name="deviceId">조회할 장치 세션 식별자입니다.</param>
+    /// <returns>활성 세션이 있으면 반환하고, 없으면 <see langword="null"/>을 반환합니다.</returns>
     public IDeviceSession? GetSession(string deviceId)
     {
         _sessions.TryGetValue(deviceId, out var session);
