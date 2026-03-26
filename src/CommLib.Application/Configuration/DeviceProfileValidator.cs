@@ -55,6 +55,10 @@ public static class DeviceProfileValidator
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemotePort is invalid.");
                 }
+                if (!string.IsNullOrWhiteSpace(udp.RemoteHost) != udp.RemotePort.HasValue)
+                {
+                    throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemoteHost and RemotePort must be configured together.");
+                }
                 break;
 
             case SerialTransportOptions serial:
@@ -76,6 +80,10 @@ public static class DeviceProfileValidator
                 if (multicast.Port is <= 0 or > 65535)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Port is invalid.");
+                }
+                if (multicast.Ttl <= 0)
+                {
+                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Ttl must be greater than 0.");
                 }
                 break;
 

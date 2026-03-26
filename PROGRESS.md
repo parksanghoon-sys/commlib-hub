@@ -111,3 +111,10 @@
 - [x] `DeviceBootstrapperTests`에 연결 실패 예외 전파 검증 추가
 - [x] `DeviceBootstrapperTests`에 중간 연결 실패 시 후속 프로필 중단 검증 추가
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`27`개 테스트)
+
+### 8. 작업 업데이트 (DeviceProfileValidator)
+- [x] `DeviceProfileValidatorTests`에 필수 식별자/표시명 검증 케이스 추가
+- [x] `DeviceProfileValidatorTests`에 TCP host, UDP local/remote 조합, Multicast TTL, unsupported transport 경계 케이스 추가
+- [x] `DeviceProfileValidator`에 UDP `RemoteHost`/`RemotePort` 동시 설정 규칙 추가
+- [x] `DeviceProfileValidator`에 Multicast TTL 양수 검증 추가
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`37`개 테스트)

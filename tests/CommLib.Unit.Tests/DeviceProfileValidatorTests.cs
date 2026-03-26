@@ -10,24 +10,45 @@ namespace CommLib.Unit.Tests;
 public sealed class DeviceProfileValidatorTests
 {
     /// <summary>
-    /// 범위를 벗어난 포트를 가진 TCP 프로필은 거부되는지 확인합니다.
+    /// 비어 있는 장치 식별자는 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_EmptyDeviceId_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "", displayName: "TCP 01", host: "127.0.0.1", port: 502);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 비어 있는 표시 이름은 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_EmptyDisplayName_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-01", displayName: "", host: "127.0.0.1", port: 502);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 범위를 벗어난 TCP 포트를 가진 프로필을 거부하는지 확인합니다.
     /// </summary>
     [Fact]
     public void Validate_TcpInvalidPort_Throws()
     {
-        var profile = new DeviceProfile
-        {
-            DeviceId = "tcp-01",
-            DisplayName = "TCP 01",
-            Transport = new TcpClientTransportOptions
-            {
-                Type = "TcpClient",
-                Host = "127.0.0.1",
-                Port = 70000
-            },
-            Protocol = new ProtocolOptions(),
-            Serializer = new SerializerOptions()
-        };
+        var profile = CreateTcpProfile(deviceId: "tcp-01", displayName: "TCP 01", host: "127.0.0.1", port: 70000);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 비어 있는 TCP 호스트는 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_TcpEmptyHost_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-01", displayName: "TCP 01", host: "", port: 502);
 
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
@@ -56,25 +77,22 @@ public sealed class DeviceProfileValidatorTests
     }
 
     /// <summary>
-    /// 최대 프레임 길이가 0 이하이면 거부되는지 확인합니다.
+    /// 잘못된 시리얼 baud rate는 거부하는지 확인합니다.
     /// </summary>
     [Fact]
-    public void Validate_InvalidMaxFrameLength_Throws()
+    public void Validate_InvalidSerialBaudRate_Throws()
     {
         var profile = new DeviceProfile
         {
-            DeviceId = "tcp-02",
-            DisplayName = "TCP 02",
-            Transport = new TcpClientTransportOptions
+            DeviceId = "serial-01",
+            DisplayName = "Serial 01",
+            Transport = new SerialTransportOptions
             {
-                Type = "TcpClient",
-                Host = "127.0.0.1",
-                Port = 502
+                Type = "Serial",
+                PortName = "COM3",
+                BaudRate = 0
             },
-            Protocol = new ProtocolOptions
-            {
-                MaxFrameLength = 0
-            },
+            Protocol = new ProtocolOptions(),
             Serializer = new SerializerOptions()
         };
 
@@ -82,29 +100,202 @@ public sealed class DeviceProfileValidatorTests
     }
 
     /// <summary>
-    /// 최대 대기 요청 수가 0 이하이면 거부되는지 확인합니다.
+    /// 최대 프레임 길이가 0 이하면 거부하는지 확인합니다.
     /// </summary>
     [Fact]
-    public void Validate_InvalidMaxPendingRequests_Throws()
+    public void Validate_InvalidMaxFrameLength_Throws()
     {
-        var profile = new DeviceProfile
+        var profile = CreateTcpProfile(deviceId: "tcp-02", displayName: "TCP 02", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
         {
-            DeviceId = "tcp-03",
-            DisplayName = "TCP 03",
-            Transport = new TcpClientTransportOptions
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = new ProtocolOptions
             {
-                Type = "TcpClient",
-                Host = "127.0.0.1",
-                Port = 502
+                MaxFrameLength = 0
             },
-            Protocol = new ProtocolOptions(),
-            Serializer = new SerializerOptions(),
-            RequestResponse = new RequestResponseOptions
-            {
-                MaxPendingRequests = 0
-            }
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
         };
 
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
+
+    /// <summary>
+    /// 최대 대기 요청 수가 0 이하면 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_InvalidMaxPendingRequests_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03", displayName: "TCP 03", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = new RequestResponseOptions
+            {
+                MaxPendingRequests = 0
+            },
+            Reconnect = profile.Reconnect
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 범위를 벗어난 UDP 로컬 포트는 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_UdpInvalidLocalPort_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "udp-01",
+            DisplayName = "UDP 01",
+            Transport = new UdpTransportOptions
+            {
+                Type = "Udp",
+                LocalPort = 70000
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// UDP 원격 호스트만 있고 원격 포트가 없으면 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_UdpRemoteHostWithoutRemotePort_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "udp-02",
+            DisplayName = "UDP 02",
+            Transport = new UdpTransportOptions
+            {
+                Type = "Udp",
+                LocalPort = 5000,
+                RemoteHost = "127.0.0.1"
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// UDP 원격 포트만 있고 원격 호스트가 없으면 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_UdpRemotePortWithoutRemoteHost_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "udp-03",
+            DisplayName = "UDP 03",
+            Transport = new UdpTransportOptions
+            {
+                Type = "Udp",
+                LocalPort = 5000,
+                RemotePort = 9000
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 비어 있는 멀티캐스트 그룹 주소는 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_MulticastEmptyGroupAddress_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "mc-01",
+            DisplayName = "MC 01",
+            Transport = new MulticastTransportOptions
+            {
+                Type = "Multicast",
+                GroupAddress = "",
+                Port = 5000
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 유효하지 않은 멀티캐스트 TTL은 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_MulticastInvalidTtl_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "mc-02",
+            DisplayName = "MC 02",
+            Transport = new MulticastTransportOptions
+            {
+                Type = "Multicast",
+                GroupAddress = "239.0.0.1",
+                Port = 5000,
+                Ttl = 0
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    /// <summary>
+    /// 지원하지 않는 전송 형식은 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Validate_UnsupportedTransport_Throws()
+    {
+        var profile = new DeviceProfile
+        {
+            DeviceId = "custom-01",
+            DisplayName = "Custom 01",
+            Transport = new UnsupportedTransportOptions { Type = "Custom" },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    private static DeviceProfile CreateTcpProfile(string deviceId, string displayName, string host, int port)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = deviceId,
+            DisplayName = displayName,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = host,
+                Port = port
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
+    private sealed record UnsupportedTransportOptions : TransportOptions;
 }
