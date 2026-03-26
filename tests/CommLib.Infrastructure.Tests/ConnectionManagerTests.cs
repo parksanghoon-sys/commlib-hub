@@ -182,6 +182,18 @@ public sealed class ConnectionManagerTests
         /// 가짜 전송 이름을 가져옵니다.
         /// </summary>
         public string Name => "FakeTransport";
+
+        /// <summary>
+        /// 가짜 구현에서는 프레임을 그대로 수락합니다.
+        /// </summary>
+        /// <param name="frame">전송할 프레임입니다.</param>
+        /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
+        /// <returns>완료 작업입니다.</returns>
+        public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>
