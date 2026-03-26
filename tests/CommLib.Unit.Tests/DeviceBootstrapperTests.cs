@@ -103,6 +103,51 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
+    /// 여러 활성 프로필이 있으면 입력 순서대로 연결을 시도하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenMultipleEnabledProfiles_ConnectsInInputOrder()
+    {
+        var manager = new FakeConnectionManager();
+        var bootstrapper = new DeviceBootstrapper(manager);
+
+        var profiles = new[]
+        {
+            new DeviceProfile
+            {
+                DeviceId = "enabled-1",
+                DisplayName = "Enabled 1",
+                Enabled = true,
+                Transport = new TcpClientTransportOptions { Type = "TcpClient", Host = "127.0.0.1", Port = 1000 },
+                Protocol = new ProtocolOptions(),
+                Serializer = new SerializerOptions()
+            },
+            new DeviceProfile
+            {
+                DeviceId = "disabled-1",
+                DisplayName = "Disabled 1",
+                Enabled = false,
+                Transport = new TcpClientTransportOptions { Type = "TcpClient", Host = "127.0.0.1", Port = 1001 },
+                Protocol = new ProtocolOptions(),
+                Serializer = new SerializerOptions()
+            },
+            new DeviceProfile
+            {
+                DeviceId = "enabled-2",
+                DisplayName = "Enabled 2",
+                Enabled = true,
+                Transport = new TcpClientTransportOptions { Type = "TcpClient", Host = "127.0.0.1", Port = 1002 },
+                Protocol = new ProtocolOptions(),
+                Serializer = new SerializerOptions()
+            }
+        };
+
+        await bootstrapper.StartAsync(profiles);
+
+        Assert.Equal(new[] { "enabled-1", "enabled-2" }, manager.ConnectedIds);
+    }
+
+    /// <summary>
     /// 부트스트랩 테스트에 사용하는 최소한의 인메모리 연결 관리자입니다.
     /// </summary>
     private sealed class FakeConnectionManager : IConnectionManager
