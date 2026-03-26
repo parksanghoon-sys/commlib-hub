@@ -98,3 +98,9 @@
 - [ ] 실제 구현 남은 양: `DeviceSession` 요청-응답 흐름만 기준으로 보면 응답 완료, 추적 저장소 연계, timeout/cleanup 경로가 아직 없어 약 `50~60%` 남은 상태로 판단
 - [ ] TDD 남은 양: 현재는 기본 성공/실패/일부 경계 케이스까지 확보됐고, 전체 테스트 주도 보강 범위는 약 `35~40%` 남은 상태로 판단
 - [ ] TDD 우선 대상: `DeviceSession` 응답 완료/타임아웃/정리 흐름 -> `DeviceBootstrapper` 예외 및 취소 경계 -> `DeviceProfileValidator` 조합/경계값 확장
+### 6. 작업 업데이트 (DeviceSession)
+- [x] `DeviceSession`에 pending 요청 수 추적 상태 관리 추가
+- [x] 요청 응답 완료를 처리하는 `TryCompleteResponse<TResponse>` 경로 추가
+- [x] 요청 응답 timeout 시 pending 정리와 `TimeoutException` 반환 경로 추가
+- [x] 큐 포화 상태에서 요청 전송 실패 시 응답 task도 함께 실패하고 pending 누수가 없는지 테스트 보강
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`25`개 테스트)

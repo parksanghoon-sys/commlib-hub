@@ -5,7 +5,7 @@ using Xunit;
 namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// 장치 세션의 기본 송신 계약을 검증합니다.
+/// 장치 세션의 기본 송신/응답 추적 동작을 검증합니다.
 /// </summary>
 public sealed class DeviceSessionTests
 {
@@ -21,7 +21,7 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
-    /// 일반 메시지를 송신하면 전송 완료 작업이 성공 상태로 끝나는지 확인합니다.
+    /// 일반 메시지를 송신하면 송신 완료 작업이 성공 상태로 끝나는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task Send_MessageWithinQueueCapacity_CompletesSuccessfully()
@@ -35,7 +35,7 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
-    /// 요청 메시지를 송신하면 응답 대기 작업은 아직 완료되지 않은 상태로 반환되는지 확인합니다.
+    /// 요청 메시지를 송신하면 응답 작업이 대기 상태로 시작되는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task Send_RequestMessage_ReturnsPendingResponseTask()
@@ -47,10 +47,61 @@ public sealed class DeviceSessionTests
         await result.SendCompletedTask;
         Assert.True(result.SendCompletedTask.IsCompletedSuccessfully);
         Assert.False(result.ResponseTask.IsCompleted);
+        Assert.Equal(1, session.PendingRequestCount);
     }
 
     /// <summary>
-    /// 큐 용량을 초과하면 마지막 송신이 실패하는지 확인합니다.
+    /// 응답을 완료 처리하면 대기 중이던 요청이 제거되고 응답 작업이 완료되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryCompleteResponse_MatchingResponse_CompletesTaskAndRemovesPendingEntry()
+    {
+        var session = new DeviceSession("device-1");
+        var request = new FakeRequestMessage(10);
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        var response = new FakeResponseMessage(11) { CorrelationId = request.CorrelationId };
+
+        var completed = session.TryCompleteResponse(response);
+        var completedResponse = await result.ResponseTask;
+
+        Assert.True(completed);
+        Assert.Same(response, completedResponse);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
+    /// 알 수 없는 상관관계 응답은 완료 처리하지 않고 무시하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void TryCompleteResponse_UnknownCorrelationId_ReturnsFalse()
+    {
+        var session = new DeviceSession("device-1");
+
+        var completed = session.TryCompleteResponse(new FakeResponseMessage(1));
+
+        Assert.False(completed);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
+    /// 응답 대기 시간이 지나면 응답 작업이 시간 초과로 끝나고 pending 엔트리가 정리되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task Send_RequestWithTimeout_FailsResponseTaskAndRemovesPendingEntry()
+    {
+        var session = new DeviceSession("device-1");
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(
+            new FakeRequestMessage(20),
+            TimeSpan.FromMilliseconds(50));
+
+        var exception = await Assert.ThrowsAsync<TimeoutException>(async () => await result.ResponseTask);
+
+        Assert.Contains("Timed out waiting for response", exception.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
+    /// 송신 큐가 가득 차면 일반 메시지 송신 완료 작업이 실패하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task Send_WhenQueueIsFull_FailsSendCompletedTask()
@@ -69,10 +120,10 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
-    /// 요청 큐가 가득 찬 상태에서 요청을 보내면 응답 작업은 완료되지 않은 채 유지되는지 확인합니다.
+    /// 요청 큐가 가득 차면 응답 작업도 함께 실패하고 pending 엔트리가 남지 않는지 확인합니다.
     /// </summary>
     [Fact]
-    public async Task Send_RequestWhenQueueIsFull_KeepsResponseTaskPending()
+    public async Task Send_RequestWhenQueueIsFull_FailsResponseTaskAndDoesNotTrackPending()
     {
         var session = new DeviceSession("device-1");
 
@@ -85,7 +136,8 @@ public sealed class DeviceSessionTests
         var overflow = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(1000));
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await overflow.SendCompletedTask);
-        Assert.False(overflow.ResponseTask.IsCompleted);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await overflow.ResponseTask);
+        Assert.Equal(0, session.PendingRequestCount);
     }
 
     /// <summary>

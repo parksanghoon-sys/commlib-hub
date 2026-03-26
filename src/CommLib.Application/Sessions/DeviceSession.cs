@@ -1,37 +1,52 @@
 using System.Threading.Channels;
+using CommLib.Application.Pipeline;
 using CommLib.Domain.Messaging;
 
 namespace CommLib.Application.Sessions;
 
 /// <summary>
-/// 제한된 크기의 송신 채널을 사용하는 인메모리 장치 세션입니다.
+/// 단일 장치와의 송신/응답 대기를 추적하는 인메모리 세션입니다.
 /// </summary>
 public sealed class DeviceSession : IDeviceSession
 {
-    /// <summary>
-    /// 전송 파이프라인에서 처리되기를 기다리는 송신 메시지를 저장합니다.
-    /// </summary>
     private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
+    private readonly PendingRequestStore _pendingRequestStore = new();
+    private readonly Dictionary<Guid, object> _pendingResponses = new();
+    private readonly object _syncRoot = new();
 
     /// <summary>
     /// <see cref="DeviceSession"/> 클래스의 새 인스턴스를 초기화합니다.
     /// </summary>
-    /// <param name="deviceId">세션에 연결된 장치 식별자입니다.</param>
+    /// <param name="deviceId">세션과 연결된 장치 식별자입니다.</param>
     public DeviceSession(string deviceId)
     {
         DeviceId = deviceId;
     }
 
     /// <summary>
-    /// 이 세션에 연결된 장치 식별자를 가져옵니다.
+    /// 세션과 연결된 장치 식별자를 가져옵니다.
     /// </summary>
     public string DeviceId { get; }
 
     /// <summary>
-    /// 메시지를 송신 채널에 넣으려고 시도합니다.
+    /// 현재 응답을 기다리는 요청 수를 가져옵니다.
     /// </summary>
-    /// <param name="message">큐에 넣을 송신 메시지입니다.</param>
-    /// <returns>메시지가 수락되면 완료되고 큐가 가득 차면 실패하는 전송 결과입니다.</returns>
+    public int PendingRequestCount
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _pendingResponses.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 일반 메시지를 송신 큐에 추가합니다.
+    /// </summary>
+    /// <param name="message">큐에 추가할 메시지입니다.</param>
+    /// <returns>큐 등록 성공 여부를 나타내는 결과입니다.</returns>
     public ISendResult Send(IMessage message)
     {
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -48,19 +63,96 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
-    /// 요청을 큐에 넣고 전송 완료와 응답 대기를 위한 핸들을 반환합니다.
+    /// 요청 메시지를 송신 큐에 추가하고 응답 완료를 추적합니다.
     /// </summary>
     /// <typeparam name="TRequest">요청 메시지 형식입니다.</typeparam>
     /// <typeparam name="TResponse">기대하는 응답 메시지 형식입니다.</typeparam>
-    /// <param name="request">큐에 넣을 요청 메시지입니다.</param>
-    /// <param name="timeout">선택적인 응답 대기 시간 재정의 값입니다.</param>
-    /// <returns>전송과 응답을 모두 기다릴 수 있는 형식화된 전송 결과입니다.</returns>
+    /// <param name="request">큐에 추가할 요청 메시지입니다.</param>
+    /// <param name="timeout">선택적 응답 대기 시간입니다.</param>
+    /// <returns>송신 완료와 응답 완료를 함께 추적하는 결과입니다.</returns>
     public ISendResult<TResponse> Send<TRequest, TResponse>(TRequest request, TimeSpan? timeout = null)
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
-        var sendResult = Send(request);
         var responseTcs = new TaskCompletionSource<TResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        return new SendResult<TResponse>(sendResult.SendCompletedTask, responseTcs.Task);
+        var sendCompletedTask = SendRequest(request, responseTcs, timeout);
+        return new SendResult<TResponse>(sendCompletedTask, responseTcs.Task);
+    }
+
+    /// <summary>
+    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
+    /// </summary>
+    /// <typeparam name="TResponse">완료할 응답 형식입니다.</typeparam>
+    /// <param name="response">완료할 응답 메시지입니다.</param>
+    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    public bool TryCompleteResponse<TResponse>(TResponse response)
+        where TResponse : IResponseMessage
+    {
+        TaskCompletionSource<TResponse>? responseTcs;
+
+        lock (_syncRoot)
+        {
+            if (!_pendingResponses.TryGetValue(response.CorrelationId, out var pending) ||
+                pending is not TaskCompletionSource<TResponse> typedPending)
+            {
+                return false;
+            }
+
+            _pendingResponses.Remove(response.CorrelationId);
+            _pendingRequestStore.Complete(response.CorrelationId);
+            responseTcs = typedPending;
+        }
+
+        responseTcs.TrySetResult(response);
+        return true;
+    }
+
+    private Task SendRequest<TRequest, TResponse>(
+        TRequest request,
+        TaskCompletionSource<TResponse> responseTcs,
+        TimeSpan? timeout)
+        where TRequest : IRequestMessage
+        where TResponse : IResponseMessage
+    {
+        if (!_outbound.Writer.TryWrite(request))
+        {
+            var exception = new InvalidOperationException("Outbound queue is full.");
+            responseTcs.TrySetException(exception);
+            return Task.FromException(exception);
+        }
+
+        lock (_syncRoot)
+        {
+            _pendingResponses[request.CorrelationId] = responseTcs;
+            _pendingRequestStore.Register(request.CorrelationId);
+        }
+
+        if (timeout is { } responseTimeout && responseTimeout > TimeSpan.Zero)
+        {
+            _ = HandleTimeoutAsync(request.CorrelationId, responseTimeout, responseTcs);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleTimeoutAsync<TResponse>(
+        Guid correlationId,
+        TimeSpan timeout,
+        TaskCompletionSource<TResponse> responseTcs)
+        where TResponse : IResponseMessage
+    {
+        await Task.Delay(timeout).ConfigureAwait(false);
+
+        lock (_syncRoot)
+        {
+            if (!_pendingResponses.Remove(correlationId))
+            {
+                return;
+            }
+
+            _pendingRequestStore.Complete(correlationId);
+        }
+
+        responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
     }
 }
