@@ -40,18 +40,34 @@
 - [x] 일부 한글 주석은 콘솔 출력 인코딩 때문에 깨져 보이지만 파일 자체는 한글 주석 기준으로 유지 중
 - [x] 아직 테스트 구조 재배치 작업이 끝나지 않아 워크트리에 미커밋 변경이 남아 있음
 
-### 6. 현재 미커밋 상태
-- [ ] `.agents/skills/06-commit-governance/SKILL.md` 변경 정리 필요
-- [ ] `docs/current-plan.md` 변경 정리 필요
-- [ ] `tests/CommLib.Unit.Tests`에서 인프라 테스트 삭제 변경 정리 필요
-- [ ] `tests/CommLib.Infrastructure.Tests` 신규 파일 추가 변경 정리 필요
-- [ ] `commlib-codex-full.sln` 변경 커밋 필요
-- [ ] `tests/CommLib.Unit.Tests/DeviceBootstrapperTests.cs` 추가 테스트 변경 커밋 필요
+### 6. 추가 완료 작업
+- [x] `DeviceProfileMapper.cs`의 `CS8506` 빌드 오류 수정
+- [x] `DeviceProfileValidatorTests`를 현재 정적 검증 API에 맞게 정리
+- [x] `ConnectionManagerTests`에 타 장치 세션 유지 검증 추가
+- [x] `ConnectionManagerTests`에 전송 생성 실패 시 세션 미등록 검증 추가
+- [x] `DeviceSessionTests` 신규 추가
+- [x] `SendResultTests` 신규 추가
+- [x] `TransportFactoryTests`에 새 인스턴스 생성 검증 추가
+- [x] `TransportFactoryTests`에 미지원 형식 예외 메시지 검증 추가
 
-### 7. 내일 할 일
-- [ ] `ConnectionManager` 테스트를 더 작은 책임 단위로 계속 분리
-- [ ] `TransportFactoryTests`를 입력별/예외별 작은 단위 검증 중심으로 재점검
-- [ ] 인프라 테스트 재배치 작업을 마무리하고 테스트 변경만 별도 커밋
-- [ ] `DeviceProfileMapper.cs`의 `CS8506` 컴파일 오류 수정
-- [ ] `CommLib.Infrastructure.Tests`와 나머지 테스트 프로젝트 경계를 다시 한 번 검토
-- [ ] 브랜치 기반으로 작은 기능 단위 작업 후 push/PR 흐름 시범 적용
+### 7. 검증 결과
+- [x] `dotnet build commlib-codex-full.sln` 통과
+- [x] `dotnet test commlib-codex-full.sln` 통과
+- [x] `CommLib.Unit.Tests` 13개 테스트 통과 확인
+- [x] `CommLib.Infrastructure.Tests` 14개 테스트 통과 확인
+
+### 8. 최근 커밋
+- [x] `21553db` `wip(test): 인프라 테스트 재배치 진행`
+- [x] `09af57d` `fix(application): restore mapper build and validator test`
+- [x] `525b4ce` `test: add session and connection edge case coverage`
+- [x] `f7753e9` `test(infra): tighten transport factory coverage`
+
+### 9. 현재 상태
+- [x] 현재 워킹트리는 추적 대상 변경 없이 깨끗함
+- [x] `CommLib.Infrastructure.Tests` / `CommLib.Unit.Tests` 분리 기준이 코드와 테스트에 반영됨
+
+### 10. 다음 작업 후보
+- [ ] `DeviceBootstrapper` 추가 경계 조건 검토
+- [ ] `DeviceProfileValidator` 보안성 검증 항목 확장
+- [ ] `CommLib.Infrastructure.Tests`와 `CommLib.Unit.Tests` 경계 재검토
+- [ ] 브랜치 단위 `push/PR` 흐름 시범 적용
