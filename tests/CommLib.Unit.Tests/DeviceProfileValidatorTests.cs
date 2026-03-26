@@ -29,7 +29,7 @@ public sealed class DeviceProfileValidatorTests
             Serializer = new SerializerOptions()
         };
 
-        Assert.Throws<InvalidOperationException>(() => profile.ValidateAndThrow());
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
     /// <summary>
