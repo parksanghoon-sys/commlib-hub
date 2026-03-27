@@ -118,3 +118,56 @@
 - [x] `DeviceProfileValidator`에 UDP `RemoteHost`/`RemotePort` 동시 설정 규칙 추가
 - [x] `DeviceProfileValidator`에 Multicast TTL 양수 검증 추가
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 재실행 통과 (`37`개 테스트)
+
+### 9. 작업 업데이트 (Protocol / Transport / Connection Pipeline)
+- [x] `feat/protocol-frame-pipeline` 브랜치 생성 후 protocol frame pipeline 전용 이슈/PR 초안 문서 추가
+- [x] `IProtocol`, `LengthPrefixedProtocol`, `MessageFrameEncoder`, `MessageFrameDecoder`를 추가/확장해 `message -> payload -> frame -> payload -> message` 경로 골격 구성
+- [x] `ITransport`에 `SendAsync`와 `ReceiveAsync` 계약을 추가하고 `StubTransports`를 송수신 기록형 구현으로 확장
+- [x] `IProtocolFactory`, `ISerializerFactory`, `ConnectionManager.SendAsync`, `ConnectionManager.ReceiveAsync`, `ConnectionManager.TryHandleInboundFrame`까지 연결해 장치별 송수신 파이프라인 골격 구성
+- [x] `DeviceSession` outbound dequeue와 응답 완료 경로를 `ConnectionManager` 수신 처리와 연결
+- [x] 인프라 테스트 보강: `LengthPrefixedProtocolTests`, `MessageFrameEncoderTests`, `MessageFrameDecoderTests`, `StubTransportsTests`, `TransportMessageSenderTests`, `TransportMessageReceiverTests`, `ConnectionManagerTests`
+- [x] 검증 완료: `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`39`개 테스트)
+- [x] 검증 완료: `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`48`개 테스트)
+- [x] 현재 미커밋 변경은 session/connection inbound 통합과 transport receive 골격 관련 파일에만 존재
+
+### 10. 내일 할 일
+- [ ] 현재 워크트리 변경을 기능 단위로 나눠 커밋 정리
+- [ ] `ConnectionManager` 송수신 루프를 실제 transport 수명주기와 연결할지, 별도 background pump로 분리할지 구조 결정
+- [ ] `NoOpSerializer` 대신 요청/응답 상관관계와 payload 본문을 실제로 담는 serializer 방향 정리
+- [ ] transport별 실제 connect/read/write loop 초안(TCP, UDP, Serial, Multicast) 중 우선순위 1개를 선택해 첫 구현 착수
+- [ ] inbound response가 `DeviceSession` pending 완료까지 이어지는 경로를 더 일반화하고 에러/timeout/unknown response 처리 보강
+
+## 2026-03-27
+
+### 1. 오늘 작업 초점
+- [ ] `TransportMessageReceiver` 구현을 `ITransport.ReceiveAsync` 계약과 맞춰 마무리
+- [ ] `ConnectionManager` inbound 처리 경로와 `TransportMessageReceiver` 연결 방식을 정리
+- [ ] `DeviceSession` pending response 완료 흐름이 inbound 수신 결과와 자연스럽게 이어지는지 점검
+
+### 2. 현재 작업 상태
+- [x] 워크트리에 `TransportMessageReceiver` / `TransportMessageReceiverTests` 신규 파일이 추가된 상태 확인
+- [x] `DeviceSession`, `ConnectionManager`, `ITransport`, 관련 테스트 파일에 미커밋 변경이 이어지고 있는 상태 확인
+- [x] 오늘 세션 시작 기준으로 `PROGRESS.md`에는 `2026-03-27` 섹션이 아직 없어 새 날짜 섹션 추가 필요 확인
+
+### 3. 오늘 할 일 정리
+- [ ] `src/CommLib.Infrastructure/Transport/TransportMessageReceiver.cs`에서 불완전 frame, decode 실패, cancellation 처리 기준 확정
+- [ ] `tests/CommLib.Infrastructure.Tests/TransportMessageReceiverTests.cs`에 정상 수신, decode 실패, 불완전 frame 케이스 보강
+- [ ] `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`가 receiver를 직접 사용해야 하는지, 현재 `TryHandleInboundFrame` 경로를 유지할지 결정
+- [ ] `tests/CommLib.Infrastructure.Tests/ConnectionManagerTests.cs`에서 inbound response 완료, unknown response, 예외 전파 시나리오 점검
+- [ ] 관련 인터페이스 변경(`ITransport`, `IConnectionManager`, `IDeviceSession`)이 테스트 책임 경계를 흔들지 않는지 확인
+
+### 4. 다음 세션 전 체크포인트
+- [ ] 구현 방향이 정리되면 기능 단위로 커밋 범위를 나누기
+- [ ] 최소 `CommLib.Infrastructure.Tests`와 영향받는 `CommLib.Unit.Tests` 실행으로 회귀 확인
+
+### 5. 오늘 우선순위 요약
+- [ ] `TransportMessageReceiver` 수신/디코드 실패 기준을 먼저 고정
+- [ ] `ConnectionManager` inbound 처리와 response 완료 흐름을 receiver 기준으로 정리
+- [ ] `TransportMessageReceiverTests`, `ConnectionManagerTests` 보강 후 관련 테스트 실행
+
+### 6. 오늘 진행 업데이트
+- [x] `TransportMessageReceiverTests`에 decode 실패 시 `InvalidOperationException` 전파 케이스 추가
+- [x] `TransportMessageReceiverTests`에 cancellation 전파 케이스 추가
+- [x] `ConnectionManagerTests`에 `ReceiveAsync` 불완전 frame 예외 전파 케이스 추가
+- [x] `ConnectionManagerTests`에 미등록 장치 `ReceiveAsync` 예외 케이스 추가
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`52`개)

@@ -117,6 +117,31 @@ public sealed class DeviceSession : IDeviceSession
         return true;
     }
 
+    /// <summary>
+    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
+    /// </summary>
+    /// <param name="response">완료 처리할 응답 메시지입니다.</param>
+    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    public bool TryCompleteResponse(IResponseMessage response)
+    {
+        lock (_syncRoot)
+        {
+            if (!_pendingResponses.TryGetValue(response.CorrelationId, out var pending))
+            {
+                return false;
+            }
+
+            _pendingResponses.Remove(response.CorrelationId);
+            _pendingRequestStore.Complete(response.CorrelationId);
+
+            return pending switch
+            {
+                TaskCompletionSource<IResponseMessage> typed => typed.TrySetResult(response),
+                _ => TrySetResponseResult(pending, response)
+            };
+        }
+    }
+
     private Task SendRequest<TRequest, TResponse>(
         TRequest request,
         TaskCompletionSource<TResponse> responseTcs,
@@ -164,5 +189,23 @@ public sealed class DeviceSession : IDeviceSession
         }
 
         responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
+    }
+
+    private static bool TrySetResponseResult(object pending, IResponseMessage response)
+    {
+        var pendingType = pending.GetType();
+        if (!pendingType.IsGenericType || pendingType.GetGenericTypeDefinition() != typeof(TaskCompletionSource<>))
+        {
+            return false;
+        }
+
+        var responseType = pendingType.GetGenericArguments()[0];
+        if (!responseType.IsInstanceOfType(response))
+        {
+            return false;
+        }
+
+        var trySetResult = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetResult));
+        return trySetResult is not null && (bool)(trySetResult.Invoke(pending, new object[] { response }) ?? false);
     }
 }

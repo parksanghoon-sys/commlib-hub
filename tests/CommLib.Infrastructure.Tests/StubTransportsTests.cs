@@ -55,4 +55,19 @@ public sealed class StubTransportsTests
         Assert.Equal(1, serial.SendCount);
         Assert.Equal(1, multicast.SendCount);
     }
+
+    /// <summary>
+    /// inbound 큐에 적재한 프레임을 ReceiveAsync로 다시 꺼낼 수 있는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TcpTransport_ReceiveAsync_ReturnsQueuedInboundFrame()
+    {
+        var transport = new TcpTransport();
+        transport.EnqueueInboundFrame(new byte[] { 0x01, 0x02, 0x03 });
+
+        var frame = await transport.ReceiveAsync();
+
+        Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, frame.ToArray());
+        Assert.Equal(1, transport.ReceiveCount);
+    }
 }

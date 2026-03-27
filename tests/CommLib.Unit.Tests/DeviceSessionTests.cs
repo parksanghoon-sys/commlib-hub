@@ -93,6 +93,25 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
+    /// 비제네릭 응답 완료 경로도 대기 중인 요청을 완료 처리하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryCompleteResponse_NonGenericOverload_CompletesTaskAndRemovesPendingEntry()
+    {
+        var session = new DeviceSession("device-1");
+        var request = new FakeRequestMessage(10);
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        IResponseMessage response = new FakeResponseMessage(11) { CorrelationId = request.CorrelationId };
+
+        var completed = session.TryCompleteResponse(response);
+        var completedResponse = await result.ResponseTask;
+
+        Assert.True(completed);
+        Assert.Equal((ushort)11, completedResponse.MessageId);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
     /// 알 수 없는 상관관계 응답은 완료 처리하지 않고 무시하는지 확인합니다.
     /// </summary>
     [Fact]

@@ -32,6 +32,13 @@ public interface IDeviceSession
         where TResponse : IResponseMessage;
 
     /// <summary>
+    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
+    /// </summary>
+    /// <param name="response">완료 처리할 응답 메시지입니다.</param>
+    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    bool TryCompleteResponse(IResponseMessage response);
+
+    /// <summary>
     /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.
     /// </summary>
     /// <param name="message">꺼낸 outbound 메시지입니다.</param>

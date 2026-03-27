@@ -103,5 +103,10 @@ public sealed class TransportMessageSenderTests
             SendCount++;
             return Task.CompletedTask;
         }
+
+        public Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 }

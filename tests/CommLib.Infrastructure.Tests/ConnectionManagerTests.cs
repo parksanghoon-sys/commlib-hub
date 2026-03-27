@@ -2,6 +2,7 @@ using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;
+using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Sessions;
 using Xunit;
 
@@ -108,6 +109,130 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// inbound frame을 처리하면 메시지를 복원하고 소비 바이트 수를 반환하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryHandleInboundFrame_CompleteFrame_ReturnsDecodedMessage()
+    {
+        var manager = CreateManager(protocolFactory: new ProtocolFactory());
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        var handled = manager.TryHandleInboundFrame(
+            profile.DeviceId,
+            new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4', (byte)'2' },
+            out var message,
+            out var bytesConsumed);
+
+        Assert.True(handled);
+        Assert.NotNull(message);
+        Assert.Equal((ushort)42, message.MessageId);
+        Assert.Equal(6, bytesConsumed);
+    }
+
+    /// <summary>
+    /// inbound frame이 미완성이면 메시지를 복원하지 않는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryHandleInboundFrame_IncompleteFrame_ReturnsFalse()
+    {
+        var manager = CreateManager(protocolFactory: new ProtocolFactory());
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        var handled = manager.TryHandleInboundFrame(
+            profile.DeviceId,
+            new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4' },
+            out var message,
+            out var bytesConsumed);
+
+        Assert.False(handled);
+        Assert.Null(message);
+        Assert.Equal(0, bytesConsumed);
+    }
+
+    /// <summary>
+    /// 응답 frame을 처리하면 세션의 pending 요청이 완료되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryHandleInboundFrame_ResponseFrame_CompletesPendingRequest()
+    {
+        var manager = CreateManager(
+            protocolFactory: new ProtocolFactory(),
+            serializerFactory: new ResponseSerializerFactory());
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var request = new FakeRequestMessage(7) { CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111") };
+        var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        session.TryDequeueOutbound(out _);
+
+        var handled = manager.TryHandleInboundFrame(
+            profile.DeviceId,
+            new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' },
+            out var message,
+            out var bytesConsumed);
+
+        var response = await sendResult.ResponseTask;
+
+        Assert.True(handled);
+        Assert.NotNull(message);
+        Assert.Equal((ushort)7, response.MessageId);
+        Assert.Equal(request.CorrelationId, response.CorrelationId);
+        Assert.Equal(5, bytesConsumed);
+    }
+
+    /// <summary>
+    /// transport 수신 경로를 타면 inbound 메시지를 복원해 반환하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_QueuedInboundFrame_ReturnsDecodedMessage()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory());
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4', (byte)'2' });
+
+        var message = await manager.ReceiveAsync(profile.DeviceId);
+
+        Assert.Equal((ushort)42, message.MessageId);
+        Assert.Equal(1, transportFactory.Transport.ReceiveCount);
+    }
+
+    /// <summary>
+    /// transport 수신 응답 메시지는 pending 요청 완료까지 연결되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_ResponseMessage_CompletesPendingRequest()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            serializerFactory: new ResponseSerializerFactory());
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var request = new FakeRequestMessage(7) { CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111") };
+        var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        session.TryDequeueOutbound(out _);
+        transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' });
+
+        var message = await manager.ReceiveAsync(profile.DeviceId);
+        var response = await sendResult.ResponseTask;
+
+        Assert.Equal((ushort)7, message.MessageId);
+        Assert.Equal(request.CorrelationId, response.CorrelationId);
+    }
+
+    /// <summary>
     /// 연결되지 않은 장치 식별자로 송신하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
@@ -205,6 +330,38 @@ public sealed class ConnectionManagerTests
         Assert.Null(session);
     }
 
+    /// <summary>
+    /// 완전한 inbound frame이 아니면 receiver 예외가 그대로 전파되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_IncompleteFrame_ThrowsInvalidOperationException()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory());
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4' });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ReceiveAsync(profile.DeviceId));
+
+        Assert.Equal("Received frame did not contain a complete message.", exception.Message);
+    }
+
+    /// <summary>
+    /// 연결되지 않은 장치에서 수신을 시도하면 예외를 발생시키는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_UnknownDevice_Throws()
+    {
+        var manager = CreateManager();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ReceiveAsync("missing-device"));
+
+        Assert.Contains("missing-device", exception.Message);
+    }
+
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,
@@ -241,6 +398,16 @@ public sealed class ConnectionManagerTests
     }
 
     private sealed record FakeMessage(ushort MessageId) : IMessage;
+    private sealed record FakeRequestMessage(ushort MessageId) : IRequestMessage
+    {
+        public Guid CorrelationId { get; init; } = Guid.NewGuid();
+    }
+
+    private sealed record FakeResponseMessage(ushort MessageId) : IResponseMessage
+    {
+        public Guid CorrelationId { get; init; } = Guid.NewGuid();
+        public bool IsSuccess { get; init; } = true;
+    }
 
     private sealed class FakeTransportFactory : ITransportFactory
     {
@@ -263,12 +430,33 @@ public sealed class ConnectionManagerTests
 
         public int SendCount { get; private set; }
 
+        public int ReceiveCount { get; private set; }
+
+        private readonly Queue<byte[]> _inbound = new();
+
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             LastFrame = frame.ToArray();
             SendCount++;
             return Task.CompletedTask;
+        }
+
+        public void EnqueueInboundFrame(byte[] frame)
+        {
+            _inbound.Enqueue(frame);
+        }
+
+        public Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_inbound.Count == 0)
+            {
+                throw new InvalidOperationException("No inbound frame queued.");
+            }
+
+            ReceiveCount++;
+            return Task.FromResult<ReadOnlyMemory<byte>>(_inbound.Dequeue());
         }
     }
 
@@ -314,6 +502,14 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    private sealed class ResponseSerializerFactory : ISerializerFactory
+    {
+        public ISerializer Create(SerializerOptions options)
+        {
+            return new ResponseSerializer();
+        }
+    }
+
     private sealed class FakeSerializer : ISerializer
     {
         public byte[] Serialize(IMessage message)
@@ -325,6 +521,23 @@ public sealed class ConnectionManagerTests
         {
             var text = System.Text.Encoding.UTF8.GetString(payload);
             return new FakeMessage(ushort.Parse(text));
+        }
+    }
+
+    private sealed class ResponseSerializer : ISerializer
+    {
+        public byte[] Serialize(IMessage message)
+        {
+            return System.Text.Encoding.UTF8.GetBytes(message.MessageId.ToString());
+        }
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            var text = System.Text.Encoding.UTF8.GetString(payload);
+            return new FakeResponseMessage(ushort.Parse(text))
+            {
+                CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111")
+            };
         }
     }
 

@@ -218,6 +218,18 @@ public sealed class DeviceBootstrapperTests
         /// </summary>
         /// <param name="deviceId">조회할 장치 식별자입니다.</param>
         /// <returns>항상 <see langword="null"/>을 반환합니다.</returns>
+        /// <summary>
+        /// 遺?몄뒪?몃옪 ?뚯뒪?몄뿉?쒕뒗 ?섏떊 湲곕뒫???ъ슜?섏? ?딆뒿?덈떎.
+        /// </summary>
+        /// <param name="deviceId">硫붿떆吏瑜??섏떊???μ튂 ?앸퀎?먯엯?덈떎.</param>
+        /// <param name="cancellationToken">?섏떊 痍⑥냼 ?좏겙?낅땲??</param>
+        /// <returns>?붾뒗?먮━??<see cref="NotSupportedException"/>???쒖젙?덈떎.</returns>
+        public Task<IMessage> ReceiveAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException();
+        }
+
         public IDeviceSession? GetSession(string deviceId) => null;
     }
 }

@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using CommLib.Domain.Transport;
 
 namespace CommLib.Infrastructure.Transport;
@@ -7,6 +8,8 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public abstract class RecordingTransport : ITransport
 {
+    private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
+
     /// <summary>
     /// 마지막으로 전송한 프레임을 가져옵니다.
     /// </summary>
@@ -16,6 +19,16 @@ public abstract class RecordingTransport : ITransport
     /// 누적 전송 횟수를 가져옵니다.
     /// </summary>
     public int SendCount { get; private set; }
+
+    /// <summary>
+    /// 수신 대기열에 적재한 마지막 프레임을 가져옵니다.
+    /// </summary>
+    public byte[]? LastQueuedInboundFrame { get; private set; }
+
+    /// <summary>
+    /// 누적 수신 횟수를 가져옵니다.
+    /// </summary>
+    public int ReceiveCount { get; private set; }
 
     /// <summary>
     /// 전송 이름을 가져옵니다.
@@ -34,6 +47,28 @@ public abstract class RecordingTransport : ITransport
         LastSentFrame = frame.ToArray();
         SendCount++;
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 테스트용 inbound 프레임을 수신 대기열에 적재합니다.
+    /// </summary>
+    /// <param name="frame">수신 대기열에 넣을 프레임입니다.</param>
+    public void EnqueueInboundFrame(byte[] frame)
+    {
+        LastQueuedInboundFrame = frame;
+        _inbound.Writer.TryWrite(frame);
+    }
+
+    /// <summary>
+    /// 다음 inbound 프레임을 비동기로 가져옵니다.
+    /// </summary>
+    /// <param name="cancellationToken">수신 취소에 사용하는 토큰입니다.</param>
+    /// <returns>수신한 프레임입니다.</returns>
+    public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+    {
+        var frame = await _inbound.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        ReceiveCount++;
+        return frame;
     }
 }
 

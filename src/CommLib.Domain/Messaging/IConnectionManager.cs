@@ -25,6 +25,14 @@ public interface IConnectionManager
     Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 지정한 장치 식별자로 다음 inbound 메시지를 수신합니다.
+    /// </summary>
+    /// <param name="deviceId">메시지를 수신할 장치 식별자입니다.</param>
+    /// <param name="cancellationToken">수신 취소 토큰입니다.</param>
+    /// <returns>복원된 inbound 메시지입니다.</returns>
+    Task<IMessage> ReceiveAsync(string deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 지정한 장치 식별자에 대한 연결된 활성 세션을 가져옵니다.
     /// </summary>
     /// <param name="deviceId">조회할 장치 식별자입니다.</param>
