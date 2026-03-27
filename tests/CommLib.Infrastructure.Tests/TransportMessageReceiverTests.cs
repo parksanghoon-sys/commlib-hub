@@ -62,6 +62,40 @@ public sealed class TransportMessageReceiverTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => receiver.ReceiveAsync(cancellationTokenSource.Token));
     }
 
+    /// <summary>
+    /// 직접 decode 경로도 완전한 frame을 메시지로 복원하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void TryDecode_CompleteFrame_ReturnsDecodedMessage()
+    {
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new FakeProtocol(new byte[] { 0x10 }), new FakeSerializer(new FakeMessage(42))),
+            new FakeTransport(new byte[] { 0x01, 0x02 }));
+
+        var handled = receiver.TryDecode(new byte[] { 0x01, 0x02 }, out var message, out var bytesConsumed);
+
+        Assert.True(handled);
+        Assert.Equal((ushort)42, message.MessageId);
+        Assert.Equal(2, bytesConsumed);
+    }
+
+    /// <summary>
+    /// 직접 decode 경로는 미완전 frame에서 false를 반환하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void TryDecode_IncompleteFrame_ReturnsFalse()
+    {
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new IncompleteProtocol(), new FakeSerializer(new FakeMessage(42))),
+            new FakeTransport(new byte[] { 0x01 }));
+
+        var handled = receiver.TryDecode(new byte[] { 0x01 }, out var message, out var bytesConsumed);
+
+        Assert.False(handled);
+        Assert.Null(message);
+        Assert.Equal(0, bytesConsumed);
+    }
+
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
     private sealed class FakeTransport : ITransport

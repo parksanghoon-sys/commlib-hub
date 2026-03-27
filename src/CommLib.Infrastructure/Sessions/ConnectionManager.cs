@@ -18,7 +18,6 @@ public sealed class ConnectionManager : IConnectionManager
     private readonly ISerializerFactory _serializerFactory;
     private readonly Dictionary<string, IDeviceSession> _sessions = new();
     private readonly Dictionary<string, TransportMessageSender> _senders = new();
-    private readonly Dictionary<string, MessageFrameDecoder> _decoders = new();
     private readonly Dictionary<string, TransportMessageReceiver> _receivers = new();
 
     /// <summary>
@@ -53,7 +52,6 @@ public sealed class ConnectionManager : IConnectionManager
         var receiver = new TransportMessageReceiver(decoder, transport);
 
         _senders[profile.DeviceId] = sender;
-        _decoders[profile.DeviceId] = decoder;
         _receivers[profile.DeviceId] = receiver;
         _sessions[profile.DeviceId] = new DeviceSession(profile.DeviceId);
         return Task.CompletedTask;
@@ -132,9 +130,9 @@ public sealed class ConnectionManager : IConnectionManager
         message = null;
         bytesConsumed = 0;
 
-        if (!_decoders.TryGetValue(deviceId, out var decoder))
+        if (!_receivers.TryGetValue(deviceId, out var receiver))
         {
-            throw new InvalidOperationException($"No decoder registered for device '{deviceId}'.");
+            throw new InvalidOperationException($"No receiver registered for device '{deviceId}'.");
         }
 
         if (!_sessions.TryGetValue(deviceId, out var session))
@@ -142,11 +140,12 @@ public sealed class ConnectionManager : IConnectionManager
             throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
         }
 
-        if (!decoder.TryDecode(buffer, out message, out bytesConsumed))
+        if (!receiver.TryDecode(buffer, out var decodedMessage, out bytesConsumed))
         {
             return false;
         }
 
+        message = decodedMessage;
         if (message is IResponseMessage response)
         {
             session.TryCompleteResponse(response);
