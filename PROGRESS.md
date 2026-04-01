@@ -193,6 +193,8 @@
 - [x] `ConnectionManagerTests`에 queued inbound drop 후 reconnect 검증 케이스 추가
 - [x] 선택적 메시지 body 계약 `IMessageBody`를 추가하고 `NoOpSerializer`가 base64 body payload를 직렬화/복원하도록 확장
 - [x] `NoOpSerializerTests`, `MessageFrameEncoderTests`, `MessageFrameDecoderTests`, `ConnectionManagerTests`를 body payload 형식에 맞게 보강
+- [x] `ConnectionManager`가 `IAsyncDisposable`을 구현해 활성 연결 전체를 일괄 정리할 수 있도록 `DisposeAsync` 경로 추가
+- [x] `ConnectionManagerTests`에 dispose 후 모든 transport close / session 제거 / 기존 device 송신 차단 케이스 추가
 
 ### 8. 오늘 검증
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`58`개 테스트)
@@ -205,6 +207,8 @@
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`70`개 테스트)
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~NoOpSerializerTests|FullyQualifiedName~MessageFrameEncoderTests|FullyQualifiedName~MessageFrameDecoderTests|FullyQualifiedName~ConnectionManagerTests.SendAsync_WithDefaultFactories"` 통과 (`16`개 테스트)
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`73`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 재통과 (`32`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 75개, `CommLib.Unit.Tests` 39개)
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`39`개 테스트)
 - [x] `dotnet test commlib-codex-full.sln` 통과
 
@@ -217,3 +221,4 @@
 - [ ] 실제 socket/serial transport dispose 전략과 close 중 in-flight receive 정리 방식 구체화
 - [x] serializer payload 형식을 실제 요청/응답 body까지 담도록 1차 확장
 - [ ] body payload를 실제 도메인 메시지 모델/실사용 serializer 설계로 일반화
+- [x] manager 전체 종료 수명주기 1차 버전으로 `ConnectionManager.DisposeAsync` 추가
