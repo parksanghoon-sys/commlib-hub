@@ -662,6 +662,23 @@ public sealed class ConnectionManagerTests
         Assert.Contains(profile.DeviceId, exception.Message);
     }
 
+    /// <summary>
+    /// disconnect 시 transport에 걸려 있던 대기 수신도 함께 종료되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_CancelsPendingTransportReceive()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        var pendingReceive = transportFactory.Transport.ReceiveAsync();
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
+    }
+
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,
@@ -726,6 +743,7 @@ public sealed class ConnectionManagerTests
     private sealed class FakeTransport : ITransport
     {
         private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
+        private readonly CancellationTokenSource _closeTokenSource = new();
 
         public string Name => "FakeTransport";
 
@@ -755,7 +773,8 @@ public sealed class ConnectionManagerTests
         public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfClosed();
-            var frame = await _inbound.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
+            var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
             ReceiveCount++;
             return frame;
         }
@@ -769,6 +788,7 @@ public sealed class ConnectionManagerTests
             }
 
             IsClosed = true;
+            _closeTokenSource.Cancel();
             _inbound.Writer.TryComplete();
             return Task.CompletedTask;
         }

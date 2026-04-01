@@ -9,6 +9,7 @@ namespace CommLib.Infrastructure.Transport;
 public abstract class RecordingTransport : ITransport
 {
     private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
+    private readonly CancellationTokenSource _closeTokenSource = new();
 
     /// <summary>
     /// transport 정리 여부를 나타냅니다.
@@ -74,7 +75,8 @@ public abstract class RecordingTransport : ITransport
     public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfClosed();
-        var frame = await _inbound.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
+        var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
         ReceiveCount++;
         return frame;
     }
@@ -93,6 +95,7 @@ public abstract class RecordingTransport : ITransport
         }
 
         IsClosed = true;
+        _closeTokenSource.Cancel();
         _inbound.Writer.TryComplete();
         return Task.CompletedTask;
     }

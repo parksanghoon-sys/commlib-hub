@@ -98,4 +98,18 @@ public sealed class StubTransportsTests
 
         Assert.True(transport.IsClosed);
     }
+
+    /// <summary>
+    /// 대기 중인 수신은 transport close 시 취소되어 빠져나오는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task CloseAsync_PendingReceive_IsCanceled()
+    {
+        var transport = new TcpTransport();
+        var pendingReceive = transport.ReceiveAsync();
+
+        await transport.CloseAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
+    }
 }
