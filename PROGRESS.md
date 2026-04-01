@@ -171,3 +171,44 @@
 - [x] `ConnectionManagerTests`에 `ReceiveAsync` 불완전 frame 예외 전파 케이스 추가
 - [x] `ConnectionManagerTests`에 미등록 장치 `ReceiveAsync` 예외 케이스 추가
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`52`개)
+
+### 7. 오늘 추가 진행
+- [x] `feat(infra): add transport receive pipeline` 커밋 생성 (`8778ea7`)
+- [x] `refactor(infra): route inbound decode through receiver` 커밋 생성 (`9ef86fb`)
+- [x] `ConnectionManager`가 inbound decode를 `TransportMessageReceiver` 한 경로로 사용하도록 정리
+- [x] `TransportMessageReceiver`에 `TryDecode` 진입점 추가 후 관련 테스트 보강
+- [x] `DeviceBootstrapperTests`의 fake `IConnectionManager`를 최신 `ReceiveAsync` 계약에 맞게 보강
+- [x] `NoOpSerializer`가 `request` / `response` 상관관계 정보를 payload에 담도록 확장
+- [x] `MessageFrameEncoderTests`, `MessageFrameDecoderTests`, `NoOpSerializerTests`를 새 serializer 형식에 맞게 갱신
+- [x] `DeviceBootstrapperTests`의 깨진 XML 주석 문자열 전수 점검 후 손상된 주석 교정
+- [x] `ConnectionManagerTests`에 기본 `ProtocolFactory` / `SerializerFactory` 조합 request/response 통합 케이스 추가
+- [x] 최소 `NoOpSerializer`는 concrete response 대신 `IResponseMessage` 수준 복원 계약으로 테스트를 정리
+- [x] `ConnectionManager`에 장치별 background receive pump와 inbound queue를 추가해 매칭된 응답을 자동 완료하도록 확장
+- [x] `ConnectionManagerTests` fake transport를 비동기 inbound queue 기반으로 바꾸고 auto-complete / unmatched response 케이스를 보강
+- [x] `IConnectionManager`에 `DisconnectAsync` 계약을 추가하고 `ConnectionManager`가 session/send/receive pump 정리를 수행하도록 확장
+- [x] `ConnectionManagerTests`에 disconnect 후 send/receive 차단, reconnect 복구, unknown device 예외 케이스 추가
+- [x] `ITransport`에 `CloseAsync` 계약을 추가하고 `ConnectionManager.DisconnectAsync`가 transport close까지 호출하도록 확장
+- [x] `StubTransportsTests`, `ConnectionManagerTests`, transport message sender/receiver fake transport를 새 close 계약에 맞게 보강
+- [x] disconnect 시 이전 inbound queue는 `drop` 정책으로 완료/비우기 처리하고 reconnect 이후 새 queue로 누수되지 않도록 정리
+- [x] `ConnectionManagerTests`에 queued inbound drop 후 reconnect 검증 케이스 추가
+
+### 8. 오늘 검증
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`58`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`60`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 통과 (`23`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build` 통과 (`62`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 재통과 (`28`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`69`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 재통과 (`29`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`70`개 테스트)
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`39`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 통과
+
+### 9. 다음 작업 메모
+- [ ] 현재 미커밋 변경(`NoOpSerializer`, 관련 인프라 테스트, `DeviceBootstrapperTests` 주석 수정) 커밋 정리
+- [x] `ConnectionManager` 수신 경로를 background receive pump로 확장
+- [x] receive pump 종료/정리 수명주기 1차 버전으로 `DisconnectAsync` 계약 추가
+- [x] transport 자체 close 1차 계약으로 `ITransport.CloseAsync` 추가
+- [x] disconnect 시 queued inbound는 `drop` 정책으로 정리
+- [ ] 실제 socket/serial transport dispose 전략과 close 중 in-flight receive 정리 방식 구체화
+- [ ] serializer payload 형식을 실제 요청/응답 본문까지 담는 방향으로 확장할지 결정
