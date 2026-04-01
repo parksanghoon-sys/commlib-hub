@@ -255,10 +255,32 @@ public sealed class ConnectionManagerTests
         await manager.SendAsync(profile.DeviceId, request);
 
         Assert.NotNull(transportFactory.Transport.LastFrame);
-        Assert.Equal(46, transportFactory.Transport.LastFrame![3]);
+        Assert.Equal(47, transportFactory.Transport.LastFrame![3]);
         Assert.Equal(
-            "request|7|11111111-1111-1111-1111-111111111111",
+            "request|7|11111111-1111-1111-1111-111111111111|",
             System.Text.Encoding.UTF8.GetString(transportFactory.Transport.LastFrame, 4, transportFactory.Transport.LastFrame.Length - 4));
+    }
+
+    /// <summary>
+    /// body가 있는 메시지는 기본 serializer 조합에서 frame payload에 본문까지 포함하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task SendAsync_WithDefaultFactories_MessageBodyIncludesEncodedPayload()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            serializerFactory: new SerializerFactory());
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        await manager.SendAsync(profile.DeviceId, new FakeBodyMessage(12, "hello|world"));
+
+        Assert.NotNull(transportFactory.Transport.LastFrame);
+        Assert.Equal(
+            "message|12|aGVsbG98d29ybGQ=",
+            System.Text.Encoding.UTF8.GetString(transportFactory.Transport.LastFrame!, 4, transportFactory.Transport.LastFrame!.Length - 4));
     }
 
     /// <summary>
@@ -638,6 +660,7 @@ public sealed class ConnectionManagerTests
     }
 
     private sealed record FakeMessage(ushort MessageId) : IMessage;
+    private sealed record FakeBodyMessage(ushort MessageId, string Body) : IMessage, IMessageBody;
     private sealed record FakeRequestMessage(ushort MessageId) : IRequestMessage
     {
         public Guid CorrelationId { get; init; } = Guid.NewGuid();

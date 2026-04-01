@@ -19,6 +19,7 @@ public sealed class NoOpSerializer : ISerializer
     /// <returns>메시지 payload 바이트 배열입니다.</returns>
     public byte[] Serialize(IMessage message)
     {
+        var encodedBody = TryEncodeBody(message);
         var payload = message switch
         {
             IResponseMessage response => string.Join(
@@ -26,16 +27,19 @@ public sealed class NoOpSerializer : ISerializer
                 "response",
                 message.MessageId.ToString(CultureInfo.InvariantCulture),
                 response.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
-                response.IsSuccess ? "1" : "0"),
+                response.IsSuccess ? "1" : "0",
+                encodedBody),
             IRequestMessage request => string.Join(
                 Separator,
                 "request",
                 message.MessageId.ToString(CultureInfo.InvariantCulture),
-                request.CorrelationId.ToString("D", CultureInfo.InvariantCulture)),
+                request.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
+                encodedBody),
             _ => string.Join(
                 Separator,
                 "message",
-                message.MessageId.ToString(CultureInfo.InvariantCulture))
+                message.MessageId.ToString(CultureInfo.InvariantCulture),
+                encodedBody)
         };
 
         return Encoding.UTF8.GetBytes(payload);
@@ -57,20 +61,60 @@ public sealed class NoOpSerializer : ISerializer
 
         return parts[0] switch
         {
-            "message" when parts.Length == 2 => new DeserializedMessage(messageId),
-            "request" when parts.Length == 3 && TryParseCorrelationId(parts[2], out var requestCorrelationId)
-                => new DeserializedRequestMessage(messageId, requestCorrelationId),
-            "response" when parts.Length == 4 &&
+            "message" when parts.Length is 2 or 3 && TryParseBody(parts, 2, out var messageBody)
+                => new DeserializedMessage(messageId, messageBody),
+            "request" when parts.Length is 3 or 4 &&
+                            TryParseCorrelationId(parts[2], out var requestCorrelationId) &&
+                            TryParseBody(parts, 3, out var requestBody)
+                => new DeserializedRequestMessage(messageId, requestCorrelationId, requestBody),
+            "response" when parts.Length is 4 or 5 &&
                                    TryParseCorrelationId(parts[2], out var responseCorrelationId) &&
-                                   TryParseSuccess(parts[3], out var isSuccess)
-                => new DeserializedResponseMessage(messageId, responseCorrelationId, isSuccess),
+                                   TryParseSuccess(parts[3], out var isSuccess) &&
+                                   TryParseBody(parts, 4, out var responseBody)
+                => new DeserializedResponseMessage(messageId, responseCorrelationId, isSuccess, responseBody),
             _ => throw new InvalidOperationException("Payload does not contain a supported message shape.")
         };
     }
 
-    private sealed record DeserializedMessage(ushort MessageId) : IMessage;
-    private sealed record DeserializedRequestMessage(ushort MessageId, Guid CorrelationId) : IRequestMessage;
-    private sealed record DeserializedResponseMessage(ushort MessageId, Guid CorrelationId, bool IsSuccess) : IResponseMessage;
+    private sealed record DeserializedMessage(ushort MessageId, string Body) : IMessage, IMessageBody;
+    private sealed record DeserializedRequestMessage(ushort MessageId, Guid CorrelationId, string Body) : IRequestMessage, IMessageBody;
+    private sealed record DeserializedResponseMessage(ushort MessageId, Guid CorrelationId, bool IsSuccess, string Body) : IResponseMessage, IMessageBody;
+
+    private static string TryEncodeBody(IMessage message)
+    {
+        if (message is not IMessageBody bodyMessage)
+        {
+            return string.Empty;
+        }
+
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(bodyMessage.Body));
+    }
+
+    private static bool TryParseBody(string[] parts, int index, out string body)
+    {
+        if (parts.Length <= index)
+        {
+            body = string.Empty;
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(parts[index]))
+        {
+            body = string.Empty;
+            return true;
+        }
+
+        try
+        {
+            body = Encoding.UTF8.GetString(Convert.FromBase64String(parts[index]));
+            return true;
+        }
+        catch (FormatException)
+        {
+            body = string.Empty;
+            return false;
+        }
+    }
 
     private static bool TryParseCorrelationId(string text, out Guid correlationId)
     {

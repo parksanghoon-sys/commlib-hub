@@ -56,8 +56,8 @@ public sealed class MessageFrameDecoderTests
         var decoded = decoder.TryDecode(
             new byte[]
             {
-                0x00, 0x00, 0x00, 0x0A,
-                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2'
+                0x00, 0x00, 0x00, 0x0B,
+                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2', (byte)'|'
             },
             out var message,
             out var bytesConsumed);
@@ -65,7 +65,7 @@ public sealed class MessageFrameDecoderTests
         Assert.True(decoded);
         Assert.NotNull(message);
         Assert.Equal((ushort)12, message.MessageId);
-        Assert.Equal(14, bytesConsumed);
+        Assert.Equal(15, bytesConsumed);
     }
 
     private sealed record FakeMessage(ushort MessageId) : IMessage;

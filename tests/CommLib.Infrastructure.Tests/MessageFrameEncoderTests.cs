@@ -41,8 +41,8 @@ public sealed class MessageFrameEncoderTests
         Assert.Equal(
             new byte[]
             {
-                0x00, 0x00, 0x00, 0x0A,
-                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2'
+                0x00, 0x00, 0x00, 0x0B,
+                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2', (byte)'|'
             },
             frame);
     }
