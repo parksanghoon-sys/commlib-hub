@@ -62,23 +62,19 @@ public sealed class NoOpSerializer : ISerializer
         return parts[0] switch
         {
             "message" when parts.Length is 2 or 3 && TryParseBody(parts, 2, out var messageBody)
-                => new DeserializedMessage(messageId, messageBody),
+                => new MessageModel(messageId, messageBody),
             "request" when parts.Length is 3 or 4 &&
                             TryParseCorrelationId(parts[2], out var requestCorrelationId) &&
                             TryParseBody(parts, 3, out var requestBody)
-                => new DeserializedRequestMessage(messageId, requestCorrelationId, requestBody),
+                => new RequestMessageModel(messageId, requestCorrelationId, requestBody),
             "response" when parts.Length is 4 or 5 &&
                                    TryParseCorrelationId(parts[2], out var responseCorrelationId) &&
                                    TryParseSuccess(parts[3], out var isSuccess) &&
                                    TryParseBody(parts, 4, out var responseBody)
-                => new DeserializedResponseMessage(messageId, responseCorrelationId, isSuccess, responseBody),
+                => new ResponseMessageModel(messageId, responseCorrelationId, isSuccess, responseBody),
             _ => throw new InvalidOperationException("Payload does not contain a supported message shape.")
         };
     }
-
-    private sealed record DeserializedMessage(ushort MessageId, string Body) : IMessage, IMessageBody;
-    private sealed record DeserializedRequestMessage(ushort MessageId, Guid CorrelationId, string Body) : IRequestMessage, IMessageBody;
-    private sealed record DeserializedResponseMessage(ushort MessageId, Guid CorrelationId, bool IsSuccess, string Body) : IResponseMessage, IMessageBody;
 
     private static string TryEncodeBody(IMessage message)
     {

@@ -75,7 +75,8 @@ public sealed class NoOpSerializerTests
     {
         var serializer = new NoOpSerializer();
 
-        var message = serializer.Deserialize(System.Text.Encoding.UTF8.GetBytes("message|42|"));
+        var message = Assert.IsType<MessageModel>(
+            serializer.Deserialize(System.Text.Encoding.UTF8.GetBytes("message|42|")));
 
         Assert.Equal((ushort)42, message.MessageId);
         Assert.IsNotAssignableFrom<IRequestMessage>(message);
@@ -91,7 +92,7 @@ public sealed class NoOpSerializerTests
         var serializer = new NoOpSerializer();
         var correlationId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-        var message = Assert.IsAssignableFrom<IRequestMessage>(
+        var message = Assert.IsType<RequestMessageModel>(
             serializer.Deserialize(System.Text.Encoding.UTF8.GetBytes("request|7|33333333-3333-3333-3333-333333333333")));
 
         Assert.Equal((ushort)7, message.MessageId);
@@ -107,7 +108,7 @@ public sealed class NoOpSerializerTests
         var serializer = new NoOpSerializer();
         var correlationId = Guid.Parse("44444444-4444-4444-4444-444444444444");
 
-        var message = Assert.IsAssignableFrom<IResponseMessage>(
+        var message = Assert.IsType<ResponseMessageModel>(
             serializer.Deserialize(System.Text.Encoding.UTF8.GetBytes("response|9|44444444-4444-4444-4444-444444444444|1")));
 
         Assert.Equal((ushort)9, message.MessageId);
@@ -123,10 +124,10 @@ public sealed class NoOpSerializerTests
     {
         var serializer = new NoOpSerializer();
 
-        var message = Assert.IsAssignableFrom<IMessageBody>(
+        var message = Assert.IsType<MessageModel>(
             serializer.Deserialize(System.Text.Encoding.UTF8.GetBytes("message|42|aGVsbG98d29ybGQ=")));
 
-        Assert.Equal((ushort)42, ((IMessage)message).MessageId);
+        Assert.Equal((ushort)42, message.MessageId);
         Assert.Equal("hello|world", message.Body);
     }
 
