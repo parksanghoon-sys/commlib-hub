@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -19,6 +20,10 @@ public sealed class ConnectionManager : IConnectionManager
     private readonly Dictionary<string, IDeviceSession> _sessions = new();
     private readonly Dictionary<string, TransportMessageSender> _senders = new();
     private readonly Dictionary<string, TransportMessageReceiver> _receivers = new();
+    private readonly Dictionary<string, ITransport> _transports = new();
+    private readonly Dictionary<string, Channel<InboundEnvelope>> _inboundQueues = new();
+    private readonly Dictionary<string, CancellationTokenSource> _receivePumpTokens = new();
+    private readonly Dictionary<string, Task> _receivePumpTasks = new();
 
     /// <summary>
     /// <see cref="ConnectionManager"/> 클래스의 새 인스턴스를 초기화합니다.
@@ -44,17 +49,57 @@ public sealed class ConnectionManager : IConnectionManager
     /// <returns>등록 작업입니다.</returns>
     public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        StopReceivePump(profile.DeviceId);
+
         var transport = _transportFactory.Create(profile.Transport);
         var protocol = _protocolFactory.Create(profile.Protocol);
         var serializer = _serializerFactory.Create(profile.Serializer);
         var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
         var decoder = new MessageFrameDecoder(protocol, serializer);
         var receiver = new TransportMessageReceiver(decoder, transport);
+        var session = new DeviceSession(profile.DeviceId);
+        var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
+        var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
+        _transports[profile.DeviceId] = transport;
         _senders[profile.DeviceId] = sender;
         _receivers[profile.DeviceId] = receiver;
-        _sessions[profile.DeviceId] = new DeviceSession(profile.DeviceId);
+        _sessions[profile.DeviceId] = session;
+        _inboundQueues[profile.DeviceId] = inboundQueue;
+        _receivePumpTokens[profile.DeviceId] = receivePumpTokenSource;
+        _receivePumpTasks[profile.DeviceId] = RunReceivePumpAsync(
+            session,
+            receiver,
+            inboundQueue.Writer,
+            receivePumpTokenSource.Token);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 지정한 장치 식별자의 연결 리소스와 수신 수명주기를 정리합니다.
+    /// </summary>
+    /// <param name="deviceId">연결 해제할 장치 식별자입니다.</param>
+    /// <param name="cancellationToken">연결 해제 취소 토큰입니다.</param>
+    /// <returns>연결 해제 처리 작업입니다.</returns>
+    public async Task DisconnectAsync(string deviceId, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_sessions.Remove(deviceId))
+        {
+            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
+        }
+
+        _senders.Remove(deviceId);
+        _receivers.Remove(deviceId);
+        StopReceivePump(deviceId);
+        if (_transports.Remove(deviceId, out var transport))
+        {
+            await transport.CloseAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return;
     }
 
     /// <summary>
@@ -87,23 +132,19 @@ public sealed class ConnectionManager : IConnectionManager
     /// <returns>복원된 inbound 메시지입니다.</returns>
     public async Task<IMessage> ReceiveAsync(string deviceId, CancellationToken cancellationToken = default)
     {
-        if (!_receivers.TryGetValue(deviceId, out var receiver))
-        {
-            throw new InvalidOperationException($"No receiver registered for device '{deviceId}'.");
-        }
-
-        if (!_sessions.TryGetValue(deviceId, out var session))
+        if (!_inboundQueues.TryGetValue(deviceId, out var inboundQueue))
         {
             throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
         }
 
-        var message = await receiver.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-        if (message is IResponseMessage response)
+        var envelope = await inboundQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (envelope.Exception is not null)
         {
-            session.TryCompleteResponse(response);
+            throw envelope.Exception;
         }
 
-        return message;
+        return envelope.Message ??
+               throw new InvalidOperationException($"Inbound queue for device '{deviceId}' returned an empty envelope.");
     }
 
     /// <summary>
@@ -169,5 +210,65 @@ public sealed class ConnectionManager : IConnectionManager
         }
 
         await sender.SendAsync(outbound, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task RunReceivePumpAsync(
+        IDeviceSession session,
+        TransportMessageReceiver receiver,
+        ChannelWriter<InboundEnvelope> inboundWriter,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var message = await receiver.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                if (message is IResponseMessage response && session.TryCompleteResponse(response))
+                {
+                    continue;
+                }
+
+                await inboundWriter.WriteAsync(new InboundEnvelope(message, null), cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!inboundWriter.TryWrite(new InboundEnvelope(null, exception)))
+            {
+                inboundWriter.TryComplete(exception);
+            }
+        }
+        finally
+        {
+            inboundWriter.TryComplete();
+        }
+    }
+
+    private void StopReceivePump(string deviceId)
+    {
+        if (_receivePumpTokens.Remove(deviceId, out var cancellationTokenSource))
+        {
+            cancellationTokenSource.Cancel();
+            cancellationTokenSource.Dispose();
+        }
+
+        _receivePumpTasks.Remove(deviceId);
+        if (_inboundQueues.Remove(deviceId, out var inboundQueue))
+        {
+            DropPendingInbound(inboundQueue);
+        }
+    }
+
+    private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
+
+    private static void DropPendingInbound(Channel<InboundEnvelope> inboundQueue)
+    {
+        inboundQueue.Writer.TryComplete();
+        while (inboundQueue.Reader.TryRead(out _))
+        {
+        }
     }
 }

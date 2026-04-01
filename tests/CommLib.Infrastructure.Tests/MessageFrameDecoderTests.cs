@@ -53,12 +53,19 @@ public sealed class MessageFrameDecoderTests
     {
         var decoder = new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer());
 
-        var decoded = decoder.TryDecode(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'1', (byte)'2' }, out var message, out var bytesConsumed);
+        var decoded = decoder.TryDecode(
+            new byte[]
+            {
+                0x00, 0x00, 0x00, 0x0A,
+                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2'
+            },
+            out var message,
+            out var bytesConsumed);
 
         Assert.True(decoded);
         Assert.NotNull(message);
         Assert.Equal((ushort)12, message.MessageId);
-        Assert.Equal(6, bytesConsumed);
+        Assert.Equal(14, bytesConsumed);
     }
 
     private sealed record FakeMessage(ushort MessageId) : IMessage;

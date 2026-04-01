@@ -108,5 +108,11 @@ public sealed class TransportMessageSenderTests
         {
             throw new NotSupportedException();
         }
+
+        public Task CloseAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
     }
 }

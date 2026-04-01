@@ -70,4 +70,32 @@ public sealed class StubTransportsTests
         Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, frame.ToArray());
         Assert.Equal(1, transport.ReceiveCount);
     }
+
+    /// <summary>
+    /// transport를 닫으면 이후 송신이 차단되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task CloseAsync_AfterClose_SendAsyncThrows()
+    {
+        var transport = new TcpTransport();
+        await transport.CloseAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => transport.SendAsync(new byte[] { 0x01 }));
+
+        Assert.Contains("closed", exception.Message);
+    }
+
+    /// <summary>
+    /// transport를 닫으면 닫힘 상태가 기록되고 중복 호출도 허용되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task CloseAsync_CanBeCalledMultipleTimes()
+    {
+        var transport = new UdpTransport();
+
+        await transport.CloseAsync();
+        await transport.CloseAsync();
+
+        Assert.True(transport.IsClosed);
+    }
 }

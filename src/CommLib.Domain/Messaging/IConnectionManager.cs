@@ -16,6 +16,14 @@ public interface IConnectionManager
     Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 지정한 장치 식별자의 연결 리소스와 수신 수명주기를 정리합니다.
+    /// </summary>
+    /// <param name="deviceId">연결을 해제할 장치 식별자입니다.</param>
+    /// <param name="cancellationToken">연결 해제 작업 취소 토큰입니다.</param>
+    /// <returns>연결 해제 처리 작업입니다.</returns>
+    Task DisconnectAsync(string deviceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 지정한 장치 식별자로 메시지를 전송합니다.
     /// </summary>
     /// <param name="deviceId">메시지를 보낼 장치 식별자입니다.</param>

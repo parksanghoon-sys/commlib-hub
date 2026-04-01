@@ -38,7 +38,13 @@ public sealed class MessageFrameEncoderTests
 
         var frame = encoder.Encode(new FakeMessage(12));
 
-        Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'1', (byte)'2' }, frame);
+        Assert.Equal(
+            new byte[]
+            {
+                0x00, 0x00, 0x00, 0x0A,
+                (byte)'m', (byte)'e', (byte)'s', (byte)'s', (byte)'a', (byte)'g', (byte)'e', (byte)'|', (byte)'1', (byte)'2'
+            },
+            frame);
     }
 
     private sealed record FakeMessage(ushort MessageId) : IMessage;

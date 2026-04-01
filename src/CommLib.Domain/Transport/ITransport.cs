@@ -24,4 +24,11 @@ public interface ITransport
     /// <param name="cancellationToken">수신 취소에 사용하는 토큰입니다.</param>
     /// <returns>수신한 프레임 바이트입니다.</returns>
     Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// transport가 보유한 연결 및 수신 리소스를 비동기로 정리합니다.
+    /// </summary>
+    /// <param name="cancellationToken">정리 작업 취소 토큰입니다.</param>
+    /// <returns>정리 작업입니다.</returns>
+    Task CloseAsync(CancellationToken cancellationToken = default);
 }

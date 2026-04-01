@@ -122,6 +122,12 @@ public sealed class TransportMessageReceiverTests
             ReceiveCount++;
             return Task.FromResult<ReadOnlyMemory<byte>>(_frame);
         }
+
+        public Task CloseAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeProtocol : IProtocol

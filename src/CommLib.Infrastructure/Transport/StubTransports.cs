@@ -11,6 +11,11 @@ public abstract class RecordingTransport : ITransport
     private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
 
     /// <summary>
+    /// transport 정리 여부를 나타냅니다.
+    /// </summary>
+    public bool IsClosed { get; private set; }
+
+    /// <summary>
     /// 마지막으로 전송한 프레임을 가져옵니다.
     /// </summary>
     public byte[]? LastSentFrame { get; private set; }
@@ -44,6 +49,7 @@ public abstract class RecordingTransport : ITransport
     public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ThrowIfClosed();
         LastSentFrame = frame.ToArray();
         SendCount++;
         return Task.CompletedTask;
@@ -55,6 +61,7 @@ public abstract class RecordingTransport : ITransport
     /// <param name="frame">수신 대기열에 넣을 프레임입니다.</param>
     public void EnqueueInboundFrame(byte[] frame)
     {
+        ThrowIfClosed();
         LastQueuedInboundFrame = frame;
         _inbound.Writer.TryWrite(frame);
     }
@@ -66,9 +73,36 @@ public abstract class RecordingTransport : ITransport
     /// <returns>수신한 프레임입니다.</returns>
     public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfClosed();
         var frame = await _inbound.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         ReceiveCount++;
         return frame;
+    }
+
+    /// <summary>
+    /// transport가 보유한 수신 리소스를 정리하고 이후 송수신을 차단합니다.
+    /// </summary>
+    /// <param name="cancellationToken">정리 작업 취소 토큰입니다.</param>
+    /// <returns>완료된 작업입니다.</returns>
+    public Task CloseAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (IsClosed)
+        {
+            return Task.CompletedTask;
+        }
+
+        IsClosed = true;
+        _inbound.Writer.TryComplete();
+        return Task.CompletedTask;
+    }
+
+    private void ThrowIfClosed()
+    {
+        if (IsClosed)
+        {
+            throw new InvalidOperationException($"Transport '{Name}' is closed.");
+        }
     }
 }
 
