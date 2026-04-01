@@ -624,6 +624,44 @@ public sealed class ConnectionManagerTests
         Assert.Contains("missing-device", exception.Message);
     }
 
+    /// <summary>
+    /// manager를 dispose하면 활성 연결이 모두 정리되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_WithActiveConnections_ClosesAllTransportsAndRemovesSessions()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var firstProfile = CreateTcpProfile("device-1", 502);
+        var secondProfile = CreateTcpProfile("device-2", 503);
+
+        await manager.ConnectAsync(firstProfile);
+        await manager.ConnectAsync(secondProfile);
+
+        await manager.DisposeAsync();
+
+        Assert.Null(manager.GetSession(firstProfile.DeviceId));
+        Assert.Null(manager.GetSession(secondProfile.DeviceId));
+        Assert.All(transportFactory.Transports, static transport => Assert.True(transport.IsClosed));
+    }
+
+    /// <summary>
+    /// manager dispose 후에는 기존 장치 송신이 차단되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_AfterDispose_SendThrowsForFormerDevice()
+    {
+        var manager = CreateManager();
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        await manager.DisposeAsync();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.SendAsync(profile.DeviceId, new FakeMessage(1)));
+
+        Assert.Contains(profile.DeviceId, exception.Message);
+    }
+
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,

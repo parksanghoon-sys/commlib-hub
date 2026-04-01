@@ -12,7 +12,7 @@ namespace CommLib.Infrastructure.Sessions;
 /// <summary>
 /// 연결된 장치에 대한 전송 생성과 인메모리 세션 등록을 관리합니다.
 /// </summary>
-public sealed class ConnectionManager : IConnectionManager
+public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 {
     private readonly ITransportFactory _transportFactory;
     private readonly IProtocolFactory _protocolFactory;
@@ -156,6 +156,19 @@ public sealed class ConnectionManager : IConnectionManager
     {
         _sessions.TryGetValue(deviceId, out var session);
         return session;
+    }
+
+    /// <summary>
+    /// 활성 장치 연결과 수신 수명주기를 모두 정리합니다.
+    /// </summary>
+    /// <returns>비동기 정리 작업입니다.</returns>
+    public async ValueTask DisposeAsync()
+    {
+        var deviceIds = _sessions.Keys.ToArray();
+        foreach (var deviceId in deviceIds)
+        {
+            await DisconnectAsync(deviceId).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
