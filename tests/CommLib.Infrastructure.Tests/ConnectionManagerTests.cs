@@ -78,6 +78,21 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 연결 시 생성된 transport를 실제 open 단계까지 진행하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_OpensCreatedTransport()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        Assert.True(transportFactory.Transport.IsOpen);
+    }
+
+    /// <summary>
     /// 연결 후 같은 장치 식별자로 메시지를 보내면 조립된 sender를 통해 transport까지 전달되는지 확인합니다.
     /// </summary>
     [Fact]
@@ -424,11 +439,13 @@ public sealed class ConnectionManagerTests
     [Fact]
     public async Task ConnectAsync_SameDeviceConnectedTwice_ReplacesSession()
     {
-        var manager = CreateManager();
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
         var profile = CreateTcpProfile("device-1", 502);
 
         await manager.ConnectAsync(profile);
         var firstSession = manager.GetSession("device-1");
+        var firstTransport = transportFactory.Transports[0];
 
         await manager.ConnectAsync(profile);
         var secondSession = manager.GetSession("device-1");
@@ -436,6 +453,7 @@ public sealed class ConnectionManagerTests
         Assert.NotNull(firstSession);
         Assert.NotNull(secondSession);
         Assert.NotSame(firstSession, secondSession);
+        Assert.True(firstTransport.IsClosed);
     }
 
     /// <summary>
@@ -474,6 +492,29 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 재연결용 새 transport open이 실패하면 기존 세션을 유지하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_ReconnectOpenFails_KeepsExistingSession()
+    {
+        var firstTransport = new FakeTransport();
+        var secondTransport = new FakeTransport { FailOnOpen = true };
+        var transportFactory = new SequencedTransportFactory(firstTransport, secondTransport);
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await manager.ConnectAsync(profile);
+        var existingSession = manager.GetSession(profile.DeviceId);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+
+        Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsOpen);
+        Assert.False(firstTransport.IsClosed);
+        Assert.False(secondTransport.IsOpen);
+    }
+
+    /// <summary>
     /// 존재하지 않는 장치 식별자를 조회하면 세션이 없음을 확인합니다.
     /// </summary>
     [Fact]
@@ -487,10 +528,10 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 완전한 inbound frame이 아니면 receiver 예외가 그대로 전파되는지 확인합니다.
+    /// 여러 inbound 청크로 들어온 메시지도 누적 수신으로 복원되는지 확인합니다.
     /// </summary>
     [Fact]
-    public async Task ReceiveAsync_IncompleteFrame_ThrowsInvalidOperationException()
+    public async Task ReceiveAsync_PartialInboundChunks_ReturnsDecodedMessage()
     {
         var transportFactory = new FakeTransportFactory();
         var manager = CreateManager(
@@ -499,10 +540,12 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
         transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x02, (byte)'4' });
+        transportFactory.Transport.EnqueueInboundFrame(new byte[] { (byte)'2' });
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ReceiveAsync(profile.DeviceId));
+        var message = await manager.ReceiveAsync(profile.DeviceId);
 
-        Assert.Equal("Received frame did not contain a complete message.", exception.Message);
+        Assert.Equal((ushort)42, message.MessageId);
+        Assert.Equal(2, transportFactory.Transport.ReceiveCount);
     }
 
     /// <summary>
@@ -731,11 +774,12 @@ public sealed class ConnectionManagerTests
     {
         public TransportOptions? LastOptions { get; private set; }
 
-        public FakeTransport Transport { get; } = new();
+        public FakeTransport Transport { get; private set; } = new();
 
         public ITransport Create(TransportOptions options)
         {
             LastOptions = options;
+            Transport = new FakeTransport();
             return Transport;
         }
     }
@@ -749,16 +793,37 @@ public sealed class ConnectionManagerTests
 
         public byte[]? LastFrame { get; private set; }
 
+        public bool IsOpen { get; private set; }
+
         public int SendCount { get; private set; }
 
         public int ReceiveCount { get; private set; }
 
         public bool IsClosed { get; private set; }
 
+        public bool FailOnOpen { get; init; }
+
+        public Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsClosed)
+            {
+                throw new InvalidOperationException("FakeTransport is closed.");
+            }
+
+            if (FailOnOpen)
+            {
+                throw new InvalidOperationException("FakeTransport failed to open.");
+            }
+
+            IsOpen = true;
+            return Task.CompletedTask;
+        }
+
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfClosed();
+            ThrowIfUnavailable();
             LastFrame = frame.ToArray();
             SendCount++;
             return Task.CompletedTask;
@@ -766,13 +831,13 @@ public sealed class ConnectionManagerTests
 
         public void EnqueueInboundFrame(byte[] frame)
         {
-            ThrowIfClosed();
+            ThrowIfUnavailable();
             _inbound.Writer.TryWrite(frame);
         }
 
         public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
-            ThrowIfClosed();
+            ThrowIfUnavailable();
             using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
             var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
             ReceiveCount++;
@@ -788,16 +853,22 @@ public sealed class ConnectionManagerTests
             }
 
             IsClosed = true;
+            IsOpen = false;
             _closeTokenSource.Cancel();
             _inbound.Writer.TryComplete();
             return Task.CompletedTask;
         }
 
-        private void ThrowIfClosed()
+        private void ThrowIfUnavailable()
         {
             if (IsClosed)
             {
                 throw new InvalidOperationException("FakeTransport is closed.");
+            }
+
+            if (!IsOpen)
+            {
+                throw new InvalidOperationException("FakeTransport is not open.");
             }
         }
     }
@@ -900,6 +971,21 @@ public sealed class ConnectionManagerTests
             var transport = new FakeTransport();
             Transports.Add(transport);
             return transport;
+        }
+    }
+
+    private sealed class SequencedTransportFactory : ITransportFactory
+    {
+        private readonly Queue<FakeTransport> _transports;
+
+        public SequencedTransportFactory(params FakeTransport[] transports)
+        {
+            _transports = new Queue<FakeTransport>(transports);
+        }
+
+        public ITransport Create(TransportOptions options)
+        {
+            return _transports.Dequeue();
         }
     }
 }

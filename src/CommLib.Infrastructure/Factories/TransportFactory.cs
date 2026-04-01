@@ -18,7 +18,7 @@ public sealed class TransportFactory : ITransportFactory
     {
         return options switch
         {
-            TcpClientTransportOptions => new TcpTransport(),
+            TcpClientTransportOptions tcp => new TcpTransport(tcp),
             UdpTransportOptions => new UdpTransport(),
             SerialTransportOptions => new SerialTransport(),
             MulticastTransportOptions => new MulticastTransport(),

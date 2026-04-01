@@ -47,11 +47,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <param name="profile">연결할 장치 프로필입니다.</param>
     /// <param name="cancellationToken">연결 작업 취소 토큰입니다.</param>
     /// <returns>등록 작업입니다.</returns>
-    public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
+    public async Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        StopReceivePump(profile.DeviceId);
-
         var transport = _transportFactory.Create(profile.Transport);
         var protocol = _protocolFactory.Create(profile.Protocol);
         var serializer = _serializerFactory.Create(profile.Serializer);
@@ -61,19 +59,38 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         var session = new DeviceSession(profile.DeviceId);
         var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
         var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var receivePumpTask = Task.CompletedTask;
 
-        _transports[profile.DeviceId] = transport;
-        _senders[profile.DeviceId] = sender;
-        _receivers[profile.DeviceId] = receiver;
-        _sessions[profile.DeviceId] = session;
-        _inboundQueues[profile.DeviceId] = inboundQueue;
-        _receivePumpTokens[profile.DeviceId] = receivePumpTokenSource;
-        _receivePumpTasks[profile.DeviceId] = RunReceivePumpAsync(
-            session,
-            receiver,
-            inboundQueue.Writer,
-            receivePumpTokenSource.Token);
-        return Task.CompletedTask;
+        try
+        {
+            await transport.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            if (_sessions.ContainsKey(profile.DeviceId))
+            {
+                await DisconnectAsync(profile.DeviceId, cancellationToken).ConfigureAwait(false);
+            }
+
+            _transports[profile.DeviceId] = transport;
+            _senders[profile.DeviceId] = sender;
+            _receivers[profile.DeviceId] = receiver;
+            _sessions[profile.DeviceId] = session;
+            _inboundQueues[profile.DeviceId] = inboundQueue;
+            _receivePumpTokens[profile.DeviceId] = receivePumpTokenSource;
+            receivePumpTask = RunReceivePumpAsync(
+                session,
+                receiver,
+                inboundQueue.Writer,
+                receivePumpTokenSource.Token);
+            _receivePumpTasks[profile.DeviceId] = receivePumpTask;
+        }
+        catch
+        {
+            receivePumpTokenSource.Cancel();
+            receivePumpTokenSource.Dispose();
+            DropPendingInbound(inboundQueue);
+            await TryCloseTransportAsync(transport).ConfigureAwait(false);
+            throw;
+        }
     }
 
     /// <summary>
@@ -281,6 +298,17 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     {
         inboundQueue.Writer.TryComplete();
         while (inboundQueue.Reader.TryRead(out _))
+        {
+        }
+    }
+
+    private static async Task TryCloseTransportAsync(ITransport transport)
+    {
+        try
+        {
+            await transport.CloseAsync().ConfigureAwait(false);
+        }
+        catch
         {
         }
     }

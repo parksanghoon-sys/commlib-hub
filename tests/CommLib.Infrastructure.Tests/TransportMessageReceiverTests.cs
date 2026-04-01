@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;
@@ -33,16 +34,15 @@ public sealed class TransportMessageReceiverTests
     /// decoder가 완전한 메시지를 복원하지 못하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
-    public async Task ReceiveAsync_IncompleteFrame_ThrowsInvalidOperationException()
+    public async Task ReceiveAsync_IncompleteChunk_WaitsUntilCancellation()
     {
         var transport = new FakeTransport(new byte[] { 0x01 });
         var receiver = new TransportMessageReceiver(
             new MessageFrameDecoder(new IncompleteProtocol(), new FakeSerializer(new FakeMessage(42))),
             transport);
+        using var cancellationTokenSource = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => receiver.ReceiveAsync());
-
-        Assert.Equal("Received frame did not contain a complete message.", exception.Message);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => receiver.ReceiveAsync(cancellationTokenSource.Token));
         Assert.Equal(1, transport.ReceiveCount);
     }
 
@@ -60,6 +60,66 @@ public sealed class TransportMessageReceiverTests
         cancellationTokenSource.Cancel();
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => receiver.ReceiveAsync(cancellationTokenSource.Token));
+    }
+
+    /// <summary>
+    /// transport가 프레임을 여러 조각으로 나눠 전달해도 내부 버퍼로 완성해 복원하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_PartialChunksAcrossMultipleReads_ReturnsDecodedMessage()
+    {
+        var frame = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol()).Encode(new MessageModel(42));
+        var transport = new FakeTransport(frame[..3], frame[3..]);
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer()),
+            transport);
+
+        var message = await receiver.ReceiveAsync();
+
+        Assert.Equal((ushort)42, message.MessageId);
+        Assert.Equal(2, transport.ReceiveCount);
+    }
+
+    /// <summary>
+    /// 한 번의 transport 수신에 여러 프레임이 들어오면 나머지 버퍼를 다음 ReceiveAsync 호출에 재사용하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_MultipleFramesInSingleChunk_ReusesBufferedRemainder()
+    {
+        var encoder = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol());
+        var firstFrame = encoder.Encode(new MessageModel(42));
+        var secondFrame = encoder.Encode(new MessageModel(43));
+        var combinedChunk = new byte[firstFrame.Length + secondFrame.Length];
+        firstFrame.CopyTo(combinedChunk, 0);
+        secondFrame.CopyTo(combinedChunk, firstFrame.Length);
+
+        var transport = new FakeTransport(combinedChunk);
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer()),
+            transport);
+
+        var firstMessage = await receiver.ReceiveAsync();
+        var secondMessage = await receiver.ReceiveAsync();
+
+        Assert.Equal((ushort)42, firstMessage.MessageId);
+        Assert.Equal((ushort)43, secondMessage.MessageId);
+        Assert.Equal(1, transport.ReceiveCount);
+    }
+
+    /// <summary>
+    /// malformed frame으로 프로토콜 디코더가 예외를 던지면 그대로 전파하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceiveAsync_MalformedFrame_PropagatesDecoderException()
+    {
+        var transport = new FakeTransport(new byte[] { 0xFF, 0xFF, 0xFF, 0xFF });
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer()),
+            transport);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => receiver.ReceiveAsync());
+
+        Assert.Equal("Frame length cannot be negative.", exception.Message);
     }
 
     /// <summary>
@@ -100,27 +160,37 @@ public sealed class TransportMessageReceiverTests
 
     private sealed class FakeTransport : ITransport
     {
-        private readonly byte[] _frame;
+        private readonly Channel<byte[]> _frames = Channel.CreateUnbounded<byte[]>();
 
-        public FakeTransport(byte[] frame)
+        public FakeTransport(params byte[][] frames)
         {
-            _frame = frame;
+            foreach (var frame in frames)
+            {
+                _frames.Writer.TryWrite(frame);
+            }
         }
 
         public string Name => "FakeTransport";
 
         public int ReceiveCount { get; private set; }
 
+        public Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var frame = await _frames.Reader.ReadAsync(cancellationToken);
             ReceiveCount++;
-            return Task.FromResult<ReadOnlyMemory<byte>>(_frame);
+            return frame;
         }
 
         public Task CloseAsync(CancellationToken cancellationToken = default)
@@ -148,6 +218,13 @@ public sealed class TransportMessageReceiverTests
 
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
         {
+            if (buffer.IsEmpty)
+            {
+                payload = Array.Empty<byte>();
+                bytesConsumed = 0;
+                return false;
+            }
+
             payload = _payload;
             bytesConsumed = buffer.Length;
             return true;

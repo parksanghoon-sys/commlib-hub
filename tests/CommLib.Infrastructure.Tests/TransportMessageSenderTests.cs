@@ -96,6 +96,12 @@ public sealed class TransportMessageSenderTests
 
         public CancellationToken LastCancellationToken { get; private set; }
 
+        public Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             LastFrame = frame.ToArray();

@@ -12,11 +12,12 @@ public sealed class StubTransportsTests
     /// TCP 전송이 마지막 프레임과 전송 횟수를 기록하는지 확인합니다.
     /// </summary>
     [Fact]
-    public async Task TcpTransport_SendAsync_StoresLastFrame()
+    public async Task UdpTransport_OpenAsync_SendAsync_StoresLastFrame()
     {
-        var transport = new TcpTransport();
+        var transport = new UdpTransport();
         var frame = new byte[] { 0x01, 0x02, 0x03 };
 
+        await transport.OpenAsync();
         await transport.SendAsync(frame);
 
         Assert.Equal(frame, transport.LastSentFrame);
@@ -33,6 +34,7 @@ public sealed class StubTransportsTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
+        await transport.OpenAsync();
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await transport.SendAsync(new byte[] { 0x01 }, cts.Token));
         Assert.Equal(0, transport.SendCount);
         Assert.Null(transport.LastSentFrame);
@@ -47,6 +49,8 @@ public sealed class StubTransportsTests
         var serial = new SerialTransport();
         var multicast = new MulticastTransport();
 
+        await serial.OpenAsync();
+        await multicast.OpenAsync();
         await serial.SendAsync(new byte[] { 0x10, 0x11 });
         await multicast.SendAsync(new byte[] { 0x20, 0x21, 0x22 });
 
@@ -60,9 +64,10 @@ public sealed class StubTransportsTests
     /// inbound 큐에 적재한 프레임을 ReceiveAsync로 다시 꺼낼 수 있는지 확인합니다.
     /// </summary>
     [Fact]
-    public async Task TcpTransport_ReceiveAsync_ReturnsQueuedInboundFrame()
+    public async Task SerialTransport_OpenAsync_ReceiveAsync_ReturnsQueuedInboundFrame()
     {
-        var transport = new TcpTransport();
+        var transport = new SerialTransport();
+        await transport.OpenAsync();
         transport.EnqueueInboundFrame(new byte[] { 0x01, 0x02, 0x03 });
 
         var frame = await transport.ReceiveAsync();
@@ -77,7 +82,8 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task CloseAsync_AfterClose_SendAsyncThrows()
     {
-        var transport = new TcpTransport();
+        var transport = new UdpTransport();
+        await transport.OpenAsync();
         await transport.CloseAsync();
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => transport.SendAsync(new byte[] { 0x01 }));
@@ -93,6 +99,7 @@ public sealed class StubTransportsTests
     {
         var transport = new UdpTransport();
 
+        await transport.OpenAsync();
         await transport.CloseAsync();
         await transport.CloseAsync();
 
@@ -105,7 +112,8 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
-        var transport = new TcpTransport();
+        var transport = new MulticastTransport();
+        await transport.OpenAsync();
         var pendingReceive = transport.ReceiveAsync();
 
         await transport.CloseAsync();

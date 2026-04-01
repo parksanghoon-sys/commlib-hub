@@ -12,6 +12,11 @@ public abstract class RecordingTransport : ITransport
     private readonly CancellationTokenSource _closeTokenSource = new();
 
     /// <summary>
+    /// transport open 여부를 나타냅니다.
+    /// </summary>
+    public bool IsOpen { get; private set; }
+
+    /// <summary>
     /// transport 정리 여부를 나타냅니다.
     /// </summary>
     public bool IsClosed { get; private set; }
@@ -42,6 +47,23 @@ public abstract class RecordingTransport : ITransport
     public abstract string Name { get; }
 
     /// <summary>
+    /// placeholder transport를 open 상태로 전환합니다.
+    /// </summary>
+    /// <param name="cancellationToken">열기 취소 토큰입니다.</param>
+    /// <returns>완료된 작업입니다.</returns>
+    public Task OpenAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (IsClosed)
+        {
+            throw new InvalidOperationException($"Transport '{Name}' is closed.");
+        }
+
+        IsOpen = true;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// 프레임을 전송하고 마지막 프레임 정보를 기록합니다.
     /// </summary>
     /// <param name="frame">전송할 프레임 바이트입니다.</param>
@@ -50,7 +72,7 @@ public abstract class RecordingTransport : ITransport
     public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ThrowIfClosed();
+        ThrowIfUnavailable();
         LastSentFrame = frame.ToArray();
         SendCount++;
         return Task.CompletedTask;
@@ -62,7 +84,7 @@ public abstract class RecordingTransport : ITransport
     /// <param name="frame">수신 대기열에 넣을 프레임입니다.</param>
     public void EnqueueInboundFrame(byte[] frame)
     {
-        ThrowIfClosed();
+        ThrowIfUnavailable();
         LastQueuedInboundFrame = frame;
         _inbound.Writer.TryWrite(frame);
     }
@@ -74,7 +96,7 @@ public abstract class RecordingTransport : ITransport
     /// <returns>수신한 프레임입니다.</returns>
     public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
     {
-        ThrowIfClosed();
+        ThrowIfUnavailable();
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
         var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
         ReceiveCount++;
@@ -95,29 +117,24 @@ public abstract class RecordingTransport : ITransport
         }
 
         IsClosed = true;
+        IsOpen = false;
         _closeTokenSource.Cancel();
         _inbound.Writer.TryComplete();
         return Task.CompletedTask;
     }
 
-    private void ThrowIfClosed()
+    private void ThrowIfUnavailable()
     {
         if (IsClosed)
         {
             throw new InvalidOperationException($"Transport '{Name}' is closed.");
         }
-    }
-}
 
-/// <summary>
-/// 자리표시용 TCP 전송 구현입니다.
-/// </summary>
-public sealed class TcpTransport : RecordingTransport
-{
-    /// <summary>
-    /// 전송 이름을 가져옵니다.
-    /// </summary>
-    public override string Name => "TcpTransport";
+        if (!IsOpen)
+        {
+            throw new InvalidOperationException($"Transport '{Name}' is not open.");
+        }
+    }
 }
 
 /// <summary>

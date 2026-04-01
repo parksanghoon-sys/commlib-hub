@@ -6,6 +6,13 @@ namespace CommLib.Domain.Transport;
 public interface ITransport
 {
     /// <summary>
+    /// transport가 송수신을 시작할 수 있도록 연결 및 내부 리소스를 엽니다.
+    /// </summary>
+    /// <param name="cancellationToken">열기 작업 취소에 사용하는 토큰입니다.</param>
+    /// <returns>열기 작업입니다.</returns>
+    Task OpenAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 전송 이름을 가져옵니다.
     /// </summary>
     string Name { get; }
@@ -19,10 +26,10 @@ public interface ITransport
     Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 다음 수신 프레임을 비동기로 가져옵니다.
+    /// transport에서 읽은 다음 바이트 청크를 비동기로 가져옵니다.
     /// </summary>
     /// <param name="cancellationToken">수신 취소에 사용하는 토큰입니다.</param>
-    /// <returns>수신한 프레임 바이트입니다.</returns>
+    /// <returns>수신한 바이트 청크입니다.</returns>
     Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

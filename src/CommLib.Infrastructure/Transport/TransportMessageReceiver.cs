@@ -11,6 +11,7 @@ public sealed class TransportMessageReceiver
 {
     private readonly MessageFrameDecoder _frameDecoder;
     private readonly ITransport _transport;
+    private byte[] _pendingBuffer = Array.Empty<byte>();
 
     /// <summary>
     /// <see cref="TransportMessageReceiver"/> 클래스의 새 인스턴스를 초기화합니다.
@@ -24,19 +25,22 @@ public sealed class TransportMessageReceiver
     }
 
     /// <summary>
-    /// 다음 프레임을 수신하고 메시지로 복원합니다.
+    /// transport에서 수신한 바이트 청크를 누적해 다음 완전한 메시지를 복원합니다.
     /// </summary>
     /// <param name="cancellationToken">수신 취소 토큰입니다.</param>
     /// <returns>복원된 메시지입니다.</returns>
     public async Task<IMessage> ReceiveAsync(CancellationToken cancellationToken = default)
     {
-        var frame = await _transport.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-        if (!TryDecode(frame.Span, out var message, out _))
+        while (true)
         {
-            throw new InvalidOperationException("Received frame did not contain a complete message.");
-        }
+            if (TryDecodePending(out var message))
+            {
+                return message;
+            }
 
-        return message;
+            var chunk = await _transport.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+            AppendChunk(chunk.Span);
+        }
     }
 
     /// <summary>
@@ -56,5 +60,29 @@ public sealed class TransportMessageReceiver
 
         message = null!;
         return false;
+    }
+
+    private void AppendChunk(ReadOnlySpan<byte> chunk)
+    {
+        if (chunk.IsEmpty)
+        {
+            return;
+        }
+
+        var merged = new byte[_pendingBuffer.Length + chunk.Length];
+        _pendingBuffer.AsSpan().CopyTo(merged);
+        chunk.CopyTo(merged.AsSpan(_pendingBuffer.Length));
+        _pendingBuffer = merged;
+    }
+
+    private bool TryDecodePending(out IMessage message)
+    {
+        if (!TryDecode(_pendingBuffer, out message, out var bytesConsumed))
+        {
+            return false;
+        }
+
+        _pendingBuffer = _pendingBuffer.AsSpan(bytesConsumed).ToArray();
+        return true;
     }
 }
