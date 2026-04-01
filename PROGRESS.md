@@ -227,3 +227,23 @@
 - [x] serializer payload 형식을 실제 요청/응답 body까지 담도록 1차 확장
 - [ ] body payload를 실제 도메인 메시지 모델/실사용 serializer 설계로 일반화
 - [x] manager 전체 종료 수명주기 1차 버전으로 `ConnectionManager.DisposeAsync` 추가
+
+## 2026-04-01
+
+### 1. 오늘 완료한 작업
+- [x] `ITransport`에 `OpenAsync` 계약을 추가하고 placeholder transport도 open/close 수명주기를 가지도록 정리
+- [x] `ConnectionManager.ConnectAsync`가 새 transport를 실제로 연 뒤 기존 연결을 교체하도록 바꾸고, 재연결 open 실패 시 기존 세션을 유지하도록 보강
+- [x] `TransportMessageReceiver`가 transport에서 받은 바이트 청크를 내부 버퍼에 누적해 partial frame과 한 번에 여러 frame이 오는 경우를 모두 처리하도록 확장
+- [x] 실제 `TcpClient` / `NetworkStream` 기반 `TcpTransport`를 추가하고 `TransportFactory`가 TCP 옵션에 대해 실구현 transport를 반환하도록 변경
+- [x] `ConnectionManagerTests`, `TransportMessageReceiverTests`, `StubTransportsTests`, `TransportMessageSenderTests`를 새 open 계약과 streaming receive 동작에 맞게 보강
+- [x] `TcpTransportTests`를 추가해 loopback listener 기준 open/send/receive/close 취소 경로를 검증
+
+### 2. 오늘 검증
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests|FullyQualifiedName~TransportMessageReceiverTests|FullyQualifiedName~TcpTransportTests|FullyQualifiedName~StubTransportsTests"` 통과 (`53`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`85`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 통과 (`CommLib.Infrastructure.Tests` 85개, `CommLib.Unit.Tests` 39개)
+
+### 3. 다음 작업 메모
+- [ ] `UdpTransport`, `SerialTransport`, `MulticastTransport`도 실제 open/send/receive 수명주기로 확장할지 우선순위 결정
+- [ ] reconnect 중 기존 transport close 실패나 receive pump 종료 예외를 어떻게 복구/보고할지 정책 구체화
+- [ ] `MessageModel` / `IMessageBody`를 실사용 도메인 메시지와 serializer 설계로 일반화
