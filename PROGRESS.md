@@ -191,6 +191,8 @@
 - [x] `StubTransportsTests`, `ConnectionManagerTests`, transport message sender/receiver fake transport를 새 close 계약에 맞게 보강
 - [x] disconnect 시 이전 inbound queue는 `drop` 정책으로 완료/비우기 처리하고 reconnect 이후 새 queue로 누수되지 않도록 정리
 - [x] `ConnectionManagerTests`에 queued inbound drop 후 reconnect 검증 케이스 추가
+- [x] 선택적 메시지 body 계약 `IMessageBody`를 추가하고 `NoOpSerializer`가 base64 body payload를 직렬화/복원하도록 확장
+- [x] `NoOpSerializerTests`, `MessageFrameEncoderTests`, `MessageFrameDecoderTests`, `ConnectionManagerTests`를 body payload 형식에 맞게 보강
 
 ### 8. 오늘 검증
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`58`개 테스트)
@@ -201,6 +203,8 @@
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`69`개 테스트)
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 재통과 (`29`개 테스트)
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`70`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~NoOpSerializerTests|FullyQualifiedName~MessageFrameEncoderTests|FullyQualifiedName~MessageFrameDecoderTests|FullyQualifiedName~ConnectionManagerTests.SendAsync_WithDefaultFactories"` 통과 (`16`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`73`개 테스트)
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`39`개 테스트)
 - [x] `dotnet test commlib-codex-full.sln` 통과
 
@@ -211,4 +215,5 @@
 - [x] transport 자체 close 1차 계약으로 `ITransport.CloseAsync` 추가
 - [x] disconnect 시 queued inbound는 `drop` 정책으로 정리
 - [ ] 실제 socket/serial transport dispose 전략과 close 중 in-flight receive 정리 방식 구체화
-- [ ] serializer payload 형식을 실제 요청/응답 본문까지 담는 방향으로 확장할지 결정
+- [x] serializer payload 형식을 실제 요청/응답 body까지 담도록 1차 확장
+- [ ] body payload를 실제 도메인 메시지 모델/실사용 serializer 설계로 일반화
