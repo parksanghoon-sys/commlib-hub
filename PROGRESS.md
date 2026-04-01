@@ -195,6 +195,8 @@
 - [x] `NoOpSerializerTests`, `MessageFrameEncoderTests`, `MessageFrameDecoderTests`, `ConnectionManagerTests`를 body payload 형식에 맞게 보강
 - [x] `ConnectionManager`가 `IAsyncDisposable`을 구현해 활성 연결 전체를 일괄 정리할 수 있도록 `DisposeAsync` 경로 추가
 - [x] `ConnectionManagerTests`에 dispose 후 모든 transport close / session 제거 / 기존 device 송신 차단 케이스 추가
+- [x] `StubTransports`와 `ConnectionManagerTests` fake transport가 close 중 대기 중인 `ReceiveAsync`를 취소로 종료하도록 보강
+- [x] `StubTransportsTests`, `ConnectionManagerTests`에 pending receive가 close/disconnect로 깨어나는 케이스 추가
 
 ### 8. 오늘 검증
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`58`개 테스트)
@@ -209,6 +211,8 @@
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`73`개 테스트)
 - [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 재통과 (`32`개 테스트)
 - [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 75개, `CommLib.Unit.Tests` 39개)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~StubTransportsTests|FullyQualifiedName~ConnectionManagerTests.DisconnectAsync_CancelsPendingTransportReceive"` 통과 (`8`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 77개, `CommLib.Unit.Tests` 39개)
 - [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`39`개 테스트)
 - [x] `dotnet test commlib-codex-full.sln` 통과
 
@@ -218,6 +222,7 @@
 - [x] receive pump 종료/정리 수명주기 1차 버전으로 `DisconnectAsync` 계약 추가
 - [x] transport 자체 close 1차 계약으로 `ITransport.CloseAsync` 추가
 - [x] disconnect 시 queued inbound는 `drop` 정책으로 정리
+- [x] stub transport 기준 close 중 in-flight receive는 취소로 종료되도록 정리
 - [ ] 실제 socket/serial transport dispose 전략과 close 중 in-flight receive 정리 방식 구체화
 - [x] serializer payload 형식을 실제 요청/응답 body까지 담도록 1차 확장
 - [ ] body payload를 실제 도메인 메시지 모델/실사용 serializer 설계로 일반화
