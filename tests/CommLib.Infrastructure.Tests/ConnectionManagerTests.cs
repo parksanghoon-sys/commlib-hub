@@ -723,6 +723,42 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 연결 시 profile의 request/response 설정이 세션의 pending 제한과 기본 timeout에 반영되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_ProfileRequestResponseOptions_AreAppliedToSession()
+    {
+        var manager = CreateManager();
+        var profile = CreateTcpProfile();
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = new RequestResponseOptions
+            {
+                DefaultTimeoutMs = 50,
+                MaxPendingRequests = 1
+            },
+            Reconnect = profile.Reconnect
+        };
+
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+
+        var first = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(40));
+        await first.SendCompletedTask;
+        var second = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(41));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await second.SendCompletedTask);
+        await Assert.ThrowsAsync<TimeoutException>(async () => await first.ResponseTask);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
     /// transport close가 실패하면 예외를 전파하고 기존 세션은 유지하는지 확인합니다.
     /// </summary>
     [Fact]

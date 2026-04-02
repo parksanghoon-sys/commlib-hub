@@ -143,6 +143,58 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
+    /// 기본 응답 제한 시간이 구성되면 명시적 timeout 없이도 응답 task가 시간 초과되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task Send_RequestWithoutExplicitTimeout_UsesConfiguredDefaultTimeout()
+    {
+        var session = new DeviceSession(
+            "device-1",
+            new CommLib.Domain.Configuration.RequestResponseOptions
+            {
+                DefaultTimeoutMs = 50,
+                MaxPendingRequests = 8
+            });
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(21));
+
+        var exception = await Assert.ThrowsAsync<TimeoutException>(async () => await result.ResponseTask);
+
+        Assert.Contains("Timed out waiting for response", exception.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
+    /// pending 요청 수가 설정 상한에 도달하면 후속 요청을 거부하고 추가 추적을 남기지 않는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task Send_RequestWhenPendingLimitReached_FailsWithoutRegisteringAdditionalPending()
+    {
+        var session = new DeviceSession(
+            "device-1",
+            new CommLib.Domain.Configuration.RequestResponseOptions
+            {
+                DefaultTimeoutMs = 0,
+                MaxPendingRequests = 1
+            });
+        var first = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(30));
+        await first.SendCompletedTask;
+
+        var second = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(31));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await second.SendCompletedTask);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await second.ResponseTask);
+        Assert.Equal(1, session.PendingRequestCount);
+
+        var completed = session.TryCompleteResponse(new FakeResponseMessage(32)
+        {
+            CorrelationId = ((FakeRequestMessage)Assert.IsType<FakeRequestMessage>(GetDequeuedMessage(session))).CorrelationId
+        });
+
+        Assert.True(completed);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
     /// 송신 큐가 가득 차면 일반 메시지 송신 완료 작업이 실패하는지 확인합니다.
     /// </summary>
     [Fact]
@@ -215,5 +267,11 @@ public sealed class DeviceSessionTests
         /// 테스트 응답은 기본적으로 성공으로 간주합니다.
         /// </summary>
         public bool IsSuccess { get; init; } = true;
+    }
+
+    private static IMessage GetDequeuedMessage(DeviceSession session)
+    {
+        Assert.True(session.TryDequeueOutbound(out var message));
+        return Assert.IsAssignableFrom<IMessage>(message);
     }
 }

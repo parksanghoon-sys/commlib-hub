@@ -57,7 +57,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
         var decoder = new MessageFrameDecoder(protocol, serializer);
         var receiver = new TransportMessageReceiver(decoder, transport);
-        var session = new DeviceSession(profile.DeviceId);
+        var session = new DeviceSession(profile.DeviceId, profile.RequestResponse);
         var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
         var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var receivePumpTask = Task.CompletedTask;

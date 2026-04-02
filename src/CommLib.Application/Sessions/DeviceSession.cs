@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using CommLib.Application.Pipeline;
+using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
 namespace CommLib.Application.Sessions;
@@ -13,14 +14,26 @@ public sealed class DeviceSession : IDeviceSession
     private readonly PendingRequestStore _pendingRequestStore = new();
     private readonly Dictionary<Guid, object> _pendingResponses = new();
     private readonly object _syncRoot = new();
+    private readonly int _maxPendingRequests;
+    private readonly TimeSpan? _defaultResponseTimeout;
 
     /// <summary>
     /// <see cref="DeviceSession"/> 클래스의 새 인스턴스를 초기화합니다.
     /// </summary>
     /// <param name="deviceId">세션과 연결된 장치 식별자입니다.</param>
-    public DeviceSession(string deviceId)
+    public DeviceSession(string deviceId, RequestResponseOptions? requestResponse = null)
     {
+        var options = requestResponse ?? new RequestResponseOptions();
+        if (options.MaxPendingRequests <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestResponse), "MaxPendingRequests must be greater than 0.");
+        }
+
         DeviceId = deviceId;
+        _maxPendingRequests = options.MaxPendingRequests;
+        _defaultResponseTimeout = options.DefaultTimeoutMs > 0
+            ? TimeSpan.FromMilliseconds(options.DefaultTimeoutMs)
+            : null;
     }
 
     /// <summary>
@@ -149,22 +162,30 @@ public sealed class DeviceSession : IDeviceSession
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
-        if (!_outbound.Writer.TryWrite(request))
-        {
-            var exception = new InvalidOperationException("Outbound queue is full.");
-            responseTcs.TrySetException(exception);
-            return Task.FromException(exception);
-        }
-
         lock (_syncRoot)
         {
+            if (_pendingResponses.Count >= _maxPendingRequests)
+            {
+                var exception = new InvalidOperationException("Pending request limit has been reached.");
+                responseTcs.TrySetException(exception);
+                return Task.FromException(exception);
+            }
+
+            if (!_outbound.Writer.TryWrite(request))
+            {
+                var exception = new InvalidOperationException("Outbound queue is full.");
+                responseTcs.TrySetException(exception);
+                return Task.FromException(exception);
+            }
+
             _pendingResponses[request.CorrelationId] = responseTcs;
             _pendingRequestStore.Register(request.CorrelationId);
         }
 
-        if (timeout is { } responseTimeout && responseTimeout > TimeSpan.Zero)
+        var responseTimeout = timeout ?? _defaultResponseTimeout;
+        if (responseTimeout is { } effectiveTimeout && effectiveTimeout > TimeSpan.Zero)
         {
-            _ = HandleTimeoutAsync(request.CorrelationId, responseTimeout, responseTcs);
+            _ = HandleTimeoutAsync(request.CorrelationId, effectiveTimeout, responseTcs);
         }
 
         return Task.CompletedTask;
