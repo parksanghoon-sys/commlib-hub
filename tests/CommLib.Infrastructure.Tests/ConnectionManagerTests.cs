@@ -771,9 +771,11 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
         var existingSession = manager.GetSession(profile.DeviceId);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.DisconnectAsync(profile.DeviceId));
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.DisconnectAsync(profile.DeviceId));
 
-        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("FakeTransport failed to close.", exception.InnerException?.Message);
         Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
         Assert.True(transport.IsOpen);
         Assert.False(transport.IsClosed);
@@ -793,9 +795,11 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
         var existingSession = manager.GetSession(profile.DeviceId);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ConnectAsync(profile));
 
-        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("FakeTransport failed to close.", exception.InnerException?.Message);
         Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
         Assert.True(firstTransport.IsOpen);
         Assert.False(firstTransport.IsClosed);
@@ -817,12 +821,49 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(firstProfile);
         await manager.ConnectAsync(secondProfile);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await manager.DisposeAsync());
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await manager.DisposeAsync());
 
-        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.Equal(firstProfile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("FakeTransport failed to close.", exception.InnerException?.Message);
         Assert.NotNull(manager.GetSession(firstProfile.DeviceId));
         Assert.Null(manager.GetSession(secondProfile.DeviceId));
         Assert.True(secondTransport.IsClosed);
+    }
+
+    [Fact]
+    public async Task DisposeAsync_WhenMultipleTransportCloseOperationsFail_ReturnsAggregateWithDeviceContext()
+    {
+        var firstTransport = new FakeTransport { FailOnClose = true };
+        var secondTransport = new FakeTransport { FailOnClose = true };
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(firstTransport, secondTransport));
+        var firstProfile = CreateTcpProfile("device-1", 502);
+        var secondProfile = CreateTcpProfile("device-2", 503);
+
+        await manager.ConnectAsync(firstProfile);
+        await manager.ConnectAsync(secondProfile);
+
+        var exception = await Assert.ThrowsAsync<AggregateException>(async () => await manager.DisposeAsync());
+
+        Assert.Contains("One or more device disconnect operations failed during disposal.", exception.Message);
+        Assert.Collection(
+            exception.InnerExceptions,
+            inner =>
+            {
+                var deviceException = Assert.IsType<DeviceConnectionException>(inner);
+                Assert.Equal(firstProfile.DeviceId, deviceException.DeviceId);
+                Assert.Equal("disconnect", deviceException.Operation);
+                Assert.Equal("FakeTransport failed to close.", deviceException.InnerException?.Message);
+            },
+            inner =>
+            {
+                var deviceException = Assert.IsType<DeviceConnectionException>(inner);
+                Assert.Equal(secondProfile.DeviceId, deviceException.DeviceId);
+                Assert.Equal("disconnect", deviceException.Operation);
+                Assert.Equal("FakeTransport failed to close.", deviceException.InnerException?.Message);
+            });
+        Assert.NotNull(manager.GetSession(firstProfile.DeviceId));
+        Assert.NotNull(manager.GetSession(secondProfile.DeviceId));
     }
 
     private static ConnectionManager CreateManager(

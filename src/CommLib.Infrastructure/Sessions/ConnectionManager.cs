@@ -114,7 +114,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             throw new InvalidOperationException($"No transport registered for device '{deviceId}'.");
         }
 
-        await transport.CloseAsync(cancellationToken).ConfigureAwait(false);
+        await CloseTransportAsync(deviceId, transport, "disconnect", cancellationToken).ConfigureAwait(false);
 
         _sessions.Remove(deviceId);
         _senders.Remove(deviceId);
@@ -212,7 +212,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
         }
 
-        throw new AggregateException(exceptions);
+        throw new AggregateException("One or more device disconnect operations failed during disposal.", exceptions);
     }
 
     private void StopReceivePump(string deviceId)
@@ -337,6 +337,26 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         catch
         {
+        }
+    }
+
+    private static async Task CloseTransportAsync(
+        string deviceId,
+        ITransport transport,
+        string operation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await transport.CloseAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new DeviceConnectionException(deviceId, operation, exception);
         }
     }
 }
