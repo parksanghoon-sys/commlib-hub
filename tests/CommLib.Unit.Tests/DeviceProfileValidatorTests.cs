@@ -99,6 +99,76 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_InvalidSerialDataBits_Throws()
+    {
+        var profile = CreateSerialProfile(dataBits: 4);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_InvalidSerialParity_Throws()
+    {
+        var profile = CreateSerialProfile(parity: "Invalid");
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_InvalidSerialStopBits_Throws()
+    {
+        var profile = CreateSerialProfile(stopBits: "Three");
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_NegativeSerialTurnGap_Throws()
+    {
+        var profile = CreateSerialProfile(turnGapMs: -1);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_NonPositiveSerialReadBufferSize_Throws()
+    {
+        var profile = CreateSerialProfile(readBufferSize: 0);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_NonPositiveSerialWriteBufferSize_Throws()
+    {
+        var profile = CreateSerialProfile(writeBufferSize: 0);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_NonPositiveDefaultTimeout_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03a", displayName: "TCP 03A", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = new RequestResponseOptions
+            {
+                DefaultTimeoutMs = 0,
+                MaxPendingRequests = profile.RequestResponse.MaxPendingRequests
+            },
+            Reconnect = profile.Reconnect
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
     /// <summary>
     /// 최대 프레임 길이가 0 이하면 거부하는지 확인합니다.
     /// </summary>
@@ -165,6 +235,14 @@ public sealed class DeviceProfileValidatorTests
             Protocol = new ProtocolOptions(),
             Serializer = new SerializerOptions()
         };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_UdpRemotePortZero_Throws()
+    {
+        var profile = CreateUdpProfile(remoteHost: "127.0.0.1", remotePort: 0);
 
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
@@ -262,6 +340,30 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_MulticastInvalidGroupAddress_Throws()
+    {
+        var profile = CreateMulticastProfile(groupAddress: "not-an-ip");
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_MulticastUnicastAddress_Throws()
+    {
+        var profile = CreateMulticastProfile(groupAddress: "192.168.0.10");
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_MulticastInvalidLocalInterface_Throws()
+    {
+        var profile = CreateMulticastProfile(localInterface: "bad-interface");
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
     /// <summary>
     /// 지원하지 않는 전송 형식은 거부하는지 확인합니다.
     /// </summary>
@@ -291,6 +393,80 @@ public sealed class DeviceProfileValidatorTests
                 Type = "TcpClient",
                 Host = host,
                 Port = port
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
+    private static DeviceProfile CreateSerialProfile(
+        int baudRate = 115200,
+        int dataBits = 8,
+        string parity = "None",
+        string stopBits = "One",
+        int turnGapMs = 50,
+        int readBufferSize = 4096,
+        int writeBufferSize = 4096)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = "serial-02",
+            DisplayName = "Serial 02",
+            Transport = new SerialTransportOptions
+            {
+                Type = "Serial",
+                PortName = "COM3",
+                BaudRate = baudRate,
+                DataBits = dataBits,
+                Parity = parity,
+                StopBits = stopBits,
+                TurnGapMs = turnGapMs,
+                ReadBufferSize = readBufferSize,
+                WriteBufferSize = writeBufferSize
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
+    private static DeviceProfile CreateUdpProfile(
+        int localPort = 5000,
+        string? remoteHost = null,
+        int? remotePort = null)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = "udp-04",
+            DisplayName = "UDP 04",
+            Transport = new UdpTransportOptions
+            {
+                Type = "Udp",
+                LocalPort = localPort,
+                RemoteHost = remoteHost,
+                RemotePort = remotePort
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
+    private static DeviceProfile CreateMulticastProfile(
+        string groupAddress = "239.0.0.1",
+        int port = 5000,
+        string? localInterface = null,
+        int ttl = 1)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = "mc-03",
+            DisplayName = "MC 03",
+            Transport = new MulticastTransportOptions
+            {
+                Type = "Multicast",
+                GroupAddress = groupAddress,
+                Port = port,
+                LocalInterface = localInterface,
+                Ttl = ttl
             },
             Protocol = new ProtocolOptions(),
             Serializer = new SerializerOptions()
