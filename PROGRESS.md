@@ -349,3 +349,11 @@
 ### 15. 다음 우선순위 업데이트
 - [ ] solution test 중 `CommLib.Unit.Tests/bin`의 stale native asset 경고 원인 점검
 - [ ] podman/compose 재빌드 및 실행 절차를 repo 내 스크립트나 문서로 고정할지 결정
+
+### 16. 추가 업데이트
+- [x] `CommLib.Unit.Tests/bin/Debug/net8.0/runtimes` stale 산출물을 정리하고 더 이상 재생성되지 않는 상태를 확인
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`, `dotnet test commlib-codex-full.sln` 재실행 시 native asset 경고 없이 통과하는 것을 확인
+- [x] repo 내 `compose*.yml`, `docker-compose*.yml`, `Dockerfile`, `Containerfile`를 확인한 결과 현재 podman/compose로 바로 재빌드할 자산은 없음
+
+### 17. 다음 우선순위 업데이트
+- [ ] podman/compose로 운영할 대상이 생기면 compose manifest 또는 실행 스크립트를 새로 정의
