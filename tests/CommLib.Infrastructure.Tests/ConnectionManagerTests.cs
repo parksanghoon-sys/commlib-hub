@@ -722,6 +722,73 @@ public sealed class ConnectionManagerTests
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
     }
 
+    /// <summary>
+    /// transport close가 실패하면 예외를 전파하고 기존 세션은 유지하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_WhenTransportCloseThrows_PropagatesExceptionAndKeepsSession()
+    {
+        var transport = new FakeTransport { FailOnClose = true };
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(transport));
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        var existingSession = manager.GetSession(profile.DeviceId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.DisconnectAsync(profile.DeviceId));
+
+        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
+        Assert.True(transport.IsOpen);
+        Assert.False(transport.IsClosed);
+    }
+
+    /// <summary>
+    /// 재연결 중 기존 transport close가 실패하면 새 transport만 정리하고 기존 세션은 유지하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_ReconnectCloseFails_KeepsExistingSessionAndClosesReplacementTransport()
+    {
+        var firstTransport = new FakeTransport { FailOnClose = true };
+        var secondTransport = new FakeTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(firstTransport, secondTransport));
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await manager.ConnectAsync(profile);
+        var existingSession = manager.GetSession(profile.DeviceId);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+
+        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsOpen);
+        Assert.False(firstTransport.IsClosed);
+        Assert.True(secondTransport.IsClosed);
+    }
+
+    /// <summary>
+    /// dispose 중 일부 transport close가 실패해도 나머지 연결 정리는 계속 시도하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_WhenOneTransportCloseThrows_ContinuesClosingRemainingConnections()
+    {
+        var firstTransport = new FakeTransport { FailOnClose = true };
+        var secondTransport = new FakeTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(firstTransport, secondTransport));
+        var firstProfile = CreateTcpProfile("device-1", 502);
+        var secondProfile = CreateTcpProfile("device-2", 503);
+
+        await manager.ConnectAsync(firstProfile);
+        await manager.ConnectAsync(secondProfile);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () => await manager.DisposeAsync());
+
+        Assert.Equal("FakeTransport failed to close.", exception.Message);
+        Assert.NotNull(manager.GetSession(firstProfile.DeviceId));
+        Assert.Null(manager.GetSession(secondProfile.DeviceId));
+        Assert.True(secondTransport.IsClosed);
+    }
+
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,
@@ -803,6 +870,8 @@ public sealed class ConnectionManagerTests
 
         public bool FailOnOpen { get; init; }
 
+        public bool FailOnClose { get; init; }
+
         public Task OpenAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -850,6 +919,11 @@ public sealed class ConnectionManagerTests
             if (IsClosed)
             {
                 return Task.CompletedTask;
+            }
+
+            if (FailOnClose)
+            {
+                throw new InvalidOperationException("FakeTransport failed to close.");
             }
 
             IsClosed = true;

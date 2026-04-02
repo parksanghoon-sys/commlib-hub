@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using System.Runtime.ExceptionServices;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -103,18 +104,23 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!_sessions.Remove(deviceId))
+        if (!_sessions.ContainsKey(deviceId))
         {
             throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
         }
 
+        if (!_transports.TryGetValue(deviceId, out var transport))
+        {
+            throw new InvalidOperationException($"No transport registered for device '{deviceId}'.");
+        }
+
+        await transport.CloseAsync(cancellationToken).ConfigureAwait(false);
+
+        _sessions.Remove(deviceId);
         _senders.Remove(deviceId);
         _receivers.Remove(deviceId);
+        _transports.Remove(deviceId);
         StopReceivePump(deviceId);
-        if (_transports.Remove(deviceId, out var transport))
-        {
-            await transport.CloseAsync(cancellationToken).ConfigureAwait(false);
-        }
 
         return;
     }
@@ -182,9 +188,45 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         var deviceIds = _sessions.Keys.ToArray();
+        List<Exception>? exceptions = null;
         foreach (var deviceId in deviceIds)
         {
-            await DisconnectAsync(deviceId).ConfigureAwait(false);
+            try
+            {
+                await DisconnectAsync(deviceId).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                exceptions ??= new List<Exception>();
+                exceptions.Add(exception);
+            }
+        }
+
+        if (exceptions is null)
+        {
+            return;
+        }
+
+        if (exceptions.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+        }
+
+        throw new AggregateException(exceptions);
+    }
+
+    private void StopReceivePump(string deviceId)
+    {
+        if (_receivePumpTokens.Remove(deviceId, out var cancellationTokenSource))
+        {
+            cancellationTokenSource.Cancel();
+            cancellationTokenSource.Dispose();
+        }
+
+        _receivePumpTasks.Remove(deviceId);
+        if (_inboundQueues.Remove(deviceId, out var inboundQueue))
+        {
+            DropPendingInbound(inboundQueue);
         }
     }
 
@@ -274,21 +316,6 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         finally
         {
             inboundWriter.TryComplete();
-        }
-    }
-
-    private void StopReceivePump(string deviceId)
-    {
-        if (_receivePumpTokens.Remove(deviceId, out var cancellationTokenSource))
-        {
-            cancellationTokenSource.Cancel();
-            cancellationTokenSource.Dispose();
-        }
-
-        _receivePumpTasks.Remove(deviceId);
-        if (_inboundQueues.Remove(deviceId, out var inboundQueue))
-        {
-            DropPendingInbound(inboundQueue);
         }
     }
 
