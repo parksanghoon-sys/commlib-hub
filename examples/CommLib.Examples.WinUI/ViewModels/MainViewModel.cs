@@ -15,38 +15,15 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private string _statusDetail = "Ready for the first device session.";
     private bool _isBusy;
     private bool _isConnected;
-    private string _deviceId = "device-lab";
-    private string _displayName = "Device Lab";
-    private string _defaultTimeoutMs = "3000";
-    private string _maxPendingRequests = "8";
-    private string _outboundMessageId = "100";
-    private string _outboundBody = "hello from the mvvm winui lab";
-    private TransportChoiceViewModel _selectedTransport = null!;
 
     public MainViewModel(
         IDeviceLabSessionService sessionService,
         IUiDispatcher uiDispatcher,
-        TcpTransportSettingsViewModel tcpSettings,
-        UdpTransportSettingsViewModel udpSettings,
-        MulticastTransportSettingsViewModel multicastSettings,
-        SerialTransportSettingsViewModel serialSettings)
+        DeviceLabSettingsViewModel settings)
     {
         _sessionService = sessionService;
         _uiDispatcher = uiDispatcher;
-        TcpSettings = tcpSettings;
-        UdpSettings = udpSettings;
-        MulticastSettings = multicastSettings;
-        SerialSettings = serialSettings;
-
-        TransportChoices =
-        [
-            new TransportChoiceViewModel(TransportKind.Tcp, "TCP", "Reliable socket session"),
-            new TransportChoiceViewModel(TransportKind.Udp, "UDP", "Fast datagram transport"),
-            new TransportChoiceViewModel(TransportKind.Multicast, "Multicast", "Group broadcast traffic"),
-            new TransportChoiceViewModel(TransportKind.Serial, "Serial", "COM and loopback links")
-        ];
-
-        _selectedTransport = TransportChoices[0];
+        Settings = settings;
 
         ConnectCommand = new AsyncRelayCommand(ConnectAsync, CanConnect);
         DisconnectCommand = new AsyncRelayCommand(DisconnectAsync, CanDisconnect);
@@ -61,15 +38,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<LogEntry> Logs { get; } = [];
 
-    public IReadOnlyList<TransportChoiceViewModel> TransportChoices { get; }
-
-    public TcpTransportSettingsViewModel TcpSettings { get; }
-
-    public UdpTransportSettingsViewModel UdpSettings { get; }
-
-    public MulticastTransportSettingsViewModel MulticastSettings { get; }
-
-    public SerialTransportSettingsViewModel SerialSettings { get; }
+    public DeviceLabSettingsViewModel Settings { get; }
 
     public AsyncRelayCommand ConnectCommand { get; }
 
@@ -115,78 +84,11 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    public string DeviceId
-    {
-        get => _deviceId;
-        set => SetProperty(ref _deviceId, value);
-    }
-
-    public string DisplayName
-    {
-        get => _displayName;
-        set => SetProperty(ref _displayName, value);
-    }
-
-    public string DefaultTimeoutMs
-    {
-        get => _defaultTimeoutMs;
-        set => SetProperty(ref _defaultTimeoutMs, value);
-    }
-
-    public string MaxPendingRequests
-    {
-        get => _maxPendingRequests;
-        set => SetProperty(ref _maxPendingRequests, value);
-    }
-
-    public string OutboundMessageId
-    {
-        get => _outboundMessageId;
-        set => SetProperty(ref _outboundMessageId, value);
-    }
-
-    public string OutboundBody
-    {
-        get => _outboundBody;
-        set => SetProperty(ref _outboundBody, value);
-    }
-
-    public TransportChoiceViewModel SelectedTransport
-    {
-        get => _selectedTransport;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-
-            if (SetProperty(ref _selectedTransport, value))
-            {
-                OnPropertyChanged(nameof(IsTcpSelected));
-                OnPropertyChanged(nameof(IsUdpSelected));
-                OnPropertyChanged(nameof(IsMulticastSelected));
-                OnPropertyChanged(nameof(IsSerialSelected));
-                OnPropertyChanged(nameof(SelectedTransportTitle));
-                OnPropertyChanged(nameof(SelectedTransportSubtitle));
-            }
-        }
-    }
-
-    public bool IsTcpSelected => SelectedTransport.Kind == TransportKind.Tcp;
-
-    public bool IsUdpSelected => SelectedTransport.Kind == TransportKind.Udp;
-
-    public bool IsMulticastSelected => SelectedTransport.Kind == TransportKind.Multicast;
-
-    public bool IsSerialSelected => SelectedTransport.Kind == TransportKind.Serial;
-
-    public string SelectedTransportTitle => SelectedTransport.Label;
-
-    public string SelectedTransportSubtitle => SelectedTransport.Subtitle;
-
     public string ProtocolBadgeText => "LengthPrefixed";
 
     public string SerializerBadgeText => "AutoBinary";
 
-    public string RuntimePolicyText => "Strict MVVM + DI";
+    public string RuntimePolicyText => "Strict MVVM + DI + JSON";
 
     public async ValueTask DisposeAsync()
     {
@@ -263,7 +165,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
-            await _sessionService.SendAsync(ParseMessageId(), OutboundBody).ConfigureAwait(false);
+            await _sessionService.SendAsync(ParseMessageId(), Settings.OutboundBody).ConfigureAwait(false);
             StatusText = "Connected";
             StatusDetail = "Session is online and ready for the next message.";
         }
@@ -289,12 +191,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     private DeviceProfile BuildProfile()
     {
-        var trimmedDeviceId = DeviceId.Trim();
+        var trimmedDeviceId = Settings.DeviceId.Trim();
 
         return new DeviceProfile
         {
             DeviceId = trimmedDeviceId,
-            DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? trimmedDeviceId : DisplayName.Trim(),
+            DisplayName = string.IsNullOrWhiteSpace(Settings.DisplayName) ? trimmedDeviceId : Settings.DisplayName.Trim(),
             Enabled = true,
             Transport = BuildTransportOptions(),
             Protocol = new ProtocolOptions
@@ -314,27 +216,27 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             },
             RequestResponse = new RequestResponseOptions
             {
-                DefaultTimeoutMs = ParsePositiveInt(DefaultTimeoutMs, "Default Timeout"),
-                MaxPendingRequests = ParsePositiveInt(MaxPendingRequests, "Max Pending Requests")
+                DefaultTimeoutMs = ParsePositiveInt(Settings.DefaultTimeoutMs, "Default Timeout"),
+                MaxPendingRequests = ParsePositiveInt(Settings.MaxPendingRequests, "Max Pending Requests")
             }
         };
     }
 
     private TransportOptions BuildTransportOptions()
     {
-        return SelectedTransport.Kind switch
+        return Settings.SelectedTransport.Kind switch
         {
-            TransportKind.Tcp => TcpSettings.BuildTransportOptions(),
-            TransportKind.Udp => UdpSettings.BuildTransportOptions(),
-            TransportKind.Multicast => MulticastSettings.BuildTransportOptions(),
-            TransportKind.Serial => SerialSettings.BuildTransportOptions(),
+            TransportKind.Tcp => Settings.TcpSettings.BuildTransportOptions(),
+            TransportKind.Udp => Settings.UdpSettings.BuildTransportOptions(),
+            TransportKind.Multicast => Settings.MulticastSettings.BuildTransportOptions(),
+            TransportKind.Serial => Settings.SerialSettings.BuildTransportOptions(),
             _ => throw new InvalidOperationException("Unsupported transport selection.")
         };
     }
 
     private ushort ParseMessageId()
     {
-        if (!ushort.TryParse(OutboundMessageId.Trim(), out var messageId))
+        if (!ushort.TryParse(Settings.OutboundMessageId.Trim(), out var messageId))
         {
             throw new InvalidOperationException("Message Id must be between 0 and 65535.");
         }

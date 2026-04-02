@@ -253,15 +253,15 @@ public sealed class DeviceLabView : UserControl
 
         var transportCombo = CreateComboBox();
         transportCombo.ItemTemplate = _transportChoiceTemplate;
-        Bind(transportCombo, ItemsControl.ItemsSourceProperty, "TransportChoices");
-        Bind(transportCombo, Selector.SelectedItemProperty, "SelectedTransport", BindingMode.TwoWay);
+        Bind(transportCombo, ItemsControl.ItemsSourceProperty, "Settings.TransportChoices");
+        Bind(transportCombo, Selector.SelectedItemProperty, "Settings.SelectedTransport", BindingMode.TwoWay);
         content.Children.Add(transportCombo);
 
         var grid = CreateTwoColumnFormGrid();
-        AddToGrid(grid, CreateLabeledInput("Device Id", CreateTextBox("DeviceId")), 0, 0);
-        AddToGrid(grid, CreateLabeledInput("Display Name", CreateTextBox("DisplayName")), 0, 1);
-        AddToGrid(grid, CreateLabeledInput("Default Timeout (ms)", CreateTextBox("DefaultTimeoutMs")), 1, 0);
-        AddToGrid(grid, CreateLabeledInput("Max Pending Requests", CreateTextBox("MaxPendingRequests")), 1, 1);
+        AddToGrid(grid, CreateLabeledInput("Device Id", CreateTextBox("Settings.DeviceId")), 0, 0);
+        AddToGrid(grid, CreateLabeledInput("Display Name", CreateTextBox("Settings.DisplayName")), 0, 1);
+        AddToGrid(grid, CreateLabeledInput("Default Timeout (ms)", CreateTextBox("Settings.DefaultTimeoutMs")), 1, 0);
+        AddToGrid(grid, CreateLabeledInput("Max Pending Requests", CreateTextBox("Settings.MaxPendingRequests")), 1, 1);
         content.Children.Add(grid);
 
         card.Child = content;
@@ -273,7 +273,7 @@ public sealed class DeviceLabView : UserControl
         var card = CreateCard(fromHorizontalOffset: -12);
         var content = new StackPanel { Spacing = 16 };
 
-        content.Children.Add(CreateBoundHeader("SelectedTransportTitle", "SelectedTransportSubtitle"));
+        content.Children.Add(CreateBoundHeader("Settings.SelectedTransportTitle", "Settings.SelectedTransportSubtitle"));
 
         content.Children.Add(CreateTcpPanel());
         content.Children.Add(CreateUdpPanel());
@@ -295,8 +295,8 @@ public sealed class DeviceLabView : UserControl
         var messageGrid = new Grid { ColumnSpacing = 12 };
         messageGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         messageGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        messageGrid.Children.Add(CreateLabeledInput("Message Id", CreateTextBox("OutboundMessageId")));
-        var bodyInput = CreateLabeledInput("Body", CreateTextBox("OutboundBody", height: 140, acceptsReturn: true));
+        messageGrid.Children.Add(CreateLabeledInput("Message Id", CreateTextBox("Settings.OutboundMessageId")));
+        var bodyInput = CreateLabeledInput("Body", CreateTextBox("Settings.OutboundBody", height: 140, acceptsReturn: true));
         Grid.SetColumn(bodyInput, 1);
         messageGrid.Children.Add(bodyInput);
         content.Children.Add(messageGrid);
@@ -359,17 +359,17 @@ public sealed class DeviceLabView : UserControl
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        AddToGrid(grid, CreateLabeledInput("Host", CreateTextBox("TcpSettings.Host")), 0, 0);
-        AddToGrid(grid, CreateLabeledInput("Port", CreateTextBox("TcpSettings.Port")), 0, 1);
-        AddToGrid(grid, CreateLabeledInput("Connect Timeout (ms)", CreateTextBox("TcpSettings.ConnectTimeoutMs")), 1, 0);
-        AddToGrid(grid, CreateLabeledInput("Buffer Size", CreateTextBox("TcpSettings.BufferSize")), 1, 1);
+        AddToGrid(grid, CreateLabeledInput("Host", CreateTextBox("Settings.TcpSettings.Host")), 0, 0);
+        AddToGrid(grid, CreateLabeledInput("Port", CreateTextBox("Settings.TcpSettings.Port")), 0, 1);
+        AddToGrid(grid, CreateLabeledInput("Connect Timeout (ms)", CreateTextBox("Settings.TcpSettings.ConnectTimeoutMs")), 1, 0);
+        AddToGrid(grid, CreateLabeledInput("Buffer Size", CreateTextBox("Settings.TcpSettings.BufferSize")), 1, 1);
 
-        var noDelay = CreateCheckBox("Disable Nagle (NoDelay)", "TcpSettings.NoDelay");
+        var noDelay = CreateCheckBox("Disable Nagle (NoDelay)", "Settings.TcpSettings.NoDelay");
         Grid.SetRow(noDelay, 2);
         Grid.SetColumnSpan(noDelay, 2);
         grid.Children.Add(noDelay);
 
-        return CreateTransportPanel("IsTcpSelected", grid);
+        return CreateTransportPanel("Settings.IsTcpSelected", grid);
     }
 
     private UIElement CreateUdpPanel()
@@ -379,10 +379,10 @@ public sealed class DeviceLabView : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
 
-        AddToGrid(grid, CreateLabeledInput("Local Port", CreateTextBox("UdpSettings.LocalPort")), 0, 0);
-        AddToGrid(grid, CreateLabeledInput("Remote Host", CreateTextBox("UdpSettings.RemoteHost")), 0, 1);
-        AddToGrid(grid, CreateLabeledInput("Remote Port", CreateTextBox("UdpSettings.RemotePort")), 0, 2);
-        return CreateTransportPanel("IsUdpSelected", grid);
+        AddToGrid(grid, CreateLabeledInput("Local Port", CreateTextBox("Settings.UdpSettings.LocalPort")), 0, 0);
+        AddToGrid(grid, CreateLabeledInput("Remote Host", CreateTextBox("Settings.UdpSettings.RemoteHost")), 0, 1);
+        AddToGrid(grid, CreateLabeledInput("Remote Port", CreateTextBox("Settings.UdpSettings.RemotePort")), 0, 2);
+        return CreateTransportPanel("Settings.IsUdpSelected", grid);
     }
 
     private UIElement CreateMulticastPanel()
@@ -394,19 +394,19 @@ public sealed class DeviceLabView : UserControl
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        AddToGrid(grid, CreateLabeledInput("Group Address", CreateTextBox("MulticastSettings.GroupAddress")), 0, 0);
-        AddToGrid(grid, CreateLabeledInput("Port", CreateTextBox("MulticastSettings.Port")), 0, 1);
-        AddToGrid(grid, CreateLabeledInput("TTL", CreateTextBox("MulticastSettings.Ttl")), 0, 2);
-        AddToGrid(grid, CreateLabeledInput("Local Interface (optional)", CreateTextBox("MulticastSettings.LocalInterface")), 1, 0);
+        AddToGrid(grid, CreateLabeledInput("Group Address", CreateTextBox("Settings.MulticastSettings.GroupAddress")), 0, 0);
+        AddToGrid(grid, CreateLabeledInput("Port", CreateTextBox("Settings.MulticastSettings.Port")), 0, 1);
+        AddToGrid(grid, CreateLabeledInput("TTL", CreateTextBox("Settings.MulticastSettings.Ttl")), 0, 2);
+        AddToGrid(grid, CreateLabeledInput("Local Interface (optional)", CreateTextBox("Settings.MulticastSettings.LocalInterface")), 1, 0);
 
-        var loopback = CreateCheckBox("Enable loopback", "MulticastSettings.Loopback");
+        var loopback = CreateCheckBox("Enable loopback", "Settings.MulticastSettings.Loopback");
         loopback.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetRow(loopback, 1);
         Grid.SetColumn(loopback, 1);
         Grid.SetColumnSpan(loopback, 2);
         grid.Children.Add(loopback);
 
-        return CreateTransportPanel("IsMulticastSelected", grid);
+        return CreateTransportPanel("Settings.IsMulticastSelected", grid);
     }
 
     private UIElement CreateSerialPanel()
@@ -419,22 +419,22 @@ public sealed class DeviceLabView : UserControl
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        AddToGrid(grid, CreateLabeledInput("Port Name", CreateTextBox("SerialSettings.PortName")), 0, 0);
-        AddToGrid(grid, CreateLabeledInput("Baud Rate", CreateTextBox("SerialSettings.BaudRate")), 0, 1);
-        AddToGrid(grid, CreateLabeledInput("Data Bits", CreateTextBox("SerialSettings.DataBits")), 0, 2);
-        AddToGrid(grid, CreateLabeledInput("Parity", CreateComboBox("SerialSettings.ParityOptions", "SerialSettings.Parity")), 1, 0);
-        AddToGrid(grid, CreateLabeledInput("Stop Bits", CreateComboBox("SerialSettings.StopBitsOptions", "SerialSettings.StopBits")), 1, 1);
-        AddToGrid(grid, CreateLabeledInput("Turn Gap (ms)", CreateTextBox("SerialSettings.TurnGapMs")), 1, 2);
-        AddToGrid(grid, CreateLabeledInput("Read Buffer Size", CreateTextBox("SerialSettings.ReadBufferSize")), 2, 0);
-        AddToGrid(grid, CreateLabeledInput("Write Buffer Size", CreateTextBox("SerialSettings.WriteBufferSize")), 2, 1);
+        AddToGrid(grid, CreateLabeledInput("Port Name", CreateTextBox("Settings.SerialSettings.PortName")), 0, 0);
+        AddToGrid(grid, CreateLabeledInput("Baud Rate", CreateTextBox("Settings.SerialSettings.BaudRate")), 0, 1);
+        AddToGrid(grid, CreateLabeledInput("Data Bits", CreateTextBox("Settings.SerialSettings.DataBits")), 0, 2);
+        AddToGrid(grid, CreateLabeledInput("Parity", CreateComboBox("Settings.SerialSettings.ParityOptions", "Settings.SerialSettings.Parity")), 1, 0);
+        AddToGrid(grid, CreateLabeledInput("Stop Bits", CreateComboBox("Settings.SerialSettings.StopBitsOptions", "Settings.SerialSettings.StopBits")), 1, 1);
+        AddToGrid(grid, CreateLabeledInput("Turn Gap (ms)", CreateTextBox("Settings.SerialSettings.TurnGapMs")), 1, 2);
+        AddToGrid(grid, CreateLabeledInput("Read Buffer Size", CreateTextBox("Settings.SerialSettings.ReadBufferSize")), 2, 0);
+        AddToGrid(grid, CreateLabeledInput("Write Buffer Size", CreateTextBox("Settings.SerialSettings.WriteBufferSize")), 2, 1);
 
-        var halfDuplex = CreateCheckBox("Use half-duplex timing", "SerialSettings.HalfDuplex");
+        var halfDuplex = CreateCheckBox("Use half-duplex timing", "Settings.SerialSettings.HalfDuplex");
         halfDuplex.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetRow(halfDuplex, 2);
         Grid.SetColumn(halfDuplex, 2);
         grid.Children.Add(halfDuplex);
 
-        return CreateTransportPanel("IsSerialSelected", grid);
+        return CreateTransportPanel("Settings.IsSerialSelected", grid);
     }
 
     private Border CreateTransportPanel(string visibilityPath, FrameworkElement content)
