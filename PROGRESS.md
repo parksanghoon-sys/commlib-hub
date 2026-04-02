@@ -247,3 +247,44 @@
 - [ ] `UdpTransport`, `SerialTransport`, `MulticastTransport`도 실제 open/send/receive 수명주기로 확장할지 우선순위 결정
 - [ ] reconnect 중 기존 transport close 실패나 receive pump 종료 예외를 어떻게 복구/보고할지 정책 구체화
 - [ ] `MessageModel` / `IMessageBody`를 실사용 도메인 메시지와 serializer 설계로 일반화
+
+## 2026-04-02
+
+### 1. 오늘 완료한 작업
+- [x] `DeviceBootstrapperTests`에 선취소 시 연결 미시도 검증 추가
+- [x] `DeviceBootstrapperTests`에 연결 사이 취소 요청 시 후속 프로필 중단 검증 추가
+- [x] `DeviceBootstrapper.StartAsync`가 루프마다 취소를 선확인하도록 fail-fast 방식으로 보강
+- [x] recording 기반 `UdpTransport` stub을 `StubUdpTransport`로 분리하고 실제 `UdpTransport` 구현 추가
+- [x] `TransportFactory`가 `UdpTransportOptions`에 대해 실제 `UdpTransport`를 생성하도록 갱신
+- [x] `UdpTransportTests`를 추가해 loopback UDP 기준 send/receive/close 취소와 remote endpoint guard를 검증
+- [x] recording 기반 `MulticastTransport` stub을 `StubMulticastTransport`로 분리하고 실제 `MulticastTransport` 구현 추가
+- [x] `TransportFactory`가 `MulticastTransportOptions`에 대해 실제 `MulticastTransport`를 생성하도록 갱신
+- [x] `MulticastTransportTests`를 추가해 multicast group join/send/receive/close 취소를 검증
+- [x] recording 기반 `SerialTransport` stub을 `StubSerialTransport`로 분리하고 실제 `SerialTransport` 구현 추가
+- [x] `System.IO.Ports` 패키지와 `InternalsVisibleTo`를 추가해 하드웨어 없는 직렬 포트 테스트 구조를 구성
+- [x] `TransportFactory`가 `SerialTransportOptions`에 대해 실제 `SerialTransport`를 생성하도록 갱신
+- [x] `SerialTransportTests`를 추가해 adapter open/send/receive/close 취소와 half-duplex turn gap을 검증
+- [x] `ConnectionManager.DisconnectAsync`가 transport close 성공 전에는 세션 상태를 제거하지 않도록 정리
+- [x] reconnect 중 기존 transport close 실패 시 새 transport만 정리하고 기존 세션을 유지하는 정책을 테스트로 고정
+- [x] `ConnectionManager.DisposeAsync`가 일부 disconnect 실패가 있어도 나머지 연결 정리를 계속 시도하도록 보강
+
+### 2. 오늘 검증
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj` 통과 (`41`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~UdpTransportTests|FullyQualifiedName~TransportFactoryTests|FullyQualifiedName~StubTransportsTests"` 통과 (`18`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 통과 (`89`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 통과 (`CommLib.Infrastructure.Tests` 89개, `CommLib.Unit.Tests` 41개)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~MulticastTransportTests|FullyQualifiedName~TransportFactoryTests|FullyQualifiedName~StubTransportsTests"` 통과 (`17`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`92`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 92개, `CommLib.Unit.Tests` 41개)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~SerialTransportTests|FullyQualifiedName~TransportFactoryTests|FullyQualifiedName~StubTransportsTests"` 통과 (`19`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`97`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 97개, `CommLib.Unit.Tests` 41개)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "FullyQualifiedName~ConnectionManagerTests"` 통과 (`38`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj` 재통과 (`100`개 테스트)
+- [x] `dotnet test commlib-codex-full.sln` 재통과 (`CommLib.Infrastructure.Tests` 100개, `CommLib.Unit.Tests` 41개)
+
+### 3. 다음 작업 메모
+- [ ] `DeviceSession` 큐 포화 시 요청 추적 누수 여부를 구현/테스트로 재점검
+- [ ] `DeviceProfileValidator` 경계값/조합 케이스 추가
+- [ ] `CommLib.Unit.Tests`와 `CommLib.Infrastructure.Tests` 책임 경계 재정리
+- [ ] `ConnectionManager`가 실제 transport close 실패를 만났을 때 호출자/로그/재시도 정책을 더 구체화
