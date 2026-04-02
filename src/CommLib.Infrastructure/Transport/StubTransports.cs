@@ -140,32 +140,32 @@ public abstract class RecordingTransport : ITransport
 /// <summary>
 /// 자리표시용 UDP 전송 구현입니다.
 /// </summary>
-public sealed class UdpTransport : RecordingTransport
+public sealed class StubUdpTransport : RecordingTransport
 {
     /// <summary>
     /// 전송 이름을 가져옵니다.
     /// </summary>
-    public override string Name => "UdpTransport";
+    public override string Name => "StubUdpTransport";
 }
 
 /// <summary>
 /// 자리표시용 시리얼 전송 구현입니다.
 /// </summary>
-public sealed class SerialTransport : RecordingTransport
+public sealed class StubSerialTransport : RecordingTransport
 {
     /// <summary>
     /// 전송 이름을 가져옵니다.
     /// </summary>
-    public override string Name => "SerialTransport";
+    public override string Name => "StubSerialTransport";
 }
 
 /// <summary>
 /// 자리표시용 멀티캐스트 전송 구현입니다.
 /// </summary>
-public sealed class MulticastTransport : RecordingTransport
+public sealed class StubMulticastTransport : RecordingTransport
 {
     /// <summary>
     /// 전송 이름을 가져옵니다.
     /// </summary>
-    public override string Name => "MulticastTransport";
+    public override string Name => "StubMulticastTransport";
 }

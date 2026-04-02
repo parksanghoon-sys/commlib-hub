@@ -19,9 +19,9 @@ public sealed class TransportFactory : ITransportFactory
         return options switch
         {
             TcpClientTransportOptions tcp => new TcpTransport(tcp),
-            UdpTransportOptions => new UdpTransport(),
-            SerialTransportOptions => new SerialTransport(),
-            MulticastTransportOptions => new MulticastTransport(),
+            UdpTransportOptions udp => new UdpTransport(udp),
+            SerialTransportOptions serial => new SerialTransport(serial),
+            MulticastTransportOptions multicast => new MulticastTransport(multicast),
             _ => throw new NotSupportedException($"Unsupported transport: {options.GetType().Name}")
         };
     }

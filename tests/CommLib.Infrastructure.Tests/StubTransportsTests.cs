@@ -14,7 +14,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task UdpTransport_OpenAsync_SendAsync_StoresLastFrame()
     {
-        var transport = new UdpTransport();
+        var transport = new StubUdpTransport();
         var frame = new byte[] { 0x01, 0x02, 0x03 };
 
         await transport.OpenAsync();
@@ -30,7 +30,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task UdpTransport_SendAsync_CanceledToken_ThrowsOperationCanceledException()
     {
-        var transport = new UdpTransport();
+        var transport = new StubUdpTransport();
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
@@ -46,8 +46,8 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task MultipleTransports_SendAsync_RecordFramesIndependently()
     {
-        var serial = new SerialTransport();
-        var multicast = new MulticastTransport();
+        var serial = new StubSerialTransport();
+        var multicast = new StubMulticastTransport();
 
         await serial.OpenAsync();
         await multicast.OpenAsync();
@@ -66,7 +66,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task SerialTransport_OpenAsync_ReceiveAsync_ReturnsQueuedInboundFrame()
     {
-        var transport = new SerialTransport();
+        var transport = new StubSerialTransport();
         await transport.OpenAsync();
         transport.EnqueueInboundFrame(new byte[] { 0x01, 0x02, 0x03 });
 
@@ -82,7 +82,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task CloseAsync_AfterClose_SendAsyncThrows()
     {
-        var transport = new UdpTransport();
+        var transport = new StubUdpTransport();
         await transport.OpenAsync();
         await transport.CloseAsync();
 
@@ -97,7 +97,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task CloseAsync_CanBeCalledMultipleTimes()
     {
-        var transport = new UdpTransport();
+        var transport = new StubUdpTransport();
 
         await transport.OpenAsync();
         await transport.CloseAsync();
@@ -112,7 +112,7 @@ public sealed class StubTransportsTests
     [Fact]
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
-        var transport = new MulticastTransport();
+        var transport = new StubMulticastTransport();
         await transport.OpenAsync();
         var pendingReceive = transport.ReceiveAsync();
 
