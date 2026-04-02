@@ -6,13 +6,20 @@
     <RootNamespace>CommLib.Examples.WinUI</RootNamespace>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\CommLib.Application\CommLib.Application.csproj" />
     <ProjectReference Include="..\..\src\CommLib.Domain\CommLib.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CommLib.Hosting\CommLib.Hosting.csproj" />
     <ProjectReference Include="..\..\src\CommLib.Infrastructure\CommLib.Infrastructure.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
   </ItemGroup>
 </Project>
