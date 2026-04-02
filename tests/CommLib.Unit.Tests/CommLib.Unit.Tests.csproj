@@ -14,6 +14,5 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CommLib.Application\CommLib.Application.csproj" />
     <ProjectReference Include="..\..\src\CommLib.Domain\CommLib.Domain.csproj" />
-    <ProjectReference Include="..\..\src\CommLib.Infrastructure\CommLib.Infrastructure.csproj" />
   </ItemGroup>
 </Project>
