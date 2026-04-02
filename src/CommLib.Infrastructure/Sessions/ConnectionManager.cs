@@ -18,6 +18,8 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     private readonly ITransportFactory _transportFactory;
     private readonly IProtocolFactory _protocolFactory;
     private readonly ISerializerFactory _serializerFactory;
+    private readonly IConnectionEventSink _eventSink;
+    private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly Dictionary<string, IDeviceSession> _sessions = new();
     private readonly Dictionary<string, TransportMessageSender> _senders = new();
     private readonly Dictionary<string, TransportMessageReceiver> _receivers = new();
@@ -35,11 +37,29 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public ConnectionManager(
         ITransportFactory transportFactory,
         IProtocolFactory protocolFactory,
-        ISerializerFactory serializerFactory)
+        ISerializerFactory serializerFactory,
+        IConnectionEventSink? eventSink = null)
+        : this(
+            transportFactory,
+            protocolFactory,
+            serializerFactory,
+            eventSink,
+            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken))
+    {
+    }
+
+    internal ConnectionManager(
+        ITransportFactory transportFactory,
+        IProtocolFactory protocolFactory,
+        ISerializerFactory serializerFactory,
+        IConnectionEventSink? eventSink,
+        Func<TimeSpan, CancellationToken, Task> delayAsync)
     {
         _transportFactory = transportFactory;
         _protocolFactory = protocolFactory;
         _serializerFactory = serializerFactory;
+        _eventSink = eventSink ?? NullConnectionEventSink.Instance;
+        _delayAsync = delayAsync;
     }
 
     /// <summary>
@@ -51,9 +71,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public async Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var transport = _transportFactory.Create(profile.Transport);
         var protocol = _protocolFactory.Create(profile.Protocol);
         var serializer = _serializerFactory.Create(profile.Serializer);
+        var transport = await CreateOpenedTransportAsync(profile, cancellationToken).ConfigureAwait(false);
         var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
         var decoder = new MessageFrameDecoder(protocol, serializer);
         var receiver = new TransportMessageReceiver(decoder, transport);
@@ -340,7 +360,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
     }
 
-    private static async Task CloseTransportAsync(
+    private async Task CloseTransportAsync(
         string deviceId,
         ITransport transport,
         string operation,
@@ -356,7 +376,91 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            throw new DeviceConnectionException(deviceId, operation, exception);
+            var wrapped = new DeviceConnectionException(deviceId, operation, exception);
+            _eventSink.OnOperationFailed(deviceId, operation, wrapped);
+            throw wrapped;
         }
+    }
+
+    private async Task<ITransport> CreateOpenedTransportAsync(DeviceProfile profile, CancellationToken cancellationToken)
+    {
+        var totalAttempts = GetTotalConnectAttempts(profile.Reconnect);
+
+        for (var attempt = 1; attempt <= totalAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _eventSink.OnConnectAttempt(profile.DeviceId, attempt, totalAttempts);
+
+            ITransport? transport = null;
+            try
+            {
+                transport = _transportFactory.Create(profile.Transport);
+                await transport.OpenAsync(cancellationToken).ConfigureAwait(false);
+                _eventSink.OnConnectSucceeded(profile.DeviceId, attempt);
+                return transport;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                if (transport is not null)
+                {
+                    await TryCloseTransportAsync(transport).ConfigureAwait(false);
+                }
+
+                throw;
+            }
+            catch (Exception exception)
+            {
+                if (transport is not null)
+                {
+                    await TryCloseTransportAsync(transport).ConfigureAwait(false);
+                }
+
+                if (attempt >= totalAttempts)
+                {
+                    var wrapped = new DeviceConnectionException(profile.DeviceId, "connect", exception);
+                    _eventSink.OnOperationFailed(profile.DeviceId, "connect", wrapped);
+                    throw wrapped;
+                }
+
+                var delay = GetRetryDelay(profile.Reconnect, attempt);
+                _eventSink.OnConnectRetryScheduled(profile.DeviceId, attempt, delay, exception);
+                await _delayAsync(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException($"Device '{profile.DeviceId}' exhausted its connection attempts unexpectedly.");
+    }
+
+    private static int GetTotalConnectAttempts(ReconnectOptions reconnect)
+    {
+        if (reconnect.MaxAttempts <= 0 || IsNoRetryPolicy(reconnect.Type))
+        {
+            return 1;
+        }
+
+        return checked(reconnect.MaxAttempts + 1);
+    }
+
+    private static TimeSpan GetRetryDelay(ReconnectOptions reconnect, int failedAttemptNumber)
+    {
+        if (IsLinearPolicy(reconnect.Type))
+        {
+            return TimeSpan.FromMilliseconds(reconnect.IntervalMs);
+        }
+
+        var exponent = Math.Max(0, failedAttemptNumber - 1);
+        var computedDelay = reconnect.BaseDelayMs * Math.Pow(2, exponent);
+        var boundedDelay = Math.Min((long)Math.Ceiling(computedDelay), reconnect.MaxDelayMs);
+        return TimeSpan.FromMilliseconds(boundedDelay);
+    }
+
+    private static bool IsNoRetryPolicy(string type)
+    {
+        return type.Equals("None", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLinearPolicy(string type)
+    {
+        return type.Equals("Linear", StringComparison.OrdinalIgnoreCase);
     }
 }

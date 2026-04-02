@@ -169,6 +169,61 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_InvalidReconnectType_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03b", displayName: "TCP 03B", host: "127.0.0.1", port: 502);
+        profile = CreateProfileWithReconnect(profile, new ReconnectOptions
+        {
+            Type = "Custom",
+            MaxAttempts = 1
+        });
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_ReconnectNoneWithAttempts_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03c", displayName: "TCP 03C", host: "127.0.0.1", port: 502);
+        profile = CreateProfileWithReconnect(profile, new ReconnectOptions
+        {
+            Type = "None",
+            MaxAttempts = 1
+        });
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_LinearReconnectWithNonPositiveInterval_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03d", displayName: "TCP 03D", host: "127.0.0.1", port: 502);
+        profile = CreateProfileWithReconnect(profile, new ReconnectOptions
+        {
+            Type = "Linear",
+            MaxAttempts = 2,
+            IntervalMs = 0
+        });
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_BackoffReconnectWithInvalidDelays_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03e", displayName: "TCP 03E", host: "127.0.0.1", port: 502);
+        profile = CreateProfileWithReconnect(profile, new ReconnectOptions
+        {
+            Type = "Exponential",
+            MaxAttempts = 2,
+            BaseDelayMs = 1000,
+            MaxDelayMs = 500
+        });
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
     /// <summary>
     /// 최대 프레임 길이가 0 이하면 거부하는지 확인합니다.
     /// </summary>
@@ -470,6 +525,21 @@ public sealed class DeviceProfileValidatorTests
             },
             Protocol = new ProtocolOptions(),
             Serializer = new SerializerOptions()
+        };
+    }
+
+    private static DeviceProfile CreateProfileWithReconnect(DeviceProfile profile, ReconnectOptions reconnect)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            Reconnect = reconnect,
+            RequestResponse = profile.RequestResponse
         };
     }
 

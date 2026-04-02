@@ -39,6 +39,8 @@ public static class DeviceProfileValidator
             throw new InvalidOperationException($"[{profile.DeviceId}] MaxPendingRequests must be greater than 0.");
         }
 
+        ValidateReconnectOptions(profile);
+
         switch (profile.Transport)
         {
             case TcpClientTransportOptions tcp:
@@ -157,5 +159,63 @@ public static class DeviceProfileValidator
         var bytes = address.GetAddressBytes();
         return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
                bytes[0] is >= 224 and <= 239;
+    }
+
+    private static void ValidateReconnectOptions(DeviceProfile profile)
+    {
+        var reconnect = profile.Reconnect;
+        if (!IsSupportedReconnectType(reconnect.Type))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect Type is invalid.");
+        }
+
+        if (reconnect.MaxAttempts < 0)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be greater than or equal to 0.");
+        }
+
+        if (reconnect.Type.Equals("None", StringComparison.OrdinalIgnoreCase))
+        {
+            if (reconnect.MaxAttempts != 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be 0 when Type is None.");
+            }
+
+            return;
+        }
+
+        if (reconnect.Type.Equals("Linear", StringComparison.OrdinalIgnoreCase))
+        {
+            if (reconnect.IntervalMs <= 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect IntervalMs must be greater than 0.");
+            }
+
+            return;
+        }
+
+        if (reconnect.BaseDelayMs <= 0)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect BaseDelayMs must be greater than 0.");
+        }
+
+        if (reconnect.MaxDelayMs <= 0)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than 0.");
+        }
+
+        if (reconnect.MaxDelayMs < reconnect.BaseDelayMs)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than or equal to BaseDelayMs.");
+        }
+    }
+
+    private static bool IsSupportedReconnectType(string value)
+    {
+        return value.Equals("None", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("Linear", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("Exponential", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("Backoff", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("ExponentialBackoff", StringComparison.OrdinalIgnoreCase);
     }
 }

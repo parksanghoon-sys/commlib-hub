@@ -486,8 +486,11 @@ public sealed class ConnectionManagerTests
         var manager = CreateManager(transportFactory: new ThrowingTransportFactory());
         var profile = CreateTcpProfile("device-1", 502);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ConnectAsync(profile));
 
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("connect", exception.Operation);
+        Assert.Equal("Transport creation failed.", exception.InnerException?.Message);
         Assert.Null(manager.GetSession(profile.DeviceId));
     }
 
@@ -506,12 +509,98 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
         var existingSession = manager.GetSession(profile.DeviceId);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ConnectAsync(profile));
 
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("connect", exception.Operation);
         Assert.Same(existingSession, manager.GetSession(profile.DeviceId));
         Assert.True(firstTransport.IsOpen);
         Assert.False(firstTransport.IsClosed);
         Assert.False(secondTransport.IsOpen);
+        Assert.True(secondTransport.IsClosed);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WithLinearReconnectPolicy_RetriesOpenAndEmitsEvents()
+    {
+        var firstTransport = new FakeTransport { FailOnOpen = true };
+        var secondTransport = new FakeTransport();
+        var eventSink = new RecordingConnectionEventSink();
+        var retryDelays = new List<TimeSpan>();
+        var manager = CreateManager(
+            transportFactory: new SequencedTransportFactory(firstTransport, secondTransport),
+            eventSink: eventSink,
+            delayAsync: (delay, cancellationToken) =>
+            {
+                retryDelays.Add(delay);
+                return Task.CompletedTask;
+            });
+        var profile = CreateProfileWithReconnect(
+            CreateTcpProfile("device-1", 502),
+            new ReconnectOptions
+            {
+                Type = "Linear",
+                MaxAttempts = 1,
+                IntervalMs = 250
+            });
+
+        await manager.ConnectAsync(profile);
+
+        Assert.NotNull(manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsClosed);
+        Assert.True(secondTransport.IsOpen);
+        Assert.Equal(new[] { TimeSpan.FromMilliseconds(250) }, retryDelays);
+        Assert.Equal(
+            new[]
+            {
+                "attempt:device-1:1/2",
+                "retry:device-1:1:250:FakeTransport failed to open.",
+                "attempt:device-1:2/2",
+                "success:device-1:2"
+            },
+            eventSink.Events);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_WithBackoffReconnectPolicy_UsesCappedRetryDelaysAndThrowsConnectException()
+    {
+        var firstTransport = new FakeTransport { FailOnOpen = true };
+        var secondTransport = new FakeTransport { FailOnOpen = true };
+        var thirdTransport = new FakeTransport { FailOnOpen = true };
+        var eventSink = new RecordingConnectionEventSink();
+        var retryDelays = new List<TimeSpan>();
+        var manager = CreateManager(
+            transportFactory: new SequencedTransportFactory(firstTransport, secondTransport, thirdTransport),
+            eventSink: eventSink,
+            delayAsync: (delay, cancellationToken) =>
+            {
+                retryDelays.Add(delay);
+                return Task.CompletedTask;
+            });
+        var profile = CreateProfileWithReconnect(
+            CreateTcpProfile("device-1", 502),
+            new ReconnectOptions
+            {
+                Type = "Exponential",
+                MaxAttempts = 2,
+                BaseDelayMs = 100,
+                MaxDelayMs = 150
+            });
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ConnectAsync(profile));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("connect", exception.Operation);
+        Assert.Equal("FakeTransport failed to open.", exception.InnerException?.Message);
+        Assert.Null(manager.GetSession(profile.DeviceId));
+        Assert.Equal(
+            new[]
+            {
+                TimeSpan.FromMilliseconds(100),
+                TimeSpan.FromMilliseconds(150)
+            },
+            retryDelays);
+        Assert.Contains("failure:device-1:connect:Device 'device-1' failed during connect. See inner exception for details.", eventSink.Events);
     }
 
     /// <summary>
@@ -869,12 +958,16 @@ public sealed class ConnectionManagerTests
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,
-        ISerializerFactory? serializerFactory = null)
+        ISerializerFactory? serializerFactory = null,
+        IConnectionEventSink? eventSink = null,
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
     {
         return new ConnectionManager(
             transportFactory ?? new FakeTransportFactory(),
             protocolFactory ?? new FakeProtocolFactory(),
-            serializerFactory ?? new FakeSerializerFactory());
+            serializerFactory ?? new FakeSerializerFactory(),
+            eventSink,
+            delayAsync ?? ((_, _) => Task.CompletedTask));
     }
 
     private static DeviceProfile CreateTcpProfile(string deviceId = "device-1", int port = 502)
@@ -898,6 +991,21 @@ public sealed class ConnectionManagerTests
             {
                 Type = "AutoBinary"
             }
+        };
+    }
+
+    private static DeviceProfile CreateProfileWithReconnect(DeviceProfile profile, ReconnectOptions reconnect)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = reconnect
         };
     }
 
@@ -1137,6 +1245,31 @@ public sealed class ConnectionManagerTests
         public ITransport Create(TransportOptions options)
         {
             return _transports.Dequeue();
+        }
+    }
+
+    private sealed class RecordingConnectionEventSink : IConnectionEventSink
+    {
+        public List<string> Events { get; } = new();
+
+        public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
+        {
+            Events.Add($"attempt:{deviceId}:{attemptNumber}/{totalAttempts}");
+        }
+
+        public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
+        {
+            Events.Add($"retry:{deviceId}:{attemptNumber}:{delay.TotalMilliseconds:0}:{exception.Message}");
+        }
+
+        public void OnConnectSucceeded(string deviceId, int attemptNumber)
+        {
+            Events.Add($"success:{deviceId}:{attemptNumber}");
+        }
+
+        public void OnOperationFailed(string deviceId, string operation, Exception exception)
+        {
+            Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
         }
     }
 }
