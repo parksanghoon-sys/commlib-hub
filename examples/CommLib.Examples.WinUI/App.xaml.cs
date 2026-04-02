@@ -8,13 +8,14 @@ using Microsoft.UI.Xaml;
 
 namespace CommLib.Examples.WinUI;
 
-public sealed class App : Microsoft.UI.Xaml.Application
+public sealed partial class App : Microsoft.UI.Xaml.Application
 {
     private ServiceProvider? _serviceProvider;
     private Window? _window;
 
     public App()
     {
+        InitializeComponent();
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

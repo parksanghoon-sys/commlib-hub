@@ -1,18 +1,16 @@
 using CommLib.Examples.WinUI.Converters;
-using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 
 namespace CommLib.Examples.WinUI.Views;
 
-public sealed class AppShellView : UserControl
+public sealed class AppShellView : Grid
 {
-    private readonly ResourceDictionary _resources = DeviceLabTheme.Create();
+    private readonly BooleanToVisibilityConverter _boolToVisibility = new();
 
     public AppShellView(
         ShellViewModel viewModel,
@@ -23,10 +21,10 @@ public sealed class AppShellView : UserControl
         DeviceLabView = deviceLabView;
         SettingsView = settingsView;
 
-        _resources["BoolToVisibilityConverter"] = new BooleanToVisibilityConverter();
-
-        Content = BuildContent();
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+        VerticalAlignment = VerticalAlignment.Stretch;
         DataContext = ViewModel;
+        Children.Add(BuildContent());
     }
 
     public ShellViewModel ViewModel { get; }
@@ -39,146 +37,100 @@ public sealed class AppShellView : UserControl
     {
         var root = new Grid
         {
-            Background = GetBrush(DeviceLabTheme.WindowBackgroundBrushKey),
-            Resources = _resources
+            Background = CreateSolid("#FFF3F7FB")
         };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        var headerCard = new Border
+        var header = new Border
         {
-            Margin = new Thickness(28, 24, 28, 0),
-            Padding = new Thickness(24, 18, 24, 18),
-            Background = GetBrush(DeviceLabTheme.HeroPanelBrushKey),
-            BorderBrush = CreateSolid("#18FFFFFF"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(24),
-            Transitions = CreateTransitions(fromVerticalOffset: 20)
+            Margin = new Thickness(20, 20, 20, 0),
+            Padding = new Thickness(20),
+            Background = CreateSolid("#FF123B5A"),
+            CornerRadius = new CornerRadius(20)
         };
 
-        var headerGrid = new Grid { ColumnSpacing = 24 };
+        var headerGrid = new Grid { ColumnSpacing = 16 };
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var titleStack = new StackPanel { Spacing = 6 };
+        var titleStack = new StackPanel { Spacing = 4 };
         titleStack.Children.Add(new TextBlock
         {
             Text = "CommLib Control Center",
-            FontFamily = new FontFamily("Segoe UI Variable Display Semib"),
             FontSize = 28,
             FontWeight = FontWeights.SemiBold,
-            Foreground = GetBrush(DeviceLabTheme.HeroForegroundBrushKey)
+            Foreground = CreateSolid("#FFFFFFFF")
         });
+
+        var pageTitle = new TextBlock
+        {
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = CreateSolid("#FFE7F4FF")
+        };
+        Bind(pageTitle, TextBlock.TextProperty, "CurrentPageTitle");
+        titleStack.Children.Add(pageTitle);
 
         var subtitle = new TextBlock
         {
-            MaxWidth = 760,
             TextWrapping = TextWrapping.WrapWholeWords,
-            Foreground = CreateSolid("#D7F8FBFD")
+            Foreground = CreateSolid("#FFD4E7F5"),
+            MaxWidth = 720
         };
         Bind(subtitle, TextBlock.TextProperty, "CurrentPageSubtitle");
         titleStack.Children.Add(subtitle);
         headerGrid.Children.Add(titleStack);
 
-        var navRow = new StackPanel
+        var nav = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Spacing = 12
+            Spacing = 10,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        navRow.Children.Add(CreateNavigationButton(
-            "Device Lab",
-            "Operate",
-            "OpenDeviceLabPageCommand",
-            "IsDeviceLabSelected"));
-        navRow.Children.Add(CreateNavigationButton(
-            "Settings",
-            "Persist",
-            "OpenSettingsPageCommand",
-            "IsSettingsSelected"));
-        Grid.SetColumn(navRow, 1);
-        headerGrid.Children.Add(navRow);
+        nav.Children.Add(CreateHeaderButton("Device Lab", "OpenDeviceLabPageCommand"));
+        nav.Children.Add(CreateHeaderButton("Settings", "OpenSettingsPageCommand"));
+        Grid.SetColumn(nav, 1);
+        headerGrid.Children.Add(nav);
 
-        headerCard.Child = headerGrid;
-        root.Children.Add(headerCard);
+        header.Child = headerGrid;
+        root.Children.Add(header);
 
-        var contentGrid = new Grid
+        var contentHost = new Grid
         {
             Margin = new Thickness(0, 12, 0, 0)
         };
-        Grid.SetRow(contentGrid, 1);
+        Grid.SetRow(contentHost, 1);
 
-        DeviceLabView.Transitions = CreateTransitions(fromHorizontalOffset: -24);
-        SettingsView.Transitions = CreateTransitions(fromHorizontalOffset: 24);
+        var deviceLabHost = new Grid();
+        deviceLabHost.Children.Add(DeviceLabView);
+        Bind(deviceLabHost, UIElement.VisibilityProperty, "IsDeviceLabSelected", converter: _boolToVisibility);
 
-        Bind(DeviceLabView, UIElement.VisibilityProperty, "IsDeviceLabSelected", converter: GetConverter<BooleanToVisibilityConverter>("BoolToVisibilityConverter"));
-        Bind(SettingsView, UIElement.VisibilityProperty, "IsSettingsSelected", converter: GetConverter<BooleanToVisibilityConverter>("BoolToVisibilityConverter"));
+        var settingsHost = new Grid();
+        settingsHost.Children.Add(SettingsView);
+        Bind(settingsHost, UIElement.VisibilityProperty, "IsSettingsSelected", converter: _boolToVisibility);
 
-        contentGrid.Children.Add(DeviceLabView);
-        contentGrid.Children.Add(SettingsView);
-        root.Children.Add(contentGrid);
-
+        contentHost.Children.Add(deviceLabHost);
+        contentHost.Children.Add(settingsHost);
+        root.Children.Add(contentHost);
         return root;
     }
 
-    private FrameworkElement CreateNavigationButton(string title, string caption, string commandPath, string isSelectedPath)
+    private Button CreateHeaderButton(string label, string commandPath)
     {
-        var stack = new StackPanel
-        {
-            Spacing = 6,
-            Width = 164
-        };
-
-        var buttonContent = new StackPanel { Spacing = 2 };
-        buttonContent.Children.Add(new TextBlock
-        {
-            Text = title,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontWeight = FontWeights.SemiBold
-        });
-        buttonContent.Children.Add(new TextBlock
-        {
-            Text = caption,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = CreateSolid("#C0EAF4FB"),
-            FontSize = 12
-        });
-
         var button = new Button
         {
-            Content = buttonContent,
-            Style = GetStyle(DeviceLabTheme.SecondaryButtonStyleKey)
+            Content = label,
+            MinWidth = 120,
+            Padding = new Thickness(16, 10, 16, 10),
+            Background = CreateSolid("#1FFFFFFF"),
+            Foreground = CreateSolid("#FFFFFFFF"),
+            BorderBrush = CreateSolid("#33FFFFFF"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12)
         };
-        button.Background = CreateSolid("#18FFFFFF");
-        button.BorderBrush = CreateSolid("#2EFFFFFF");
-        button.Foreground = GetBrush(DeviceLabTheme.HeroForegroundBrushKey);
         Bind(button, Button.CommandProperty, commandPath);
-        stack.Children.Add(button);
-
-        var indicator = new Border
-        {
-            Height = 4,
-            Background = CreateSolid("#FFF8FBFD"),
-            CornerRadius = new CornerRadius(999),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        Bind(indicator, UIElement.VisibilityProperty, isSelectedPath, converter: GetConverter<BooleanToVisibilityConverter>("BoolToVisibilityConverter"));
-        stack.Children.Add(indicator);
-
-        return stack;
-    }
-
-    private TransitionCollection CreateTransitions(double fromHorizontalOffset = 0, double fromVerticalOffset = 0)
-    {
-        return
-        [
-            new RepositionThemeTransition(),
-            new EntranceThemeTransition
-            {
-                FromHorizontalOffset = fromHorizontalOffset,
-                FromVerticalOffset = fromVerticalOffset
-            }
-        ];
+        return button;
     }
 
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)
@@ -189,21 +141,6 @@ public sealed class AppShellView : UserControl
             Mode = mode,
             Converter = converter
         });
-    }
-
-    private Style GetStyle(string key)
-    {
-        return (Style)_resources[key];
-    }
-
-    private Brush GetBrush(string key)
-    {
-        return (Brush)_resources[key];
-    }
-
-    private T GetConverter<T>(string key) where T : class
-    {
-        return (T)_resources[key];
     }
 
     private static SolidColorBrush CreateSolid(string hex)

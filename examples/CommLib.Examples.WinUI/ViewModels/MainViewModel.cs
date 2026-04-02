@@ -90,6 +90,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public string RuntimePolicyText => "Strict MVVM + DI + JSON";
 
+    public string LogText => string.Join(Environment.NewLine, Logs.Select(log => log.ToString()));
+
     public async ValueTask DisposeAsync()
     {
         _sessionService.LogEmitted -= OnLogEmitted;
@@ -187,6 +189,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     {
         Logs.Clear();
         Logs.Add(new LogEntry(DateTimeOffset.Now, LogSeverity.Info, "Console cleared", "New traffic will appear here."));
+        OnPropertyChanged(nameof(LogText));
     }
 
     private DeviceProfile BuildProfile()
@@ -286,6 +289,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         _uiDispatcher.Enqueue(() =>
         {
             Logs.Add(entry);
+            OnPropertyChanged(nameof(LogText));
         });
     }
 }

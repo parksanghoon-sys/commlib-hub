@@ -5,4 +5,9 @@ public sealed record LogEntry(DateTimeOffset Timestamp, LogSeverity Severity, st
     public string TimestampText => Timestamp.ToLocalTime().ToString("HH:mm:ss");
 
     public string SeverityText => Severity.ToString().ToUpperInvariant();
+
+    public override string ToString()
+    {
+        return $"[{TimestampText}] {SeverityText} {Title}: {Message}";
+    }
 }

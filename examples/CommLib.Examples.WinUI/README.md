@@ -7,7 +7,7 @@
 - Strict MVVM: `MainWindow` is just the shell, `AppShellView` handles page composition, `DeviceLabView` and `SettingsView` are separate pages, and state lives in shared view models.
 - DI first: `App` composes CommLib services, the session service, the dispatcher abstraction, the settings store, the view models, and the views through `Microsoft.Extensions.DependencyInjection`.
 - Persistent settings: `DeviceLabSettingsViewModel` is loaded from `appsettings.json` at startup, edited on the `Settings` page, and saved back to disk explicitly or when the window closes.
-- UI polish: the example uses a code-built theme dictionary, styled inputs and buttons, and entrance/reposition transitions for cards, transport panels, and page chrome.
+- UI polish: the example keeps a card-based control room layout, but favors a conservative WinUI control set so the sample stays runnable on developer machines with fragile XAML runtime environments.
 
 ## What It Exercises
 
@@ -30,5 +30,5 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - TCP and UDP expect a reachable remote endpoint.
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
-- The project is built as `win-x64` with `WindowsAppSDKSelfContained=true` so the output is easier to move between developer machines.
+- The sample currently defaults to `win-x86` because the local `win-x64` runtime consistently faulted inside `Microsoft.UI.Xaml.dll` on this machine.
 - The default `appsettings.json` is copied to the output folder on build and then reused as the runtime settings file.
