@@ -71,6 +71,59 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
+    /// 취소가 이미 요청된 상태라면 연결을 시도하지 않고 즉시 중단하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenCancellationAlreadyRequested_ThrowsWithoutConnecting()
+    {
+        var manager = new FakeConnectionManager();
+        var bootstrapper = new DeviceBootstrapper(manager);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        var profiles = new[]
+        {
+            CreateProfile("enabled-1", enabled: true, port: 1000)
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => bootstrapper.StartAsync(profiles, cts.Token));
+
+        Assert.Empty(manager.ConnectedIds);
+    }
+
+    /// <summary>
+    /// 첫 연결 이후 취소가 요청되면 남은 프로필 연결을 더 진행하지 않는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenCancellationRequestedBetweenProfiles_StopsRemainingConnections()
+    {
+        using var cts = new CancellationTokenSource();
+        var manager = new FakeConnectionManager
+        {
+            ConnectAsyncHandler = profile =>
+            {
+                if (profile.DeviceId == "enabled-1")
+                {
+                    cts.Cancel();
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+        var bootstrapper = new DeviceBootstrapper(manager);
+
+        var profiles = new[]
+        {
+            CreateProfile("enabled-1", enabled: true, port: 1000),
+            CreateProfile("enabled-2", enabled: true, port: 1001)
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => bootstrapper.StartAsync(profiles, cts.Token));
+
+        Assert.Equal(new[] { "enabled-1" }, manager.ConnectedIds);
+    }
+
+    /// <summary>
     /// 여러 활성 프로필이 있으면 입력 순서대로 연결을 시도하는지 확인합니다.
     /// </summary>
     [Fact]

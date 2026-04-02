@@ -30,8 +30,17 @@ public sealed class DeviceBootstrapper
     /// <returns>모든 활성 프로필 처리가 끝나면 완료되는 작업입니다.</returns>
     public async Task StartAsync(IEnumerable<DeviceProfile> profiles, CancellationToken cancellationToken = default)
     {
-        foreach (var profile in profiles.Where(static p => p.Enabled))
+        ArgumentNullException.ThrowIfNull(profiles);
+
+        foreach (var profile in profiles)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!profile.Enabled)
+            {
+                continue;
+            }
+
             await _connectionManager.ConnectAsync(profile, cancellationToken);
         }
     }
