@@ -1,3 +1,7 @@
+using CommLib.Examples.WinUI.Models;
+using CommLib.Examples.WinUI.Converters;
+using CommLib.Examples.WinUI.Services;
+using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -10,27 +14,37 @@ namespace CommLib.Examples.WinUI.Views;
 
 public sealed class SettingsView : Grid
 {
-    public SettingsView(SettingsViewModel viewModel)
+    private static readonly BooleanToVisibilityConverter VisibilityConverter = new();
+    private readonly IAppLocalizer _localizer;
+    private readonly ScrollViewer _scrollViewer;
+    // Settings도 코드 기반 뷰라서 언어가 바뀌면 다시 써야 하는 텍스트를 모아 둔다.
+    private readonly List<Action> _localizedTextUpdates = [];
+
+    public SettingsView(SettingsViewModel viewModel, IAppLocalizer localizer)
     {
+        _localizer = localizer;
+        _scrollViewer = CreatePageScrollViewer();
         ViewModel = viewModel;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
         DataContext = ViewModel;
+        _localizer.LanguageChanged += OnLanguageChanged;
         Children.Add(BuildContent());
+        ApplyLocalizedText();
     }
 
     public SettingsViewModel ViewModel { get; }
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        ApplyLocalizedText();
+    }
 
     private FrameworkElement BuildContent()
     {
         var root = new Grid
         {
-            Background = CreateSolid("#FFF3F7FB")
-        };
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            Background = GetThemeBrush(DeviceLabTheme.WindowBackgroundBrushKey)
         };
 
         var layout = new StackPanel
@@ -45,29 +59,31 @@ public sealed class SettingsView : Grid
         layout.Children.Add(CreateTransportCard());
         layout.Children.Add(CreatePersistenceCard());
 
-        scrollViewer.Content = layout;
-        root.Children.Add(scrollViewer);
+        _scrollViewer.Content = layout;
+        root.Children.Add(_scrollViewer);
         return root;
     }
 
     private UIElement CreateHeroCard()
     {
-        var card = CreateCard("#FF13425F", "#FFFFFFFF");
+        var card = CreateCard(GetThemeBrush(DeviceLabTheme.HeroPanelBrushKey));
         var stack = CreateVerticalStack(8);
-        stack.Children.Add(new TextBlock
+        var title = new TextBlock
         {
-            Text = "Settings",
             FontSize = 30,
             FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FFFFFFFF")
-        });
+            Foreground = GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
+        };
+        RegisterLocalizedText(() => title.Text = _localizer.Get("settings.hero.title"));
+        stack.Children.Add(title);
 
-        stack.Children.Add(new TextBlock
+        var description = new TextBlock
         {
-            Text = "Edit defaults here. These values are shared with Device Lab and persisted to appsettings.json.",
             TextWrapping = TextWrapping.WrapWholeWords,
             Foreground = CreateSolid("#FFD4E7F5")
-        });
+        };
+        RegisterLocalizedText(() => description.Text = _localizer.Get("settings.hero.description"));
+        stack.Children.Add(description);
 
         var status = new TextBlock
         {
@@ -94,25 +110,48 @@ public sealed class SettingsView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("General"));
+        stack.Children.Add(CreateSectionTitle("settings.section.general"));
+
+        var language = new ComboBox
+        {
+            DisplayMemberPath = "Label",
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 40,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(10, 7, 10, 7)
+        };
+        Bind(language, ItemsControl.ItemsSourceProperty, "Settings.LanguageChoices");
+        Bind(language, Selector.SelectedItemProperty, "Settings.SelectedLanguage", BindingMode.TwoWay);
 
         var transport = new ComboBox
         {
             DisplayMemberPath = "Label",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 40
+            MinHeight = 40,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(10, 7, 10, 7)
         };
         Bind(transport, ItemsControl.ItemsSourceProperty, "Settings.TransportChoices");
         Bind(transport, Selector.SelectedItemProperty, "Settings.SelectedTransport", BindingMode.TwoWay);
-        stack.Children.Add(CreateLabeledField("Selected Transport", transport));
+        stack.Children.Add(CreateTwoColumnRow(
+            CreateLabeledField("field.languageMode", language),
+            CreateLabeledField("settings.field.selectedTransport", transport)));
 
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Device Id", CreateTextBox("Settings.DeviceId")),
-            CreateLabeledField("Display Name", CreateTextBox("Settings.DisplayName"))));
+            CreateLabeledField("field.deviceId", CreateTextBox("Settings.DeviceId")),
+            CreateLabeledField("field.displayName", CreateTextBox("Settings.DisplayName"))));
 
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Default Timeout (ms)", CreateTextBox("Settings.DefaultTimeoutMs")),
-            CreateLabeledField("Max Pending Requests", CreateTextBox("Settings.MaxPendingRequests"))));
+            CreateLabeledField("field.defaultTimeoutMs", CreateTextBox("Settings.DefaultTimeoutMs")),
+            CreateLabeledField("field.maxPendingRequests", CreateTextBox("Settings.MaxPendingRequests"))));
 
         card.Child = stack;
         return card;
@@ -122,10 +161,10 @@ public sealed class SettingsView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Message Defaults"));
+        stack.Children.Add(CreateSectionTitle("settings.section.messageDefaults"));
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Message Id", CreateTextBox("Settings.OutboundMessageId")),
-            CreateLabeledField("Body", CreateTextBox("Settings.OutboundBody", 120, true))));
+            CreateLabeledField("field.messageId", CreateTextBox("Settings.OutboundMessageId")),
+            CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true))));
         card.Child = stack;
         return card;
     }
@@ -134,40 +173,40 @@ public sealed class SettingsView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Transport Presets"));
+        stack.Children.Add(CreateSectionTitle("settings.section.transportPresets"));
 
-        stack.Children.Add(CreateTransportPanel("TCP", [
-            CreateLabeledField("Host", CreateTextBox("Settings.TcpSettings.Host")),
-            CreateLabeledField("Port", CreateTextBox("Settings.TcpSettings.Port")),
-            CreateLabeledField("Connect Timeout (ms)", CreateTextBox("Settings.TcpSettings.ConnectTimeoutMs")),
-            CreateLabeledField("Buffer Size", CreateTextBox("Settings.TcpSettings.BufferSize")),
-            CreateCheckBox("Disable Nagle (NoDelay)", "Settings.TcpSettings.NoDelay")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Tcp, [
+            CreateLabeledField("field.host", CreateTextBox("Settings.TcpSettings.Host")),
+            CreateLabeledField("field.port", CreateTextBox("Settings.TcpSettings.Port")),
+            CreateLabeledField("field.connectTimeoutMs", CreateTextBox("Settings.TcpSettings.ConnectTimeoutMs")),
+            CreateLabeledField("field.bufferSize", CreateTextBox("Settings.TcpSettings.BufferSize")),
+            CreateCheckBox("check.noDelay", "Settings.TcpSettings.NoDelay")
         ]));
 
-        stack.Children.Add(CreateTransportPanel("UDP", [
-            CreateLabeledField("Local Port", CreateTextBox("Settings.UdpSettings.LocalPort")),
-            CreateLabeledField("Remote Host", CreateTextBox("Settings.UdpSettings.RemoteHost")),
-            CreateLabeledField("Remote Port", CreateTextBox("Settings.UdpSettings.RemotePort"))
+        stack.Children.Add(CreateTransportPanel(TransportKind.Udp, [
+            CreateLabeledField("field.localPort", CreateTextBox("Settings.UdpSettings.LocalPort")),
+            CreateLabeledField("field.remoteHost", CreateTextBox("Settings.UdpSettings.RemoteHost")),
+            CreateLabeledField("field.remotePort", CreateTextBox("Settings.UdpSettings.RemotePort"))
         ]));
 
-        stack.Children.Add(CreateTransportPanel("Multicast", [
-            CreateLabeledField("Group Address", CreateTextBox("Settings.MulticastSettings.GroupAddress")),
-            CreateLabeledField("Port", CreateTextBox("Settings.MulticastSettings.Port")),
-            CreateLabeledField("TTL", CreateTextBox("Settings.MulticastSettings.Ttl")),
-            CreateLabeledField("Local Interface", CreateTextBox("Settings.MulticastSettings.LocalInterface")),
-            CreateCheckBox("Enable loopback", "Settings.MulticastSettings.Loopback")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Multicast, [
+            CreateLabeledField("field.groupAddress", CreateTextBox("Settings.MulticastSettings.GroupAddress")),
+            CreateLabeledField("field.port", CreateTextBox("Settings.MulticastSettings.Port")),
+            CreateLabeledField("field.ttl", CreateTextBox("Settings.MulticastSettings.Ttl")),
+            CreateLabeledField("field.localInterface", CreateTextBox("Settings.MulticastSettings.LocalInterface")),
+            CreateCheckBox("check.loopback", "Settings.MulticastSettings.Loopback")
         ]));
 
-        stack.Children.Add(CreateTransportPanel("Serial", [
-            CreateLabeledField("Port Name", CreateTextBox("Settings.SerialSettings.PortName")),
-            CreateLabeledField("Baud Rate", CreateTextBox("Settings.SerialSettings.BaudRate")),
-            CreateLabeledField("Data Bits", CreateTextBox("Settings.SerialSettings.DataBits")),
-            CreateLabeledField("Parity", CreateComboBox("Settings.SerialSettings.ParityOptions", "Settings.SerialSettings.Parity")),
-            CreateLabeledField("Stop Bits", CreateComboBox("Settings.SerialSettings.StopBitsOptions", "Settings.SerialSettings.StopBits")),
-            CreateLabeledField("Turn Gap (ms)", CreateTextBox("Settings.SerialSettings.TurnGapMs")),
-            CreateLabeledField("Read Buffer Size", CreateTextBox("Settings.SerialSettings.ReadBufferSize")),
-            CreateLabeledField("Write Buffer Size", CreateTextBox("Settings.SerialSettings.WriteBufferSize")),
-            CreateCheckBox("Use half-duplex timing", "Settings.SerialSettings.HalfDuplex")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Serial, [
+            CreateLabeledField("field.portName", CreateTextBox("Settings.SerialSettings.PortName")),
+            CreateLabeledField("field.baudRate", CreateTextBox("Settings.SerialSettings.BaudRate")),
+            CreateLabeledField("field.dataBits", CreateTextBox("Settings.SerialSettings.DataBits")),
+            CreateLabeledField("field.parity", CreateComboBox("Settings.SerialSettings.ParityOptions", "Settings.SerialSettings.Parity")),
+            CreateLabeledField("field.stopBits", CreateComboBox("Settings.SerialSettings.StopBitsOptions", "Settings.SerialSettings.StopBits")),
+            CreateLabeledField("field.turnGapMs", CreateTextBox("Settings.SerialSettings.TurnGapMs")),
+            CreateLabeledField("field.readBufferSize", CreateTextBox("Settings.SerialSettings.ReadBufferSize")),
+            CreateLabeledField("field.writeBufferSize", CreateTextBox("Settings.SerialSettings.WriteBufferSize")),
+            CreateCheckBox("check.halfDuplex", "Settings.SerialSettings.HalfDuplex")
         ]));
 
         card.Child = stack;
@@ -178,12 +217,11 @@ public sealed class SettingsView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Persistence"));
+        stack.Children.Add(CreateSectionTitle("settings.section.persistence"));
 
         var filePath = new TextBlock
         {
-            TextWrapping = TextWrapping.WrapWholeWords,
-            Foreground = CreateSolid("#FF4E6780")
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey)
         };
         Bind(filePath, TextBlock.TextProperty, "SettingsFilePath");
         stack.Children.Add(filePath);
@@ -193,24 +231,21 @@ public sealed class SettingsView : Grid
             Orientation = Orientation.Horizontal,
             Spacing = 10
         };
-        buttons.Children.Add(CreateCommandButton("Save", "SaveSettingsCommand", "#FF0B6AA2", "#FFFFFFFF"));
-        buttons.Children.Add(CreateCommandButton("Reload", "ReloadSettingsCommand"));
-        buttons.Children.Add(CreateCommandButton("Restore Defaults", "ResetDefaultsCommand"));
+        buttons.Children.Add(CreateCommandButton("button.save", "SaveSettingsCommand", isPrimary: true));
+        buttons.Children.Add(CreateCommandButton("button.reload", "ReloadSettingsCommand"));
+        buttons.Children.Add(CreateCommandButton("button.restoreDefaults", "ResetDefaultsCommand"));
         stack.Children.Add(buttons);
 
         var statusTitle = new TextBlock
         {
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF12364F")
+            Style = GetThemeStyle(DeviceLabTheme.BodyTitleStyleKey)
         };
         Bind(statusTitle, TextBlock.TextProperty, "StatusTitle");
         stack.Children.Add(statusTitle);
 
         var statusDetail = new TextBlock
         {
-            TextWrapping = TextWrapping.WrapWholeWords,
-            Foreground = CreateSolid("#FF4E6780")
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey)
         };
         Bind(statusDetail, TextBlock.TextProperty, "StatusDetail");
         stack.Children.Add(statusDetail);
@@ -219,25 +254,25 @@ public sealed class SettingsView : Grid
         return card;
     }
 
-    private Border CreateTransportPanel(string title, IEnumerable<UIElement> children)
+    private Border CreateTransportPanel(TransportKind kind, IEnumerable<UIElement> children)
     {
         var border = new Border
         {
             Padding = new Thickness(14),
             CornerRadius = new CornerRadius(14),
             BorderThickness = new Thickness(1),
-            BorderBrush = CreateSolid("#FFCAD8E6"),
-            Background = CreateSolid("#FFF8FBFE")
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            Background = GetThemeBrush(DeviceLabTheme.TransportPanelBrushKey)
         };
+        Bind(border, VisibilityProperty, GetTransportVisibilityPath(kind), converter: VisibilityConverter);
 
         var stack = CreateVerticalStack(10);
-        stack.Children.Add(new TextBlock
+        var title = new TextBlock
         {
-            Text = title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF12364F")
-        });
+            Style = GetThemeStyle(DeviceLabTheme.BodyTitleStyleKey)
+        };
+        RegisterLocalizedText(() => title.Text = _localizer.GetTransportLabel(kind));
+        stack.Children.Add(title);
 
         foreach (var child in children)
         {
@@ -248,27 +283,24 @@ public sealed class SettingsView : Grid
         return border;
     }
 
-    private Border CreateCard(string backgroundHex = "#FFFFFFFF", string foregroundHex = "#FF12364F")
+    private Border CreateCard(Brush? background = null)
     {
         return new Border
         {
-            Padding = new Thickness(18),
-            Background = CreateSolid(backgroundHex),
-            BorderBrush = CreateSolid("#FFD5E2EE"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18)
+            Style = GetThemeStyle(DeviceLabTheme.CardBorderStyleKey),
+            Background = background ?? GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey)
         };
     }
 
-    private TextBlock CreateSectionTitle(string text)
+    private TextBlock CreateSectionTitle(string key)
     {
-        return new TextBlock
+        var textBlock = new TextBlock
         {
-            Text = text,
-            FontSize = 22,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF12364F")
+            Style = GetThemeStyle(DeviceLabTheme.SectionTitleStyleKey)
         };
+        RegisterLocalizedText(() => textBlock.Text = _localizer.Get(key));
+        return textBlock;
     }
 
     private StackPanel CreateVerticalStack(double spacing)
@@ -276,16 +308,15 @@ public sealed class SettingsView : Grid
         return new StackPanel { Spacing = spacing };
     }
 
-    private FrameworkElement CreateLabeledField(string label, FrameworkElement input)
+    private FrameworkElement CreateLabeledField(string labelKey, FrameworkElement input)
     {
         var stack = CreateVerticalStack(6);
-        stack.Children.Add(new TextBlock
+        var label = new TextBlock
         {
-            Text = label,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF4E6780")
-        });
+            Style = GetThemeStyle(DeviceLabTheme.FieldLabelStyleKey)
+        };
+        RegisterLocalizedText(() => label.Text = _localizer.Get(labelKey));
+        stack.Children.Add(label);
         stack.Children.Add(input);
         return stack;
     }
@@ -308,10 +339,25 @@ public sealed class SettingsView : Grid
             Height = height,
             AcceptsReturn = acceptsReturn,
             TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(12, 9, 12, 9)
         };
+        PointerWheelScrollBridge.Attach(textBox, _scrollViewer);
         Bind(textBox, TextBox.TextProperty, path, BindingMode.TwoWay);
         return textBox;
+    }
+
+    private static ScrollViewer CreatePageScrollViewer()
+    {
+        return new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private ComboBox CreateComboBox(string itemsSourcePath, string selectedPath)
@@ -319,37 +365,96 @@ public sealed class SettingsView : Grid
         var comboBox = new ComboBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 40
+            MinHeight = 40,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(10, 7, 10, 7)
         };
         Bind(comboBox, ItemsControl.ItemsSourceProperty, itemsSourcePath);
         Bind(comboBox, Selector.SelectedItemProperty, selectedPath, BindingMode.TwoWay);
         return comboBox;
     }
 
-    private CheckBox CreateCheckBox(string content, string path)
+    private static string GetTransportVisibilityPath(TransportKind kind)
+    {
+        // visibility는 별도 UI 상태를 만들지 않고 현재 선택된 transport에서 직접 파생시킨다.
+        // 그래야 Settings와 Device Lab이 같은 source of truth를 공유한다.
+        return kind switch
+        {
+            TransportKind.Tcp => "Settings.IsTcpSelected",
+            TransportKind.Udp => "Settings.IsUdpSelected",
+            TransportKind.Multicast => "Settings.IsMulticastSelected",
+            TransportKind.Serial => "Settings.IsSerialSelected",
+            _ => throw new InvalidOperationException($"Unsupported transport selection: {kind}")
+        };
+    }
+
+    private CheckBox CreateCheckBox(string contentKey, string path)
     {
         var checkBox = new CheckBox
         {
-            Content = content
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(2),
+            MinHeight = 32
         };
+        RegisterLocalizedText(() => checkBox.Content = _localizer.Get(contentKey));
         Bind(checkBox, ToggleButton.IsCheckedProperty, path, BindingMode.TwoWay);
         return checkBox;
     }
 
-    private Button CreateCommandButton(string label, string commandPath, string backgroundHex = "#FFFFFFFF", string foregroundHex = "#FF12364F")
+    private Button CreateCommandButton(string labelKey, string commandPath, bool isPrimary = false)
     {
         var button = new Button
         {
-            Content = label,
             Padding = new Thickness(16, 10, 16, 10),
-            Background = CreateSolid(backgroundHex),
-            Foreground = CreateSolid(foregroundHex),
-            BorderBrush = CreateSolid("#FFC2D3E1"),
+            MinHeight = 40,
+            CornerRadius = new CornerRadius(12),
+            Background = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.AccentBrushKey)
+                : GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            Foreground = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
+                : GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            BorderBrush = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.AccentBrushKey)
+                : GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12)
+            FontWeight = FontWeights.SemiBold
         };
+        RegisterLocalizedText(() => button.Content = _localizer.Get(labelKey));
         Bind(button, Button.CommandProperty, commandPath);
         return button;
+    }
+
+    private T GetTheme<T>(string key) where T : class
+    {
+        return DeviceLabTheme.Get<T>(this, key);
+    }
+
+    private Brush GetThemeBrush(string key)
+    {
+        return GetTheme<Brush>(key);
+    }
+
+    private Style GetThemeStyle(string key)
+    {
+        return GetTheme<Style>(key);
+    }
+
+    private void RegisterLocalizedText(Action applyText)
+    {
+        _localizedTextUpdates.Add(applyText);
+    }
+
+    private void ApplyLocalizedText()
+    {
+        foreach (var updateText in _localizedTextUpdates)
+        {
+            updateText();
+        }
     }
 
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)

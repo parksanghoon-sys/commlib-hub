@@ -1,39 +1,54 @@
 using CommLib.Examples.WinUI.Models;
+using CommLib.Examples.WinUI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CommLib.Examples.WinUI.ViewModels;
 
 public sealed class DeviceLabSettingsViewModel : ObservableObject
 {
+    private readonly IAppLocalizer _localizer;
     private string _deviceId = "device-lab";
     private string _displayName = "Device Lab";
     private string _defaultTimeoutMs = "3000";
     private string _maxPendingRequests = "8";
     private string _outboundMessageId = "100";
     private string _outboundBody = "hello from the mvvm winui lab";
+    private LanguageChoiceViewModel _selectedLanguage = null!;
     private TransportChoiceViewModel _selectedTransport = null!;
 
     public DeviceLabSettingsViewModel(
+        IAppLocalizer localizer,
         TcpTransportSettingsViewModel tcpSettings,
         UdpTransportSettingsViewModel udpSettings,
         MulticastTransportSettingsViewModel multicastSettings,
         SerialTransportSettingsViewModel serialSettings)
     {
+        _localizer = localizer;
         TcpSettings = tcpSettings;
         UdpSettings = udpSettings;
         MulticastSettings = multicastSettings;
         SerialSettings = serialSettings;
 
-        TransportChoices =
+        LanguageChoices =
         [
-            new TransportChoiceViewModel(TransportKind.Tcp, "TCP", "Reliable socket session"),
-            new TransportChoiceViewModel(TransportKind.Udp, "UDP", "Fast datagram transport"),
-            new TransportChoiceViewModel(TransportKind.Multicast, "Multicast", "Group broadcast traffic"),
-            new TransportChoiceViewModel(TransportKind.Serial, "Serial", "COM and loopback links")
+            new LanguageChoiceViewModel(AppLanguageMode.English, _localizer),
+            new LanguageChoiceViewModel(AppLanguageMode.Korean, _localizer)
         ];
 
+        TransportChoices =
+        [
+            new TransportChoiceViewModel(TransportKind.Tcp, _localizer),
+            new TransportChoiceViewModel(TransportKind.Udp, _localizer),
+            new TransportChoiceViewModel(TransportKind.Multicast, _localizer),
+            new TransportChoiceViewModel(TransportKind.Serial, _localizer)
+        ];
+
+        _selectedLanguage = LanguageChoices[0];
         _selectedTransport = TransportChoices[0];
+        _localizer.LanguageChanged += OnLanguageChanged;
     }
+
+    public IReadOnlyList<LanguageChoiceViewModel> LanguageChoices { get; }
 
     public IReadOnlyList<TransportChoiceViewModel> TransportChoices { get; }
 
@@ -81,6 +96,20 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
         set => SetProperty(ref _outboundBody, value);
     }
 
+    public LanguageChoiceViewModel SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (SetProperty(ref _selectedLanguage, value))
+            {
+                _localizer.CurrentLanguage = value.Mode;
+            }
+        }
+    }
+
     public TransportChoiceViewModel SelectedTransport
     {
         get => _selectedTransport;
@@ -116,6 +145,10 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
     {
         return new DeviceLabAppSettings
         {
+            Ui = new UiAppSettings
+            {
+                LanguageMode = SelectedLanguage.Mode
+            },
             Session = new SessionAppSettings
             {
                 DeviceId = DeviceId,
@@ -170,6 +203,7 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
     {
         settings ??= new DeviceLabAppSettings();
 
+        SelectedLanguage = ResolveLanguageChoice(settings.Ui.LanguageMode);
         DeviceId = settings.Session.DeviceId;
         DisplayName = settings.Session.DisplayName;
         DefaultTimeoutMs = settings.Session.DefaultTimeoutMs;
@@ -214,5 +248,16 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
     private TransportChoiceViewModel ResolveTransportChoice(TransportKind kind)
     {
         return TransportChoices.FirstOrDefault(choice => choice.Kind == kind) ?? TransportChoices[0];
+    }
+
+    private LanguageChoiceViewModel ResolveLanguageChoice(AppLanguageMode mode)
+    {
+        return LanguageChoices.FirstOrDefault(choice => choice.Mode == mode) ?? LanguageChoices[0];
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        OnPropertyChanged(nameof(SelectedTransportTitle));
+        OnPropertyChanged(nameof(SelectedTransportSubtitle));
     }
 }

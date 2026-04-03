@@ -2,6 +2,8 @@ namespace CommLib.Examples.WinUI.Models;
 
 public sealed class DeviceLabAppSettings
 {
+    public UiAppSettings Ui { get; set; } = new();
+
     public SessionAppSettings Session { get; set; } = new();
 
     public MessageComposerAppSettings MessageComposer { get; set; } = new();
@@ -13,6 +15,11 @@ public sealed class DeviceLabAppSettings
     public MulticastTransportAppSettings Multicast { get; set; } = new();
 
     public SerialTransportAppSettings Serial { get; set; } = new();
+}
+
+public sealed class UiAppSettings
+{
+    public AppLanguageMode LanguageMode { get; set; } = AppLanguageMode.English;
 }
 
 public sealed class SessionAppSettings

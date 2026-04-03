@@ -8,21 +8,39 @@ using CommLib.Infrastructure.Sessions;
 
 namespace CommLib.Examples.WinUI.Services;
 
-public sealed class DeviceLabSessionService(
-    ITransportFactory transportFactory,
-    IProtocolFactory protocolFactory,
-    ISerializerFactory serializerFactory) : IDeviceLabSessionService
+public sealed class DeviceLabSessionService : IDeviceLabSessionService
 {
-    private readonly ITransportFactory _transportFactory = transportFactory;
-    private readonly IProtocolFactory _protocolFactory = protocolFactory;
-    private readonly ISerializerFactory _serializerFactory = serializerFactory;
+    private readonly IAppLocalizer _localizer;
+    private readonly ITransportFactory _transportFactory;
+    private readonly IProtocolFactory _protocolFactory;
+    private readonly ISerializerFactory _serializerFactory;
+    // connect / disconnect / send가 서로 겹치면 receive loop 정리와 상태 전파가 꼬이기 쉬워서
+    // 세션 수명주기 관련 작업은 하나의 gate로 직렬화한다.
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
 
     private ConnectionManager? _manager;
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoopTask;
     private string? _connectedDeviceId;
-    private string? _connectedDisplayName;
+    private bool _hasState;
+    private bool _isConnectedState;
+    private string _statusTextKey = "session.state.disconnected";
+    private string _statusDetailKey = "session.detail.readyNextTransport";
+    private object?[] _statusTextArgs = [];
+    private object?[] _statusDetailArgs = [];
+
+    public DeviceLabSessionService(
+        ITransportFactory transportFactory,
+        IProtocolFactory protocolFactory,
+        ISerializerFactory serializerFactory,
+        IAppLocalizer localizer)
+    {
+        _transportFactory = transportFactory;
+        _protocolFactory = protocolFactory;
+        _serializerFactory = serializerFactory;
+        _localizer = localizer;
+        _localizer.LanguageChanged += OnLanguageChanged;
+    }
 
     public event EventHandler<LogEntry>? LogEmitted;
 
@@ -34,6 +52,8 @@ public sealed class DeviceLabSessionService(
 
         try
         {
+            // 새 연결 요청은 항상 이전 연결을 먼저 깨끗이 정리한 뒤 시작한다.
+            // 이렇게 하면 Device Lab에서 transport를 바꿔 가며 반복 연결해도 상태가 누적되지 않는다.
             await DisconnectCoreAsync(CancellationToken.None, emitOfflineState: false).ConfigureAwait(false);
             DeviceProfileValidator.ValidateAndThrow(profile);
 
@@ -41,7 +61,7 @@ public sealed class DeviceLabSessionService(
                 _transportFactory,
                 _protocolFactory,
                 _serializerFactory,
-                new SessionConnectionEventSink(EmitLog));
+                new SessionConnectionEventSink(this));
 
             try
             {
@@ -55,16 +75,23 @@ public sealed class DeviceLabSessionService(
 
             _manager = manager;
             _connectedDeviceId = profile.DeviceId;
-            _connectedDisplayName = profile.DisplayName;
             _receiveLoopCts = new CancellationTokenSource();
+            // 실제 수신은 백그라운드 루프가 담당하고, 결과만 log/state 이벤트로 ViewModel에 흘려보낸다.
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(profile.DeviceId, _receiveLoopCts.Token));
 
-            EmitState(
+            var (detailKey, detailArgs) = DescribeTransport(profile.Transport);
+            SetState(
                 true,
-                $"Connected: {profile.DisplayName}",
-                DescribeTransport(profile.Transport));
+                "session.state.connected",
+                detailKey,
+                statusTextArgs: [profile.DisplayName],
+                statusDetailArgs: detailArgs);
 
-            EmitLog(LogSeverity.Success, "Session online", $"{profile.DeviceId} is ready for traffic.");
+            EmitLocalizedLog(
+                LogSeverity.Success,
+                "session.log.sessionOnline.title",
+                "session.log.sessionOnline.message",
+                profile.DeviceId);
         }
         finally
         {
@@ -82,7 +109,10 @@ public sealed class DeviceLabSessionService(
             await DisconnectCoreAsync(cancellationToken, emitOfflineState: hadSession).ConfigureAwait(false);
             if (hadSession)
             {
-                EmitLog(LogSeverity.Info, "Session offline", "Transport closed and receive loop stopped.");
+                EmitLocalizedLog(
+                    LogSeverity.Info,
+                    "session.log.sessionOffline.title",
+                    "session.log.sessionOffline.message");
             }
         }
         finally
@@ -99,12 +129,17 @@ public sealed class DeviceLabSessionService(
         {
             if (_manager is null || _connectedDeviceId is null)
             {
-                throw new InvalidOperationException("No active device session exists.");
+                throw new InvalidOperationException(_localizer.Get("session.error.noActiveSession"));
             }
 
             var message = new MessageModel(messageId, body);
             await _manager.SendAsync(_connectedDeviceId, message, cancellationToken).ConfigureAwait(false);
-            EmitLog(LogSeverity.Info, "Outbound message", $"id={messageId}, body=\"{body}\"");
+            EmitLocalizedLog(
+                LogSeverity.Info,
+                "session.log.outbound.title",
+                "session.log.outbound.message",
+                messageId,
+                body);
         }
         finally
         {
@@ -119,6 +154,7 @@ public sealed class DeviceLabSessionService(
         try
         {
             await DisconnectCoreAsync(CancellationToken.None, emitOfflineState: false).ConfigureAwait(false);
+            _localizer.LanguageChanged -= OnLanguageChanged;
         }
         finally
         {
@@ -141,7 +177,12 @@ public sealed class DeviceLabSessionService(
 
                 var message = await manager.ReceiveAsync(deviceId, cancellationToken).ConfigureAwait(false);
                 var body = message is IMessageBody bodyMessage ? bodyMessage.Body : string.Empty;
-                EmitLog(LogSeverity.Success, "Inbound message", $"id={message.MessageId}, body=\"{body}\"");
+                EmitLocalizedLog(
+                    LogSeverity.Success,
+                    "session.log.inbound.title",
+                    "session.log.inbound.message",
+                    message.MessageId,
+                    body);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -149,11 +190,13 @@ public sealed class DeviceLabSessionService(
         }
         catch (Exception exception)
         {
-            EmitLog(LogSeverity.Error, "Receive loop stopped", exception.Message);
+            EmitLog(LogSeverity.Error, _localizer.Get("session.log.receiveLoopStopped.title"), exception.Message);
             await _sessionGate.WaitAsync().ConfigureAwait(false);
 
             try
             {
+                // 현재 receive loop 자신이 종료 경로를 밟는 상황이라 여기서 _receiveLoopTask를 다시 await 하면
+                // 자기 자신을 기다리는 꼴이 될 수 있다. 그래서 skipReceiveLoopAwait로 우회한다.
                 await DisconnectCoreAsync(CancellationToken.None, emitOfflineState: true, skipReceiveLoopAwait: true)
                     .ConfigureAwait(false);
             }
@@ -207,24 +250,22 @@ public sealed class DeviceLabSessionService(
             {
                 _manager = null;
                 _connectedDeviceId = null;
-                _connectedDisplayName = null;
             }
         }
         else
         {
             _connectedDeviceId = null;
-            _connectedDisplayName = null;
         }
 
         if (emitOfflineState)
         {
-            EmitState(false, "Disconnected", "Ready for the next transport session.");
+            SetState(false, "session.state.disconnected", "session.detail.readyNextTransport");
         }
     }
 
-    private void EmitState(bool isConnected, string statusText, string statusDetail)
+    private void OnLanguageChanged(object? sender, EventArgs args)
     {
-        ConnectionStateChanged?.Invoke(this, new ConnectionStateSnapshot(isConnected, statusText, statusDetail));
+        EmitCurrentState();
     }
 
     private void EmitLog(LogSeverity severity, string title, string message)
@@ -232,43 +273,104 @@ public sealed class DeviceLabSessionService(
         LogEmitted?.Invoke(this, new LogEntry(DateTimeOffset.Now, severity, title, message));
     }
 
-    private static string DescribeTransport(TransportOptions transport)
+    private void EmitLocalizedLog(LogSeverity severity, string titleKey, string messageKey, params object?[] args)
+    {
+        EmitLog(severity, _localizer.Get(titleKey), _localizer.Format(messageKey, args));
+    }
+
+    private void SetState(
+        bool isConnected,
+        string statusTextKey,
+        string statusDetailKey,
+        object?[]? statusTextArgs = null,
+        object?[]? statusDetailArgs = null)
+    {
+        // 완성된 문자열이 아니라 "key + format args"를 저장해야
+        // 앱 언어가 바뀔 때 마지막 연결 상태를 현재 언어로 다시 렌더링할 수 있다.
+        _hasState = true;
+        _isConnectedState = isConnected;
+        _statusTextKey = statusTextKey;
+        _statusDetailKey = statusDetailKey;
+        _statusTextArgs = statusTextArgs ?? [];
+        _statusDetailArgs = statusDetailArgs ?? [];
+        EmitCurrentState();
+    }
+
+    private void EmitCurrentState()
+    {
+        if (!_hasState)
+        {
+            return;
+        }
+
+        ConnectionStateChanged?.Invoke(
+            this,
+            new ConnectionStateSnapshot(
+                _isConnectedState,
+                _localizer.Format(_statusTextKey, _statusTextArgs),
+                _localizer.Format(_statusDetailKey, _statusDetailArgs)));
+    }
+
+    private static (string DetailKey, object?[] DetailArgs) DescribeTransport(TransportOptions transport)
     {
         return transport switch
         {
-            TcpClientTransportOptions tcp => $"TCP {tcp.Host}:{tcp.Port}",
-            UdpTransportOptions udp => $"UDP local={udp.LocalPort}, remote={udp.RemoteHost}:{udp.RemotePort}",
-            MulticastTransportOptions multicast => $"Multicast {multicast.GroupAddress}:{multicast.Port}",
-            SerialTransportOptions serial => $"Serial {serial.PortName} @ {serial.BaudRate}",
-            _ => transport.Type
+            TcpClientTransportOptions tcp => ("transport.detail.tcp", [tcp.Host ?? string.Empty, tcp.Port]),
+            UdpTransportOptions udp => ("transport.detail.udp", [udp.LocalPort, udp.RemoteHost ?? string.Empty, udp.RemotePort]),
+            MulticastTransportOptions multicast => ("transport.detail.multicast", [multicast.GroupAddress ?? string.Empty, multicast.Port]),
+            SerialTransportOptions serial => ("transport.detail.serial", [serial.PortName ?? string.Empty, serial.BaudRate]),
+            _ => ("transport.detail.generic", [transport.Type ?? string.Empty])
         };
     }
 
-    private sealed class SessionConnectionEventSink(Action<LogSeverity, string, string> emitLog) : IConnectionEventSink
+    private sealed class SessionConnectionEventSink(DeviceLabSessionService owner) : IConnectionEventSink
     {
-        private readonly Action<LogSeverity, string, string> _emitLog = emitLog;
+        // ConnectionManager는 인프라 계층 이벤트만 알면 되고,
+        // 실제 UI 친화적 메시지 구성은 WinUI 쪽 서비스가 담당하도록 얇은 어댑터를 둔다.
+        private readonly DeviceLabSessionService _owner = owner;
 
         public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
         {
-            _emitLog(LogSeverity.Info, "Connect attempt", $"{deviceId} ({attemptNumber}/{totalAttempts})");
+            _owner.EmitLocalizedLog(
+                LogSeverity.Info,
+                "session.event.connectAttempt.title",
+                "session.event.connectAttempt.message",
+                deviceId,
+                attemptNumber,
+                totalAttempts);
         }
 
         public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
         {
-            _emitLog(
+            _owner.EmitLocalizedLog(
                 LogSeverity.Warning,
-                "Retry scheduled",
-                $"{deviceId} attempt {attemptNumber} failed, retry in {delay.TotalMilliseconds:0} ms: {exception.Message}");
+                "session.event.retryScheduled.title",
+                "session.event.retryScheduled.message",
+                deviceId,
+                attemptNumber,
+                delay.TotalMilliseconds,
+                exception.Message);
         }
 
         public void OnConnectSucceeded(string deviceId, int attemptNumber)
         {
-            _emitLog(LogSeverity.Success, "Connect succeeded", $"{deviceId} connected on attempt {attemptNumber}.");
+            _owner.EmitLocalizedLog(
+                LogSeverity.Success,
+                "session.event.connectSucceeded.title",
+                "session.event.connectSucceeded.message",
+                deviceId,
+                attemptNumber);
         }
 
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
-            _emitLog(LogSeverity.Error, "Connection operation failed", $"{deviceId} {operation}: {exception.Message}");
+            _owner.EmitLocalizedLog(
+                LogSeverity.Error,
+                "session.event.operationFailed.title",
+                "session.event.operationFailed.message",
+                deviceId,
+                operation,
+                exception.Message);
         }
     }
 }

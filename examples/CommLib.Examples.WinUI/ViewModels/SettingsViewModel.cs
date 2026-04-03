@@ -6,21 +6,32 @@ namespace CommLib.Examples.WinUI.ViewModels;
 
 public sealed class SettingsViewModel : ObservableObject
 {
+    private readonly IAppLocalizer _localizer;
     private readonly IDeviceLabSettingsStore _settingsStore;
-    private string _statusTitle = "Persistence Ready";
-    private string _statusDetail = "Review defaults, then save them to appsettings.json.";
+    private string _statusTitle = string.Empty;
+    private string _statusDetail = string.Empty;
+    private string _statusTitleKey = "settings.status.ready.title";
+    private string _statusDetailKey = "settings.status.ready.detail";
+    private object[] _statusTitleArgs = [];
+    private object[] _statusDetailArgs = [];
+    private string _rawStatusDetail = string.Empty;
+    private bool _usesRawStatusDetail;
     private bool _isBusy;
 
     public SettingsViewModel(
         DeviceLabSettingsViewModel settings,
-        IDeviceLabSettingsStore settingsStore)
+        IDeviceLabSettingsStore settingsStore,
+        IAppLocalizer localizer)
     {
         Settings = settings;
         _settingsStore = settingsStore;
+        _localizer = localizer;
 
         SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, CanEditSettings);
         ReloadSettingsCommand = new AsyncRelayCommand(ReloadSettingsAsync, CanEditSettings);
         ResetDefaultsCommand = new RelayCommand(ResetDefaults, CanEditSettings);
+        ApplyLocalizedStatus();
+        _localizer.LanguageChanged += OnLanguageChanged;
     }
 
     public DeviceLabSettingsViewModel Settings { get; }
@@ -71,13 +82,18 @@ public sealed class SettingsViewModel : ObservableObject
         try
         {
             await _settingsStore.SaveAsync(Settings.CreateSnapshot()).ConfigureAwait(false);
-            StatusTitle = "Settings Saved";
-            StatusDetail = $"Updated {Path.GetFileName(_settingsStore.FilePath)} at {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}.";
+            SetLocalizedStatus(
+                "settings.status.saved.title",
+                "settings.status.saved.detail",
+                detailArgs:
+                [
+                    Path.GetFileName(_settingsStore.FilePath),
+                    DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                ]);
         }
         catch (Exception exception)
         {
-            StatusTitle = "Save Failed";
-            StatusDetail = exception.Message;
+            SetStatusWithRawDetail("settings.status.saveFailed.title", exception.Message);
         }
         finally
         {
@@ -93,13 +109,14 @@ public sealed class SettingsViewModel : ObservableObject
         {
             var settings = await _settingsStore.LoadAsync().ConfigureAwait(false);
             Settings.Apply(settings);
-            StatusTitle = "Settings Reloaded";
-            StatusDetail = $"Loaded settings from {Path.GetFileName(_settingsStore.FilePath)}.";
+            SetLocalizedStatus(
+                "settings.status.reloaded.title",
+                "settings.status.reloaded.detail",
+                detailArgs: [Path.GetFileName(_settingsStore.FilePath)]);
         }
         catch (Exception exception)
         {
-            StatusTitle = "Reload Failed";
-            StatusDetail = exception.Message;
+            SetStatusWithRawDetail("settings.status.reloadFailed.title", exception.Message);
         }
         finally
         {
@@ -110,7 +127,43 @@ public sealed class SettingsViewModel : ObservableObject
     private void ResetDefaults()
     {
         Settings.ResetToDefaults();
-        StatusTitle = "Defaults Restored";
-        StatusDetail = "The in-memory defaults are back. Save to persist them to appsettings.json.";
+        SetLocalizedStatus("settings.status.defaultsRestored.title", "settings.status.defaultsRestored.detail");
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        ApplyLocalizedStatus();
+    }
+
+    private void SetLocalizedStatus(
+        string titleKey,
+        string detailKey,
+        object[]? titleArgs = null,
+        object[]? detailArgs = null)
+    {
+        _statusTitleKey = titleKey;
+        _statusDetailKey = detailKey;
+        _statusTitleArgs = titleArgs ?? [];
+        _statusDetailArgs = detailArgs ?? [];
+        _usesRawStatusDetail = false;
+        _rawStatusDetail = string.Empty;
+        ApplyLocalizedStatus();
+    }
+
+    private void SetStatusWithRawDetail(string titleKey, string rawDetail, object[]? titleArgs = null)
+    {
+        _statusTitleKey = titleKey;
+        _statusTitleArgs = titleArgs ?? [];
+        _usesRawStatusDetail = true;
+        _rawStatusDetail = rawDetail;
+        ApplyLocalizedStatus();
+    }
+
+    private void ApplyLocalizedStatus()
+    {
+        StatusTitle = _localizer.Format(_statusTitleKey, _statusTitleArgs);
+        StatusDetail = _usesRawStatusDetail
+            ? _rawStatusDetail
+            : _localizer.Format(_statusDetailKey, _statusDetailArgs);
     }
 }

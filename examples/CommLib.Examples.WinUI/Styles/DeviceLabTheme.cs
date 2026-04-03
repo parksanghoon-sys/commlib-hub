@@ -1,4 +1,3 @@
-using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -9,6 +8,10 @@ namespace CommLib.Examples.WinUI.Styles;
 
 public static class DeviceLabTheme
 {
+    // 지금 실제로 쓰는 것은 brush/text/border 위주의 "안전한 subset"이다.
+    // 아래에 남아 있는 broader control style helper는 추후 검증 전까지는 설계 여지를 보존하는 용도다.
+    private static readonly Lazy<ResourceDictionary> SharedResources = new(Create);
+
     public const string WindowBackgroundBrushKey = "WindowBackgroundBrush";
     public const string HeroPanelBrushKey = "HeroPanelBrush";
     public const string HeroForegroundBrushKey = "HeroForegroundBrush";
@@ -32,70 +35,65 @@ public static class DeviceLabTheme
     public const string InlineToggleStyleKey = "InlineToggleStyle";
     public const string ActivityListStyleKey = "ActivityListStyle";
 
+    public static ResourceDictionary Shared => SharedResources.Value;
+
     public static ResourceDictionary Create()
     {
+        // 코드 기반 View들이 공통 look & feel을 쉽게 공유할 수 있도록
+        // App 전역 merge 대신 지연 생성되는 ResourceDictionary 하나에 모아 둔다.
         var resources = new ResourceDictionary();
 
-        resources[WindowBackgroundBrushKey] = CreateGradient("#FFF7FAFC", "#FFE8F0F7", "#FFDCE9F5");
-        resources[HeroPanelBrushKey] = CreateGradient("#FF0A4F7D", "#FF124B72", "#FF184E77");
-        resources[HeroForegroundBrushKey] = CreateSolid("#FFF8FBFD");
-        resources[CardBackgroundBrushKey] = CreateSolid("#F7FFFFFF");
-        resources[CardBorderBrushKey] = CreateSolid("#1E234A66");
-        resources[MutedForegroundBrushKey] = CreateSolid("#FF4D6678");
-        resources[SectionForegroundBrushKey] = CreateSolid("#FF0F2534");
-        resources[AccentBrushKey] = CreateSolid("#FF0A6AA1");
-        resources[BadgeBackgroundBrushKey] = CreateSolid("#140A6AA1");
-        resources[TransportPanelBrushKey] = CreateSolid("#0F0A6AA1");
+        resources[WindowBackgroundBrushKey] = CreateSolid("#FFF3F7FB");
+        resources[HeroPanelBrushKey] = CreateSolid("#FF123B5A");
+        resources[HeroForegroundBrushKey] = CreateSolid("#FFFFFFFF");
+        resources[CardBackgroundBrushKey] = CreateSolid("#FFFFFFFF");
+        resources[CardBorderBrushKey] = CreateSolid("#FFD5E2EE");
+        resources[MutedForegroundBrushKey] = CreateSolid("#FF4E6780");
+        resources[SectionForegroundBrushKey] = CreateSolid("#FF12364F");
+        resources[AccentBrushKey] = CreateSolid("#FF0B6AA2");
+        resources[TransportPanelBrushKey] = CreateSolid("#FFF8FBFE");
 
         resources[CardBorderStyleKey] = CreateCardBorderStyle();
         resources[SectionTitleStyleKey] = CreateSectionTitleStyle();
         resources[BodyTitleStyleKey] = CreateBodyTitleStyle();
         resources[BodyCaptionStyleKey] = CreateBodyCaptionStyle();
         resources[FieldLabelStyleKey] = CreateFieldLabelStyle();
-        resources[BadgeBorderStyleKey] = CreateBadgeBorderStyle();
-        resources[PrimaryButtonStyleKey] = CreatePrimaryButtonStyle();
-        resources[SecondaryButtonStyleKey] = CreateSecondaryButtonStyle();
-        resources[TextInputStyleKey] = CreateTextInputStyle();
-        resources[ComboInputStyleKey] = CreateComboInputStyle();
-        resources[InlineToggleStyleKey] = CreateInlineToggleStyle();
-        resources[ActivityListStyleKey] = CreateActivityListStyle();
 
         return resources;
     }
 
     public static T Get<T>(FrameworkElement owner, string key) where T : class
     {
-        return (T)owner.Resources[key];
+        _ = owner;
+        return (T)Shared[key];
     }
 
     private static Style CreateCardBorderStyle()
     {
         var style = new Style(typeof(Border));
-        style.Setters.Add(new Setter(Border.BackgroundProperty, CreateSolid("#F7FFFFFF")));
-        style.Setters.Add(new Setter(Border.BorderBrushProperty, CreateSolid("#1E234A66")));
+        style.Setters.Add(new Setter(Border.BackgroundProperty, CreateSolid("#FFFFFFFF")));
+        style.Setters.Add(new Setter(Border.BorderBrushProperty, CreateSolid("#FFD5E2EE")));
         style.Setters.Add(new Setter(Border.BorderThicknessProperty, new Thickness(1)));
-        style.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(22)));
-        style.Setters.Add(new Setter(Border.PaddingProperty, new Thickness(20)));
+        style.Setters.Add(new Setter(Border.CornerRadiusProperty, new CornerRadius(18)));
+        style.Setters.Add(new Setter(Border.PaddingProperty, new Thickness(18)));
         return style;
     }
 
     private static Style CreateSectionTitleStyle()
     {
         var style = new Style(typeof(TextBlock));
-        style.Setters.Add(new Setter(TextBlock.FontFamilyProperty, new FontFamily("Segoe UI Variable Display Semib")));
         style.Setters.Add(new Setter(TextBlock.FontSizeProperty, 22d));
         style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
-        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, CreateSolid("#FF0F2534")));
+        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, CreateSolid("#FF12364F")));
         return style;
     }
 
     private static Style CreateBodyTitleStyle()
     {
         var style = new Style(typeof(TextBlock));
-        style.Setters.Add(new Setter(TextBlock.FontFamilyProperty, new FontFamily("Segoe UI Variable Display")));
-        style.Setters.Add(new Setter(TextBlock.FontSizeProperty, 15d));
+        style.Setters.Add(new Setter(TextBlock.FontSizeProperty, 16d));
         style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
-        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, CreateSolid("#FF0F2534")));
+        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, CreateSolid("#FF12364F")));
         return style;
     }
 
@@ -129,57 +127,57 @@ public static class DeviceLabTheme
 
     private static Style CreatePrimaryButtonStyle()
     {
-        var style = new Style(typeof(Button));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FF0A6AA1")));
-        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#FF0A6AA1")));
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(14)));
+        var style = CreateBasedOnStyle(typeof(Button), "DefaultButtonStyle");
+        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FF0B6AA2")));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#FF0B6AA2")));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(12)));
         style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FFFFFFFF")));
         style.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(16, 10, 16, 10)));
-        style.Setters.Add(new Setter(Control.MinHeightProperty, 42d));
+        style.Setters.Add(new Setter(Control.MinHeightProperty, 40d));
         return style;
     }
 
     private static Style CreateSecondaryButtonStyle()
     {
-        var style = new Style(typeof(Button));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#EFFFFFFF")));
-        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#26364E60")));
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(14)));
-        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF0A4F7D")));
+        var style = CreateBasedOnStyle(typeof(Button), "DefaultButtonStyle");
+        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FFFFFFFF")));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#FFC2D3E1")));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(12)));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF12364F")));
         style.Setters.Add(new Setter(Control.FontWeightProperty, FontWeights.SemiBold));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(16, 10, 16, 10)));
-        style.Setters.Add(new Setter(Control.MinHeightProperty, 42d));
+        style.Setters.Add(new Setter(Control.MinHeightProperty, 40d));
         return style;
     }
 
     private static Style CreateTextInputStyle()
     {
-        var style = new Style(typeof(TextBox));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FCFFFFFF")));
-        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#2A355872")));
+        var style = CreateBasedOnStyle(typeof(TextBox), "DefaultTextBoxStyle");
+        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FFFFFFFF")));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#FFC2D3E1")));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(14)));
-        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF0F2534")));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(12)));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF12364F")));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(12, 9, 12, 9)));
         return style;
     }
 
     private static Style CreateComboInputStyle()
     {
-        var style = new Style(typeof(ComboBox));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FCFFFFFF")));
-        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#2A355872")));
+        var style = CreateBasedOnStyle(typeof(ComboBox), "DefaultComboBoxStyle");
+        style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#FFFFFFFF")));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#FFC2D3E1")));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
-        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(14)));
-        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF0F2534")));
+        style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(12)));
+        style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF12364F")));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 7, 10, 7)));
         return style;
     }
 
     private static Style CreateInlineToggleStyle()
     {
-        var style = new Style(typeof(CheckBox));
+        var style = CreateBasedOnStyle(typeof(CheckBox), "DefaultCheckBoxStyle");
         style.Setters.Add(new Setter(Control.ForegroundProperty, CreateSolid("#FF0F2534")));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(2)));
         style.Setters.Add(new Setter(Control.MinHeightProperty, 32d));
@@ -188,7 +186,7 @@ public static class DeviceLabTheme
 
     private static Style CreateActivityListStyle()
     {
-        var style = new Style(typeof(ListView));
+        var style = CreateBasedOnStyle(typeof(ListView), "DefaultListViewStyle");
         style.Setters.Add(new Setter(Control.BackgroundProperty, CreateSolid("#0AFFFFFF")));
         style.Setters.Add(new Setter(Control.BorderBrushProperty, CreateSolid("#14304A66")));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
@@ -200,6 +198,14 @@ public static class DeviceLabTheme
     private static SolidColorBrush CreateSolid(string hex)
     {
         return new(ColorFromHex(hex));
+    }
+
+    private static Style CreateBasedOnStyle(Type targetType, string defaultStyleKey)
+    {
+        return new Style(targetType)
+        {
+            BasedOn = (Style)Microsoft.UI.Xaml.Application.Current.Resources[defaultStyleKey]
+        };
     }
 
     private static LinearGradientBrush CreateGradient(string start, string middle, string end)

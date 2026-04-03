@@ -7,7 +7,9 @@
 - Strict MVVM: `MainWindow` is just the shell, `AppShellView` handles page composition, `DeviceLabView` and `SettingsView` are separate pages, and state lives in shared view models.
 - DI first: `App` composes CommLib services, the session service, the dispatcher abstraction, the settings store, the view models, and the views through `Microsoft.Extensions.DependencyInjection`.
 - Persistent settings: `DeviceLabSettingsViewModel` is loaded from `appsettings.json` at startup, edited on the `Settings` page, and saved back to disk explicitly or when the window closes.
+- Language mode: the example persists an English/Korean UI mode in `appsettings.json`, and the shell plus primary pages refresh their copy when the mode changes.
 - UI polish: the example keeps a card-based control room layout, but favors a conservative WinUI control set so the sample stays runnable on developer machines with fragile XAML runtime environments.
+- Local loopback help: `Device Lab` can now start in-app TCP/UDP/Multicast mock peers so transport checks do not always require a second terminal or external process.
 
 ## What It Exercises
 
@@ -30,5 +32,8 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - TCP and UDP expect a reachable remote endpoint.
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
-- The sample currently defaults to `win-x86` because the local `win-x64` runtime consistently faulted inside `Microsoft.UI.Xaml.dll` on this machine.
+- The `Device Lab` and `Settings` pages now show only the currently selected transport panel instead of every transport preset at once.
+- For local manual verification without external hardware, reuse `examples/CommLib.Examples.Console` for `tcp-demo`, `udp-demo`, or multicast send/receive peers in separate terminals.
+- The in-app mock peer path covers TCP, UDP, and Multicast on loopback; Serial still stays external because it needs a paired COM environment.
+- The sample now defaults to `win-x64` again because the current branch state no longer reproduces the earlier local `Microsoft.UI.Xaml.dll` startup fault; `-r win-x86` remains available if you need to compare runtimes.
 - The default `appsettings.json` is copied to the output folder on build and then reused as the runtime settings file.

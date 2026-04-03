@@ -1,3 +1,7 @@
+using CommLib.Examples.WinUI.Models;
+using CommLib.Examples.WinUI.Converters;
+using CommLib.Examples.WinUI.Services;
+using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -10,27 +14,41 @@ namespace CommLib.Examples.WinUI.Views;
 
 public sealed class DeviceLabView : Grid
 {
-    public DeviceLabView(MainViewModel viewModel)
+    private static readonly BooleanToVisibilityConverter VisibilityConverter = new();
+    private readonly IAppLocalizer _localizer;
+    private readonly ScrollViewer _scrollViewer;
+    // 이 뷰는 XAML 대신 코드로 화면을 조합하므로,
+    // 언어 변경 시 다시 써야 하는 텍스트 setter를 별도로 모아 두고 일괄 재적용한다.
+    private readonly List<Action> _localizedTextUpdates = [];
+    private ScrollViewer? _liveLogScrollViewer;
+
+    public DeviceLabView(MainViewModel viewModel, IAppLocalizer localizer)
     {
+        _localizer = localizer;
+        _scrollViewer = CreatePageScrollViewer();
         ViewModel = viewModel;
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
         DataContext = ViewModel;
+        _localizer.LanguageChanged += OnLanguageChanged;
         Children.Add(BuildContent());
+        ApplyLocalizedText();
     }
 
     public MainViewModel ViewModel { get; }
 
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        ApplyLocalizedText();
+    }
+
     private FrameworkElement BuildContent()
     {
+        // Device Lab은 "세션 설정 -> transport 설정 -> mock peer -> 전송 -> 로그" 순서로 읽히게 구성해
+        // 사용자가 실제 테스트 흐름을 화면 위에서 아래로 그대로 따라가게 만든다.
         var root = new Grid
         {
-            Background = CreateSolid("#FFF3F7FB")
-        };
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            Background = GetThemeBrush(DeviceLabTheme.WindowBackgroundBrushKey)
         };
 
         var layout = new StackPanel
@@ -42,32 +60,35 @@ public sealed class DeviceLabView : Grid
         layout.Children.Add(CreateHeroCard());
         layout.Children.Add(CreateSessionCard());
         layout.Children.Add(CreateTransportCard());
+        layout.Children.Add(CreateMockEndpointCard());
         layout.Children.Add(CreateComposerCard());
         layout.Children.Add(CreateLogCard());
 
-        scrollViewer.Content = layout;
-        root.Children.Add(scrollViewer);
+        _scrollViewer.Content = layout;
+        root.Children.Add(_scrollViewer);
         return root;
     }
 
     private UIElement CreateHeroCard()
     {
-        var card = CreateCard("#FF0F4A6A", foregroundHex: "#FFFFFFFF");
+        var card = CreateCard(GetThemeBrush(DeviceLabTheme.HeroPanelBrushKey));
         var stack = CreateVerticalStack(8);
-        stack.Children.Add(new TextBlock
+        var title = new TextBlock
         {
-            Text = "Device Lab",
             FontSize = 30,
             FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FFFFFFFF")
-        });
+            Foreground = GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
+        };
+        RegisterLocalizedText(() => title.Text = _localizer.Get("deviceLab.hero.title"));
+        stack.Children.Add(title);
 
-        stack.Children.Add(new TextBlock
+        var description = new TextBlock
         {
-            Text = "TCP, UDP, Multicast, Serial transport sessions can be opened here with shared MVVM settings.",
             TextWrapping = TextWrapping.WrapWholeWords,
             Foreground = CreateSolid("#FFD4E7F5")
-        });
+        };
+        RegisterLocalizedText(() => description.Text = _localizer.Get("deviceLab.hero.description"));
+        stack.Children.Add(description);
 
         var status = new TextBlock
         {
@@ -94,25 +115,31 @@ public sealed class DeviceLabView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Session Setup"));
+        stack.Children.Add(CreateSectionTitle("deviceLab.section.sessionSetup"));
 
         var transport = new ComboBox
         {
             DisplayMemberPath = "Label",
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 40
+            MinHeight = 40,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(10, 7, 10, 7)
         };
         Bind(transport, ItemsControl.ItemsSourceProperty, "Settings.TransportChoices");
         Bind(transport, Selector.SelectedItemProperty, "Settings.SelectedTransport", BindingMode.TwoWay);
-        stack.Children.Add(CreateLabeledField("Transport", transport));
+        stack.Children.Add(CreateLabeledField("field.transport", transport));
 
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Device Id", CreateTextBox("Settings.DeviceId")),
-            CreateLabeledField("Display Name", CreateTextBox("Settings.DisplayName"))));
+            CreateLabeledField("field.deviceId", CreateTextBox("Settings.DeviceId")),
+            CreateLabeledField("field.displayName", CreateTextBox("Settings.DisplayName"))));
 
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Default Timeout (ms)", CreateTextBox("Settings.DefaultTimeoutMs")),
-            CreateLabeledField("Max Pending Requests", CreateTextBox("Settings.MaxPendingRequests"))));
+            CreateLabeledField("field.defaultTimeoutMs", CreateTextBox("Settings.DefaultTimeoutMs")),
+            CreateLabeledField("field.maxPendingRequests", CreateTextBox("Settings.MaxPendingRequests"))));
 
         card.Child = stack;
         return card;
@@ -122,40 +149,40 @@ public sealed class DeviceLabView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Transport Settings"));
+        stack.Children.Add(CreateSectionTitle("deviceLab.section.transportSettings"));
 
-        stack.Children.Add(CreateTransportPanel("TCP", [
-            CreateLabeledField("Host", CreateTextBox("Settings.TcpSettings.Host")),
-            CreateLabeledField("Port", CreateTextBox("Settings.TcpSettings.Port")),
-            CreateLabeledField("Connect Timeout (ms)", CreateTextBox("Settings.TcpSettings.ConnectTimeoutMs")),
-            CreateLabeledField("Buffer Size", CreateTextBox("Settings.TcpSettings.BufferSize")),
-            CreateCheckBox("Disable Nagle (NoDelay)", "Settings.TcpSettings.NoDelay")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Tcp, [
+            CreateLabeledField("field.host", CreateTextBox("Settings.TcpSettings.Host")),
+            CreateLabeledField("field.port", CreateTextBox("Settings.TcpSettings.Port")),
+            CreateLabeledField("field.connectTimeoutMs", CreateTextBox("Settings.TcpSettings.ConnectTimeoutMs")),
+            CreateLabeledField("field.bufferSize", CreateTextBox("Settings.TcpSettings.BufferSize")),
+            CreateCheckBox("check.noDelay", "Settings.TcpSettings.NoDelay")
         ]));
 
-        stack.Children.Add(CreateTransportPanel("UDP", [
-            CreateLabeledField("Local Port", CreateTextBox("Settings.UdpSettings.LocalPort")),
-            CreateLabeledField("Remote Host", CreateTextBox("Settings.UdpSettings.RemoteHost")),
-            CreateLabeledField("Remote Port", CreateTextBox("Settings.UdpSettings.RemotePort"))
+        stack.Children.Add(CreateTransportPanel(TransportKind.Udp, [
+            CreateLabeledField("field.localPort", CreateTextBox("Settings.UdpSettings.LocalPort")),
+            CreateLabeledField("field.remoteHost", CreateTextBox("Settings.UdpSettings.RemoteHost")),
+            CreateLabeledField("field.remotePort", CreateTextBox("Settings.UdpSettings.RemotePort"))
         ]));
 
-        stack.Children.Add(CreateTransportPanel("Multicast", [
-            CreateLabeledField("Group Address", CreateTextBox("Settings.MulticastSettings.GroupAddress")),
-            CreateLabeledField("Port", CreateTextBox("Settings.MulticastSettings.Port")),
-            CreateLabeledField("TTL", CreateTextBox("Settings.MulticastSettings.Ttl")),
-            CreateLabeledField("Local Interface", CreateTextBox("Settings.MulticastSettings.LocalInterface")),
-            CreateCheckBox("Enable loopback", "Settings.MulticastSettings.Loopback")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Multicast, [
+            CreateLabeledField("field.groupAddress", CreateTextBox("Settings.MulticastSettings.GroupAddress")),
+            CreateLabeledField("field.port", CreateTextBox("Settings.MulticastSettings.Port")),
+            CreateLabeledField("field.ttl", CreateTextBox("Settings.MulticastSettings.Ttl")),
+            CreateLabeledField("field.localInterface", CreateTextBox("Settings.MulticastSettings.LocalInterface")),
+            CreateCheckBox("check.loopback", "Settings.MulticastSettings.Loopback")
         ]));
 
-        stack.Children.Add(CreateTransportPanel("Serial", [
-            CreateLabeledField("Port Name", CreateTextBox("Settings.SerialSettings.PortName")),
-            CreateLabeledField("Baud Rate", CreateTextBox("Settings.SerialSettings.BaudRate")),
-            CreateLabeledField("Data Bits", CreateTextBox("Settings.SerialSettings.DataBits")),
-            CreateLabeledField("Parity", CreateComboBox("Settings.SerialSettings.ParityOptions", "Settings.SerialSettings.Parity")),
-            CreateLabeledField("Stop Bits", CreateComboBox("Settings.SerialSettings.StopBitsOptions", "Settings.SerialSettings.StopBits")),
-            CreateLabeledField("Turn Gap (ms)", CreateTextBox("Settings.SerialSettings.TurnGapMs")),
-            CreateLabeledField("Read Buffer Size", CreateTextBox("Settings.SerialSettings.ReadBufferSize")),
-            CreateLabeledField("Write Buffer Size", CreateTextBox("Settings.SerialSettings.WriteBufferSize")),
-            CreateCheckBox("Use half-duplex timing", "Settings.SerialSettings.HalfDuplex")
+        stack.Children.Add(CreateTransportPanel(TransportKind.Serial, [
+            CreateLabeledField("field.portName", CreateTextBox("Settings.SerialSettings.PortName")),
+            CreateLabeledField("field.baudRate", CreateTextBox("Settings.SerialSettings.BaudRate")),
+            CreateLabeledField("field.dataBits", CreateTextBox("Settings.SerialSettings.DataBits")),
+            CreateLabeledField("field.parity", CreateComboBox("Settings.SerialSettings.ParityOptions", "Settings.SerialSettings.Parity")),
+            CreateLabeledField("field.stopBits", CreateComboBox("Settings.SerialSettings.StopBitsOptions", "Settings.SerialSettings.StopBits")),
+            CreateLabeledField("field.turnGapMs", CreateTextBox("Settings.SerialSettings.TurnGapMs")),
+            CreateLabeledField("field.readBufferSize", CreateTextBox("Settings.SerialSettings.ReadBufferSize")),
+            CreateLabeledField("field.writeBufferSize", CreateTextBox("Settings.SerialSettings.WriteBufferSize")),
+            CreateCheckBox("check.halfDuplex", "Settings.SerialSettings.HalfDuplex")
         ]));
 
         card.Child = stack;
@@ -166,11 +193,11 @@ public sealed class DeviceLabView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Message Composer"));
+        stack.Children.Add(CreateSectionTitle("deviceLab.section.messageComposer"));
 
         stack.Children.Add(CreateTwoColumnRow(
-            CreateLabeledField("Message Id", CreateTextBox("Settings.OutboundMessageId")),
-            CreateLabeledField("Body", CreateTextBox("Settings.OutboundBody", 120, true))));
+            CreateLabeledField("field.messageId", CreateTextBox("Settings.OutboundMessageId")),
+            CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true))));
 
         var buttons = new StackPanel
         {
@@ -178,10 +205,53 @@ public sealed class DeviceLabView : Grid
             Spacing = 10
         };
 
-        buttons.Children.Add(CreateCommandButton("Connect", "ConnectCommand", "#FF0B6AA2", "#FFFFFFFF"));
-        buttons.Children.Add(CreateCommandButton("Disconnect", "DisconnectCommand"));
-        buttons.Children.Add(CreateCommandButton("Send", "SendCommand"));
-        buttons.Children.Add(CreateCommandButton("Clear Log", "ClearLogCommand"));
+        buttons.Children.Add(CreateCommandButton("button.connect", "ConnectCommand", isPrimary: true));
+        buttons.Children.Add(CreateCommandButton("button.disconnect", "DisconnectCommand"));
+        buttons.Children.Add(CreateCommandButton("button.send", "SendCommand"));
+        buttons.Children.Add(CreateCommandButton("button.clearLog", "ClearLogCommand"));
+        stack.Children.Add(buttons);
+
+        card.Child = stack;
+        return card;
+    }
+
+    private UIElement CreateMockEndpointCard()
+    {
+        var card = CreateCard();
+        var stack = CreateVerticalStack(12);
+        stack.Children.Add(CreateSectionTitle("deviceLab.section.mockEndpoint"));
+
+        var description = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+        RegisterLocalizedText(() => description.Text = _localizer.Get("deviceLab.mockEndpoint.description"));
+        stack.Children.Add(description);
+
+        var statusTitle = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyTitleStyleKey)
+        };
+        Bind(statusTitle, TextBlock.TextProperty, "MockEndpointStatusTitle");
+        stack.Children.Add(statusTitle);
+
+        var statusDetail = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+        Bind(statusDetail, TextBlock.TextProperty, "MockEndpointStatusDetail");
+        stack.Children.Add(statusDetail);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10
+        };
+
+        buttons.Children.Add(CreateCommandButton("button.startMockEndpoint", "StartMockEndpointCommand", isPrimary: true));
+        buttons.Children.Add(CreateCommandButton("button.stopMockEndpoint", "StopMockEndpointCommand"));
         stack.Children.Add(buttons);
 
         card.Child = stack;
@@ -192,16 +262,9 @@ public sealed class DeviceLabView : Grid
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
-        stack.Children.Add(CreateSectionTitle("Live Log"));
+        stack.Children.Add(CreateSectionTitle("deviceLab.section.liveLog"));
 
-        var logBox = new TextBox
-        {
-            IsReadOnly = true,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            Height = 320,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        var logBox = CreateLiveLogBox();
         Bind(logBox, TextBox.TextProperty, "LogText");
         stack.Children.Add(logBox);
 
@@ -209,25 +272,25 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
-    private Border CreateTransportPanel(string title, IEnumerable<UIElement> children)
+    private Border CreateTransportPanel(TransportKind kind, IEnumerable<UIElement> children)
     {
         var border = new Border
         {
             Padding = new Thickness(14),
             CornerRadius = new CornerRadius(14),
             BorderThickness = new Thickness(1),
-            BorderBrush = CreateSolid("#FFCAD8E6"),
-            Background = CreateSolid("#FFF8FBFE")
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            Background = GetThemeBrush(DeviceLabTheme.TransportPanelBrushKey)
         };
+        Bind(border, VisibilityProperty, GetTransportVisibilityPath(kind), converter: VisibilityConverter);
 
         var stack = CreateVerticalStack(10);
-        stack.Children.Add(new TextBlock
+        var title = new TextBlock
         {
-            Text = title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF12364F")
-        });
+            Style = GetThemeStyle(DeviceLabTheme.BodyTitleStyleKey)
+        };
+        RegisterLocalizedText(() => title.Text = _localizer.GetTransportLabel(kind));
+        stack.Children.Add(title);
 
         foreach (var child in children)
         {
@@ -238,27 +301,24 @@ public sealed class DeviceLabView : Grid
         return border;
     }
 
-    private Border CreateCard(string backgroundHex = "#FFFFFFFF", string foregroundHex = "#FF12364F")
+    private Border CreateCard(Brush? background = null)
     {
         return new Border
         {
-            Padding = new Thickness(18),
-            Background = CreateSolid(backgroundHex),
-            BorderBrush = CreateSolid("#FFD5E2EE"),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(18)
+            Style = GetThemeStyle(DeviceLabTheme.CardBorderStyleKey),
+            Background = background ?? GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey)
         };
     }
 
-    private TextBlock CreateSectionTitle(string text)
+    private TextBlock CreateSectionTitle(string key)
     {
-        return new TextBlock
+        var textBlock = new TextBlock
         {
-            Text = text,
-            FontSize = 22,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF12364F")
+            Style = GetThemeStyle(DeviceLabTheme.SectionTitleStyleKey)
         };
+        RegisterLocalizedText(() => textBlock.Text = _localizer.Get(key));
+        return textBlock;
     }
 
     private StackPanel CreateVerticalStack(double spacing)
@@ -266,16 +326,15 @@ public sealed class DeviceLabView : Grid
         return new StackPanel { Spacing = spacing };
     }
 
-    private FrameworkElement CreateLabeledField(string label, FrameworkElement input)
+    private FrameworkElement CreateLabeledField(string labelKey, FrameworkElement input)
     {
         var stack = CreateVerticalStack(6);
-        stack.Children.Add(new TextBlock
+        var label = new TextBlock
         {
-            Text = label,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FF4E6780")
-        });
+            Style = GetThemeStyle(DeviceLabTheme.FieldLabelStyleKey)
+        };
+        RegisterLocalizedText(() => label.Text = _localizer.Get(labelKey));
+        stack.Children.Add(label);
         stack.Children.Add(input);
         return stack;
     }
@@ -298,10 +357,73 @@ public sealed class DeviceLabView : Grid
             Height = height,
             AcceptsReturn = acceptsReturn,
             TextWrapping = acceptsReturn ? TextWrapping.Wrap : TextWrapping.NoWrap,
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(12, 9, 12, 9)
         };
+        PointerWheelScrollBridge.Attach(textBox, _scrollViewer);
         Bind(textBox, TextBox.TextProperty, path, BindingMode.TwoWay);
         return textBox;
+    }
+
+    private TextBox CreateLiveLogBox()
+    {
+        var logBox = new TextBox
+        {
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap,
+            Height = 320,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(12, 9, 12, 9)
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(logBox, ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(logBox, ScrollBarVisibility.Auto);
+        // TextBox 템플릿 내부 ScrollViewer는 Loaded 이후에야 생기므로
+        // 처음 한 번 캐시한 뒤 이후 변경에서는 그대로 재사용한다.
+        logBox.Loaded += (_, _) => CacheLiveLogScrollViewer(logBox);
+        logBox.TextChanged += (_, _) => ScrollLiveLogToLatest(logBox);
+        return logBox;
+    }
+
+    private void CacheLiveLogScrollViewer(TextBox logBox)
+    {
+        _liveLogScrollViewer = FindDescendant<ScrollViewer>(logBox);
+        ScrollLiveLogToLatest(logBox);
+    }
+
+    private void ScrollLiveLogToLatest(TextBox logBox)
+    {
+        if (string.IsNullOrEmpty(logBox.Text))
+        {
+            return;
+        }
+
+        // TextChanged 시점에는 템플릿/레이아웃 갱신이 아직 끝나지 않았을 수 있어서
+        // dispatcher에 한 박자 넘긴 뒤 caret과 실제 스크롤 오프셋을 함께 끝으로 보낸다.
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            logBox.Select(logBox.Text.Length, 0);
+            var liveLogScrollViewer = _liveLogScrollViewer ??= FindDescendant<ScrollViewer>(logBox);
+            liveLogScrollViewer?.ChangeView(null, liveLogScrollViewer.ScrollableHeight, null, disableAnimation: true);
+        });
+    }
+
+    private static ScrollViewer CreatePageScrollViewer()
+    {
+        return new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private ComboBox CreateComboBox(string itemsSourcePath, string selectedPath)
@@ -309,37 +431,94 @@ public sealed class DeviceLabView : Grid
         var comboBox = new ComboBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinHeight = 40
+            MinHeight = 40,
+            Background = GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            BorderBrush = GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(10, 7, 10, 7)
         };
         Bind(comboBox, ItemsControl.ItemsSourceProperty, itemsSourcePath);
         Bind(comboBox, Selector.SelectedItemProperty, selectedPath, BindingMode.TwoWay);
         return comboBox;
     }
 
-    private CheckBox CreateCheckBox(string content, string path)
+    private static string GetTransportVisibilityPath(TransportKind kind)
+    {
+        return kind switch
+        {
+            TransportKind.Tcp => "Settings.IsTcpSelected",
+            TransportKind.Udp => "Settings.IsUdpSelected",
+            TransportKind.Multicast => "Settings.IsMulticastSelected",
+            TransportKind.Serial => "Settings.IsSerialSelected",
+            _ => throw new InvalidOperationException($"Unsupported transport selection: {kind}")
+        };
+    }
+
+    private CheckBox CreateCheckBox(string contentKey, string path)
     {
         var checkBox = new CheckBox
         {
-            Content = content
+            Foreground = GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            Padding = new Thickness(2),
+            MinHeight = 32
         };
+        RegisterLocalizedText(() => checkBox.Content = _localizer.Get(contentKey));
         Bind(checkBox, ToggleButton.IsCheckedProperty, path, BindingMode.TwoWay);
         return checkBox;
     }
 
-    private Button CreateCommandButton(string label, string commandPath, string backgroundHex = "#FFFFFFFF", string foregroundHex = "#FF12364F")
+    private Button CreateCommandButton(string labelKey, string commandPath, bool isPrimary = false)
     {
         var button = new Button
         {
-            Content = label,
             Padding = new Thickness(16, 10, 16, 10),
-            Background = CreateSolid(backgroundHex),
-            Foreground = CreateSolid(foregroundHex),
-            BorderBrush = CreateSolid("#FFC2D3E1"),
+            MinHeight = 40,
+            CornerRadius = new CornerRadius(12),
+            Background = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.AccentBrushKey)
+                : GetThemeBrush(DeviceLabTheme.CardBackgroundBrushKey),
+            Foreground = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
+                : GetThemeBrush(DeviceLabTheme.SectionForegroundBrushKey),
+            BorderBrush = isPrimary
+                ? GetThemeBrush(DeviceLabTheme.AccentBrushKey)
+                : GetThemeBrush(DeviceLabTheme.CardBorderBrushKey),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12)
+            FontWeight = FontWeights.SemiBold
         };
+        RegisterLocalizedText(() => button.Content = _localizer.Get(labelKey));
         Bind(button, Button.CommandProperty, commandPath);
         return button;
+    }
+
+    private T GetTheme<T>(string key) where T : class
+    {
+        return DeviceLabTheme.Get<T>(this, key);
+    }
+
+    private Brush GetThemeBrush(string key)
+    {
+        return GetTheme<Brush>(key);
+    }
+
+    private Style GetThemeStyle(string key)
+    {
+        return GetTheme<Style>(key);
+    }
+
+    private void RegisterLocalizedText(Action applyText)
+    {
+        _localizedTextUpdates.Add(applyText);
+    }
+
+    private void ApplyLocalizedText()
+    {
+        foreach (var updateText in _localizedTextUpdates)
+        {
+            updateText();
+        }
     }
 
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)
@@ -360,5 +539,27 @@ public sealed class DeviceLabView : Grid
             Convert.ToByte(value.Substring(2, 2), 16),
             Convert.ToByte(value.Substring(4, 2), 16),
             Convert.ToByte(value.Substring(6, 2), 16)));
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        // WinUI 기본 컨트롤의 내부 템플릿 객체는 이름으로 바로 잡기 어려우므로
+        // 필요한 경우에만 얕은 helper 하나로 visual tree를 재귀 탐색한다.
+        var childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            if (FindDescendant<T>(child) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
     }
 }

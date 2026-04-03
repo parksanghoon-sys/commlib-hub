@@ -1,30 +1,49 @@
-using CommLib.Examples.WinUI.Converters;
+using CommLib.Examples.WinUI.Models;
+using CommLib.Examples.WinUI.Services;
+using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
+using System.ComponentModel;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 
 namespace CommLib.Examples.WinUI.Views;
 
 public sealed class AppShellView : Grid
 {
-    private readonly BooleanToVisibilityConverter _boolToVisibility = new();
+    private readonly IAppLocalizer _localizer;
+    private readonly List<Action> _localizedTextUpdates = [];
+    // 두 페이지를 계속 살아 있게 두는 dual-host 구조를 유지하면
+    // 과거 WinUI blank-screen 성격의 리스크를 줄이면서도 가벼운 전환 애니메이션을 얹을 수 있다.
+    private Grid _deviceLabHost = null!;
+    private Grid _settingsHost = null!;
+    private ShellPageKind _activePageKind;
+    private ShellPageKind? _pendingPageKind;
+    private bool _isTransitionRunning;
 
     public AppShellView(
         ShellViewModel viewModel,
         DeviceLabView deviceLabView,
-        SettingsView settingsView)
+        SettingsView settingsView,
+        IAppLocalizer localizer)
     {
+        _localizer = localizer;
         ViewModel = viewModel;
         DeviceLabView = deviceLabView;
         SettingsView = settingsView;
+        _activePageKind = ViewModel.SelectedPage.Kind;
 
         HorizontalAlignment = HorizontalAlignment.Stretch;
         VerticalAlignment = VerticalAlignment.Stretch;
         DataContext = ViewModel;
+        _localizer.LanguageChanged += OnLanguageChanged;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         Children.Add(BuildContent());
+        ApplyActivePageState(_activePageKind);
+        ApplyLocalizedText();
     }
 
     public ShellViewModel ViewModel { get; }
@@ -33,11 +52,24 @@ public sealed class AppShellView : Grid
 
     public SettingsView SettingsView { get; }
 
+    private void OnLanguageChanged(object? sender, EventArgs args)
+    {
+        ApplyLocalizedText();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(ShellViewModel.SelectedPage))
+        {
+            QueuePageTransition(ViewModel.SelectedPage.Kind);
+        }
+    }
+
     private FrameworkElement BuildContent()
     {
         var root = new Grid
         {
-            Background = CreateSolid("#FFF3F7FB")
+            Background = GetThemeBrush(DeviceLabTheme.WindowBackgroundBrushKey)
         };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -46,7 +78,7 @@ public sealed class AppShellView : Grid
         {
             Margin = new Thickness(20, 20, 20, 0),
             Padding = new Thickness(20),
-            Background = CreateSolid("#FF123B5A"),
+            Background = GetThemeBrush(DeviceLabTheme.HeroPanelBrushKey),
             CornerRadius = new CornerRadius(20)
         };
 
@@ -55,19 +87,20 @@ public sealed class AppShellView : Grid
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var titleStack = new StackPanel { Spacing = 4 };
-        titleStack.Children.Add(new TextBlock
+        var appTitle = new TextBlock
         {
-            Text = "CommLib Control Center",
             FontSize = 28,
             FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FFFFFFFF")
-        });
+            Foreground = GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
+        };
+        RegisterLocalizedText(() => appTitle.Text = _localizer.Get("shell.appTitle"));
+        titleStack.Children.Add(appTitle);
 
         var pageTitle = new TextBlock
         {
             FontSize = 18,
             FontWeight = FontWeights.SemiBold,
-            Foreground = CreateSolid("#FFE7F4FF")
+            Foreground = GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey)
         };
         Bind(pageTitle, TextBlock.TextProperty, "CurrentPageTitle");
         titleStack.Children.Add(pageTitle);
@@ -88,8 +121,8 @@ public sealed class AppShellView : Grid
             Spacing = 10,
             VerticalAlignment = VerticalAlignment.Center
         };
-        nav.Children.Add(CreateHeaderButton("Device Lab", "OpenDeviceLabPageCommand"));
-        nav.Children.Add(CreateHeaderButton("Settings", "OpenSettingsPageCommand"));
+        nav.Children.Add(CreateHeaderButton("shell.nav.deviceLab", "OpenDeviceLabPageCommand"));
+        nav.Children.Add(CreateHeaderButton("shell.nav.settings", "OpenSettingsPageCommand"));
         Grid.SetColumn(nav, 1);
         headerGrid.Children.Add(nav);
 
@@ -102,35 +135,230 @@ public sealed class AppShellView : Grid
         };
         Grid.SetRow(contentHost, 1);
 
-        var deviceLabHost = new Grid();
-        deviceLabHost.Children.Add(DeviceLabView);
-        Bind(deviceLabHost, UIElement.VisibilityProperty, "IsDeviceLabSelected", converter: _boolToVisibility);
+        _deviceLabHost = CreatePageHost(DeviceLabView);
+        _settingsHost = CreatePageHost(SettingsView);
 
-        var settingsHost = new Grid();
-        settingsHost.Children.Add(SettingsView);
-        Bind(settingsHost, UIElement.VisibilityProperty, "IsSettingsSelected", converter: _boolToVisibility);
-
-        contentHost.Children.Add(deviceLabHost);
-        contentHost.Children.Add(settingsHost);
+        contentHost.Children.Add(_deviceLabHost);
+        contentHost.Children.Add(_settingsHost);
         root.Children.Add(contentHost);
         return root;
     }
 
-    private Button CreateHeaderButton(string label, string commandPath)
+    private void QueuePageTransition(ShellPageKind targetPageKind)
+    {
+        // 전환 도중에 탭을 연속으로 눌러도 마지막 요청만 반영되게 해서
+        // 애니메이션 겹침이나 host 상태 꼬임을 막는다.
+        _pendingPageKind = targetPageKind;
+        if (_isTransitionRunning)
+        {
+            return;
+        }
+
+        _ = ProcessQueuedTransitionsAsync();
+    }
+
+    private async Task ProcessQueuedTransitionsAsync()
+    {
+        _isTransitionRunning = true;
+
+        try
+        {
+            while (_pendingPageKind is ShellPageKind nextPageKind)
+            {
+                _pendingPageKind = null;
+                if (nextPageKind == _activePageKind)
+                {
+                    continue;
+                }
+
+                await TransitionToPageAsync(nextPageKind).ConfigureAwait(true);
+            }
+        }
+        finally
+        {
+            _isTransitionRunning = false;
+        }
+    }
+
+    private async Task TransitionToPageAsync(ShellPageKind nextPageKind)
+    {
+        var outgoingHost = GetPageHost(_activePageKind);
+        var incomingHost = GetPageHost(nextPageKind);
+        // 방향값은 "설정으로 가는지 / 디바이스 랩으로 돌아오는지"만 표현한다.
+        // 실제 애니메이션은 이 부호만 써서 slide 방향을 반전한다.
+        var direction = nextPageKind == ShellPageKind.Settings ? 1 : -1;
+
+        PrepareIncomingHost(incomingHost, direction);
+        PrepareOutgoingHost(outgoingHost);
+
+        SetHostZIndex(outgoingHost, 0);
+        SetHostZIndex(incomingHost, 1);
+
+        await RunTransitionAsync(outgoingHost, incomingHost, direction).ConfigureAwait(true);
+
+        CompleteTransition(outgoingHost, incomingHost);
+        _activePageKind = nextPageKind;
+    }
+
+    private void ApplyActivePageState(ShellPageKind activePageKind)
+    {
+        ApplyHostState(_deviceLabHost, activePageKind == ShellPageKind.DeviceLab);
+        ApplyHostState(_settingsHost, activePageKind == ShellPageKind.Settings);
+    }
+
+    private static void ApplyHostState(Grid host, bool isVisible)
+    {
+        host.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+        host.Opacity = isVisible ? 1 : 0;
+        GetPageTransform(host).X = 0;
+        SetHostZIndex(host, isVisible ? 1 : 0);
+    }
+
+    private static Grid CreatePageHost(FrameworkElement content)
+    {
+        // View를 매번 다시 만들지 않고 host 안에 유지해야
+        // 입력 상태, 스크롤 위치, 바인딩된 객체 수명이 예측 가능하게 남는다.
+        var host = new Grid
+        {
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            RenderTransform = new TranslateTransform()
+        };
+        host.Children.Add(content);
+        return host;
+    }
+
+    private Grid GetPageHost(ShellPageKind pageKind)
+    {
+        return pageKind switch
+        {
+            ShellPageKind.DeviceLab => _deviceLabHost,
+            ShellPageKind.Settings => _settingsHost,
+            _ => throw new InvalidOperationException($"Unsupported page kind: {pageKind}")
+        };
+    }
+
+    private static void PrepareOutgoingHost(Grid host)
+    {
+        host.Visibility = Visibility.Visible;
+        host.Opacity = 1;
+        GetPageTransform(host).X = 0;
+    }
+
+    private static void PrepareIncomingHost(Grid host, int direction)
+    {
+        host.Visibility = Visibility.Visible;
+        host.Opacity = 0;
+        GetPageTransform(host).X = 32 * direction;
+    }
+
+    private static void CompleteTransition(Grid outgoingHost, Grid incomingHost)
+    {
+        outgoingHost.Visibility = Visibility.Collapsed;
+        outgoingHost.Opacity = 0;
+        GetPageTransform(outgoingHost).X = 0;
+
+        incomingHost.Visibility = Visibility.Visible;
+        incomingHost.Opacity = 1;
+        GetPageTransform(incomingHost).X = 0;
+    }
+
+    private static Task RunTransitionAsync(Grid outgoingHost, Grid incomingHost, int direction)
+    {
+        var storyboard = new Storyboard();
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+
+        storyboard.Children.Add(CreateOpacityAnimation(outgoingHost, 1, 0, easing));
+        storyboard.Children.Add(CreateOpacityAnimation(incomingHost, 0, 1, easing));
+        storyboard.Children.Add(CreateTranslateAnimation(GetPageTransform(outgoingHost), 0, -32 * direction, easing));
+        storyboard.Children.Add(CreateTranslateAnimation(GetPageTransform(incomingHost), 32 * direction, 0, easing));
+
+        // Storyboard는 awaitable이 아니므로 완료 시점을 Task로 감싸서
+        // 상위 전환 큐가 "정확히 한 번의 전환이 끝난 뒤" 다음 요청을 처리하게 만든다.
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        storyboard.Completed += (_, _) => completion.TrySetResult(null);
+        storyboard.Begin();
+        return completion.Task;
+    }
+
+    private static DoubleAnimation CreateOpacityAnimation(UIElement target, double from, double to, EasingFunctionBase easing)
+    {
+        var animation = new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(220),
+            EasingFunction = easing
+        };
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, "Opacity");
+        return animation;
+    }
+
+    private static DoubleAnimation CreateTranslateAnimation(TranslateTransform transform, double from, double to, EasingFunctionBase easing)
+    {
+        var animation = new DoubleAnimation
+        {
+            From = from,
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(220),
+            EasingFunction = easing,
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(animation, transform);
+        Storyboard.SetTargetProperty(animation, "X");
+        return animation;
+    }
+
+    private static TranslateTransform GetPageTransform(Grid host)
+    {
+        return (TranslateTransform)host.RenderTransform;
+    }
+
+    private static void SetHostZIndex(Grid host, int zIndex)
+    {
+        host.SetValue(Canvas.ZIndexProperty, zIndex);
+    }
+
+    private Button CreateHeaderButton(string labelKey, string commandPath)
     {
         var button = new Button
         {
-            Content = label,
             MinWidth = 120,
             Padding = new Thickness(16, 10, 16, 10),
+            CornerRadius = new CornerRadius(12),
             Background = CreateSolid("#1FFFFFFF"),
-            Foreground = CreateSolid("#FFFFFFFF"),
+            Foreground = GetThemeBrush(DeviceLabTheme.HeroForegroundBrushKey),
             BorderBrush = CreateSolid("#33FFFFFF"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12)
+            FontWeight = FontWeights.SemiBold
         };
+        RegisterLocalizedText(() => button.Content = _localizer.Get(labelKey));
         Bind(button, Button.CommandProperty, commandPath);
         return button;
+    }
+
+    private T GetTheme<T>(string key) where T : class
+    {
+        return DeviceLabTheme.Get<T>(this, key);
+    }
+
+    private Brush GetThemeBrush(string key)
+    {
+        return GetTheme<Brush>(key);
+    }
+
+    private void RegisterLocalizedText(Action applyText)
+    {
+        _localizedTextUpdates.Add(applyText);
+    }
+
+    private void ApplyLocalizedText()
+    {
+        foreach (var updateText in _localizedTextUpdates)
+        {
+            updateText();
+        }
     }
 
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)

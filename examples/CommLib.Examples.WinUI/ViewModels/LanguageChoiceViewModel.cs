@@ -4,26 +4,23 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CommLib.Examples.WinUI.ViewModels;
 
-public sealed class ShellPageItemViewModel : ObservableObject
+public sealed class LanguageChoiceViewModel : ObservableObject
 {
     private readonly IAppLocalizer _localizer;
 
-    public ShellPageItemViewModel(ShellPageKind kind, IAppLocalizer localizer)
+    public LanguageChoiceViewModel(AppLanguageMode mode, IAppLocalizer localizer)
     {
-        Kind = kind;
+        Mode = mode;
         _localizer = localizer;
         _localizer.LanguageChanged += OnLanguageChanged;
     }
 
-    public ShellPageKind Kind { get; }
+    public AppLanguageMode Mode { get; }
 
-    public string Label => _localizer.GetShellPageLabel(Kind);
-
-    public string Subtitle => _localizer.GetShellPageSubtitle(Kind);
+    public string Label => _localizer.GetLanguageLabel(Mode);
 
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         OnPropertyChanged(nameof(Label));
-        OnPropertyChanged(nameof(Subtitle));
     }
 }
