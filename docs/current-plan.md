@@ -1,45 +1,44 @@
 # Current Plan
 
-## Scope
-- config json 기반 장치 등록 구조
-- TCP / UDP / Serial / Multicast 옵션 바인딩
-- raw → profile 매핑
-- validator
-- transport factory
-- bootstrapper
-- connection manager skeleton
+## Date
+- 2026-04-03
 
-## Architecture Review
-- Domain: 계약 정의
-- Application: mapping / validation / bootstrap / session orchestration
-- Infrastructure: factory / transport / serializer / protocol skeleton
-- Hosting: DI 및 config binding
-- Clean Architecture 방향 유지 확인
+## Current Scope
+- WinUI example follow-up after localization foundation, wheel-scroll forwarding, restored `win-x64` default startup, conservative page transitions, the new scrollable auto-follow live log, the live `DeviceLabTheme` hookup, the new in-app mock peer path, and repo-level package/version centralization
+- Next priority: validate the remaining UDP/Multicast mock flows and confirm transport-panel visibility in a real pointer session
 
-## TDD Plan
-1. DeviceProfileMapper / Validator / Bootstrapper 기본 테스트 유지
-2. ConnectionManager 경계 조건 테스트 보강
-3. DeviceSession / SendResult 단위 테스트 보강
-4. TransportFactory 입력별 / 예외별 테스트 보강
-5. 문서와 테스트 프로젝트 경계 정리
-6. 다음 기능 구현 전 리팩터링 포인트 점검
+## Confirmed State
+- Branch is now `feat/winui-localization-foundation`.
+- English/Korean language mode is persisted in the WinUI example settings.
+- Shell, Device Lab, Settings, and connection/session status copy now go through the example localizer.
+- `PointerWheelScrollBridge` forwards text-input wheel events to the page `ScrollViewer` in `DeviceLab` and `Settings`.
+- `AppShellView` animates page switches with a conservative fade + horizontal slide while keeping the existing dual-host layout.
+- `DeviceLabView` live log keeps its own scrolling and auto-follows the newest log entry.
+- The live-log follower now caches the inner `ScrollViewer` and explicitly scrolls it to the document end after each text update.
+- `DeviceLabTheme` is now actually consumed by `AppShellView`, `DeviceLabView`, and `SettingsView` for shared backgrounds, card chrome, and typography instead of sitting unused.
+- `DeviceLabView` and `SettingsView` now show only the currently selected transport panel instead of every transport preset at once.
+- `DeviceLabView` now exposes an in-app `Mock Endpoint` card:
+  - TCP and UDP pin loopback-friendly settings and start local echo peers
+  - Multicast joins the selected group locally and replies back to the sender port for one-machine checks
+  - Serial still requires an external paired COM environment
+- `Directory.Build.props` now owns the shared `Nullable` / `ImplicitUsings` defaults, and `Directory.Packages.props` centrally manages the repo's package versions.
+- The two test projects now reference `coverlet.collector` through the centralized package version file, and local `XPlat Code Coverage` runs produced Cobertura XML outputs successfully.
+- The main WinUI example files now include Korean comments for non-obvious bootstrap, transition, logging, session, and mock-peer logic.
+- Verification completed with:
+  - `dotnet build commlib-codex-full.sln`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
+  - a `win-x64` UI Automation smoke that found the localized window, confirmed the UDP-only `Local Port` label was hidden on the default TCP screen, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001`
+  - a follow-up `win-x64` UI Automation smoke that sent 12 TCP messages and confirmed the visible log range still reached the document end after the explicit end-scroll change
+- `PROGRESS.md` still needs encoding normalization before safe in-place automated edits, although a UTF-8 append path worked for the 2026-04-03 daily log.
 
-## Security Notes
-- invalid port / host / serial name 검증
-- max frame length 검증
-- pending request 상한 검증
-- unknown transport type 거부
-- payload 전체 로그 금지
-- fail-fast validation
+## Next Work Unit
+1. Manually validate UDP and Multicast through the new in-app mock peer card.
+2. Confirm transport-panel visibility while switching TCP / UDP / Multicast / Serial in both `Device Lab` and `Settings`.
+3. Only if the multicast UX is too confusing on one machine, adjust the status copy or behavior with the smallest safe change.
 
-## Commit Plan
-- test(infra): infrastructure 테스트 프로젝트 재배치
-- fix(application): mapper 빌드 오류와 validator 테스트 정합성 복구
-- test: session / connection 경계 조건 테스트 추가
-- test(infra): transport factory 테스트 세분화
-- docs: 진행 현황과 다음 작업 갱신
-## Branch / Issue / PR Notes
-- 현재 브랜치 목적이 단일 작업 주제와 맞는지 매 작업 전 확인
-- 가능하면 이슈 단위 브랜치 사용: `type/issue-<id>-short-topic`
-- PR 준비 시 변경 목적, 테스트 결과, 잔여 리스크를 함께 정리
-- 다음 세션으로 넘길 항목은 PROGRESS와 PR 관점에서 동시에 추적
+## Deferred / Not For This Step
+- `PROGRESS.md` full encoding normalization as separate repo hygiene work so future in-place edits do not need append-only handling.
+- Full templated-control theming stays deferred until the WinUI default-style key coverage is mapped safely for this app shape.

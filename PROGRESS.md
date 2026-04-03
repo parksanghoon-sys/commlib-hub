@@ -410,3 +410,27 @@
 - [ ] WinUI 마우스 휠 스크롤이 정상 동작하지 않는 문제를 재현하고 수정
 - [ ] 현재 `win-x86` 우회 대신 `win-x64`에서도 안정적으로 실행되도록 WinUI 런타임 충돌 원인 추가 조사
 - [ ] example 작업은 전용 브랜치로 분리하고, 예제 변경분 기준으로 PR 생성/정리 절차까지 진행
+
+## 2026-04-03
+
+### 1. 추가 업데이트
+- [x] WinUI example에 localization foundation을 붙여 `AppLanguageMode` 저장, shell/page 문구 현지화, 연결/상태 텍스트 현지화를 실제 UI 흐름에 연결
+- [x] `DeviceLabView`, `SettingsView`의 텍스트 입력 위 마우스 휠이 루트 `ScrollViewer`로 다시 전달되도록 `PointerWheelScrollBridge`를 연결
+- [x] `win-x64` 기본 실행 경로에서 더 이상 시작 크래시가 재현되지 않는 현재 브랜치 상태를 확인하고 기본 RID를 다시 `win-x64`로 복원
+- [x] `AppShellView`에 `Device Lab` / `Settings` 전환용 보수적인 fade + horizontal slide 애니메이션을 추가
+- [x] 실시간 로그를 전용 멀티라인 로그 박스로 바꾸고, 내부 `ScrollViewer`를 직접 끝으로 내려 항상 최신 로그가 보이도록 auto-follow를 보강
+- [x] `DeviceLabTheme`를 실제 shared styling source로 연결하고, transport 선택에 따라 `Device Lab` / `Settings`에서 현재 transport 설정 패널만 보이도록 정리
+- [x] WinUI 안에서 TCP / UDP / Multicast loopback 검증을 바로 할 수 있도록 `Mock Endpoint` 카드를 추가하고, 핵심 WinUI 파일에 비직관 구간 중심 한국어 설명 주석을 보강
+
+### 2. 추가 검증
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj` 통과
+- [x] `dotnet test commlib-codex-full.sln` 통과
+- [x] `win-x64` direct startup, `dotnet run -r win-x64 --no-build`, explicit `win-x86` 실행에서 모두 즉시 종료 없이 기동되는 상태 확인
+- [x] `win-x64` UI Automation smoke에서 localized UI, `Start Mock` 버튼, TCP loopback echo 왕복, transport-specific panel visibility를 확인
+- [x] 로컬 TCP mock에 12회 전송 후 실시간 로그 visible range가 문서 끝까지 닿아 최신 로그 auto-follow가 유지되는 것 확인
+
+### 3. 오늘 할 일
+- [ ] 실행 중인 `win-x64` WinUI 앱에서 UDP in-app mock peer 흐름을 손으로 검증
+- [ ] 실행 중인 `win-x64` WinUI 앱에서 Multicast in-app mock 흐름을 손으로 검증하고, self-echo 중복 로그 UX 설명이 더 필요한지 판단
+- [ ] 실제 마우스 포인터 기준으로 `Device Lab` / `Settings` transport 전환 시 현재 transport 설정만 보이는지, 텍스트 입력 위 휠 스크롤이 자연스러운지 점검
+- [ ] 필요하면 README 또는 UI copy에 `Serial`은 외부 peer 필요, `Multicast`는 단일 머신에서 로그가 중복될 수 있다는 점을 더 분명히 남길지 결정
