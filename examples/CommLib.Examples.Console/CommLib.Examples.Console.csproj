@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CommLib.Application\CommLib.Application.csproj" />
+    <ProjectReference Include="..\..\src\CommLib.Domain\CommLib.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CommLib.Infrastructure\CommLib.Infrastructure.csproj" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+</Project>

@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <Description>전송 계층 팩토리, 프로토콜, 직렬화기, 연결 관리자 등 도메인 계약의 인프라 구현을 제공하는 프로젝트입니다.</Description>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CommLib.Domain\CommLib.Domain.csproj" />
     <ProjectReference Include="..\CommLib.Application\CommLib.Application.csproj" />

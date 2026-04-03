@@ -17,7 +17,7 @@ public static class DeviceProfileMapper
     {
         var transportType = raw.Transport.GetProperty("Type").GetString();
 
-        var transport = transportType switch
+        TransportOptions transport = transportType switch
         {
             "TcpClient" => Deserialize<TcpClientTransportOptions>(raw.Transport),
             "Udp" => Deserialize<UdpTransportOptions>(raw.Transport),

@@ -3,7 +3,7 @@ using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Transport;
 using Xunit;
 
-namespace CommLib.Unit.Tests;
+namespace CommLib.Infrastructure.Tests;
 
 /// <summary>
 /// 지원하는 전송 옵션 형식에 대한 전송 팩토리 동작을 검증합니다.
@@ -83,6 +83,28 @@ public sealed class TransportFactoryTests
     }
 
     /// <summary>
+    /// 같은 전송 옵션 형식으로 여러 번 생성해도 매번 새 인스턴스를 반환하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Create_SameTransportTypeTwice_ReturnsDifferentInstances()
+    {
+        var factory = new TransportFactory();
+        var options = new TcpClientTransportOptions
+        {
+            Type = "TcpClient",
+            Host = "127.0.0.1",
+            Port = 9000
+        };
+
+        var first = factory.Create(options);
+        var second = factory.Create(options);
+
+        Assert.IsType<TcpTransport>(first);
+        Assert.IsType<TcpTransport>(second);
+        Assert.NotSame(first, second);
+    }
+
+    /// <summary>
     /// 지원하지 않는 전송 옵션은 거부되는지 확인합니다.
     /// </summary>
     [Fact]
@@ -94,6 +116,22 @@ public sealed class TransportFactoryTests
         {
             Type = "Unsupported"
         }));
+    }
+
+    /// <summary>
+    /// 지원하지 않는 전송 옵션 예외 메시지에 형식 이름이 포함되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Create_UnsupportedOptions_IncludesTypeNameInExceptionMessage()
+    {
+        var factory = new TransportFactory();
+
+        var exception = Assert.Throws<NotSupportedException>(() => factory.Create(new UnsupportedTransportOptions
+        {
+            Type = "Unsupported"
+        }));
+
+        Assert.Contains(nameof(UnsupportedTransportOptions), exception.Message);
     }
 
     /// <summary>
