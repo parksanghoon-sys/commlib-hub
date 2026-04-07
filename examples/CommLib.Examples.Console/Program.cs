@@ -476,7 +476,7 @@ internal static class ExampleConsole
 
     private static string DescribeMessage(IMessage message)
     {
-        var body = message is IMessageBody bodyMessage ? bodyMessage.Body : string.Empty;
+        var body = MessagePayloadFormatter.FormatBody(message);
         return message switch
         {
             IResponseMessage response => $"response id={message.MessageId}, correlation={response.CorrelationId}, success={response.IsSuccess}, body=\"{body}\"",

@@ -1,6 +1,6 @@
 # CommLib WinUI Device Lab
 
-`CommLib.Examples.WinUI` is a WinUI 3 desktop example that lets you connect to a real TCP, UDP, multicast, or serial endpoint, send a `MessageModel`, and watch inbound traffic in a live log.
+`CommLib.Examples.WinUI` is a WinUI 3 desktop example that lets you connect to a real TCP, UDP, multicast, or serial endpoint, send outbound traffic with either the text-oriented `AutoBinary` serializer or the new `RawHex` mode, and watch inbound traffic in a live log.
 
 ## Architecture
 
@@ -15,7 +15,7 @@
 
 - `ConnectionManager` session lifecycle
 - Real `TcpTransport`, `UdpTransport`, `MulticastTransport`, and `SerialTransport`
-- Length-prefixed framing with the `AutoBinary` serializer
+- Length-prefixed framing with selectable `AutoBinary` or `RawHex` serialization
 - Shared settings state across the `Device Lab` and `Settings` pages
 - JSON-backed app configuration in `examples/CommLib.Examples.WinUI/appsettings.json`
 
@@ -28,7 +28,8 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 
 ## Notes
 
-- The peer device or test server must speak the same `LengthPrefixed + AutoBinary` format used by the library examples.
+- The peer device or test server must speak the same `LengthPrefixed + serializer` combination currently selected in the app.
+- `AutoBinary` keeps the existing text-body example format, while `RawHex` sends whitespace-tolerant hexadecimal byte pairs as the raw payload.
 - TCP and UDP expect a reachable remote endpoint.
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.

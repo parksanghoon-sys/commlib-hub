@@ -20,5 +20,9 @@ public interface IAppLocalizer
 
     string GetTransportSubtitle(TransportKind kind);
 
+    string GetSerializerLabel(string serializerType);
+
+    string GetSerializerSubtitle(string serializerType);
+
     string GetLanguageLabel(AppLanguageMode mode);
 }
