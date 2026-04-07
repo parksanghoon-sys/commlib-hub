@@ -1,6 +1,7 @@
 using System.Text.Json;
 using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -56,7 +57,18 @@ public sealed class DeviceProfileMapperTests
     {
         var json = "{ \"Type\": \"TcpClient\", \"Host\": \"127.0.0.1\", \"Port\": 9000 }";
         var protocol = new ProtocolOptions { Type = "LengthPrefixed", MaxFrameLength = 4096 };
-        var serializer = new SerializerOptions { Type = "Json" };
+        var serializer = new SerializerOptions
+        {
+            Type = "Json",
+            BitFieldSchema = new BitFieldPayloadSchema
+            {
+                PayloadLengthBytes = 2,
+                Fields = new[]
+                {
+                    new BitFieldPayloadField { Name = "mode", BitOffset = 0, BitLength = 3 }
+                }
+            }
+        };
         var reconnect = new ReconnectOptions { Type = "Linear", IntervalMs = 1500, MaxAttempts = 5 };
         var requestResponse = new RequestResponseOptions { MaxPendingRequests = 32, DefaultTimeoutMs = 2500 };
 
@@ -79,6 +91,7 @@ public sealed class DeviceProfileMapperTests
         Assert.False(profile.Enabled);
         Assert.Same(protocol, profile.Protocol);
         Assert.Same(serializer, profile.Serializer);
+        Assert.Same(serializer.BitFieldSchema, profile.Serializer.BitFieldSchema);
         Assert.Same(reconnect, profile.Reconnect);
         Assert.Same(requestResponse, profile.RequestResponse);
     }

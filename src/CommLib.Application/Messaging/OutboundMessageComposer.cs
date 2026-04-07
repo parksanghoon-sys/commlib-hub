@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
@@ -23,5 +24,17 @@ public static class OutboundMessageComposer
             SerializerTypes.RawHex => new BinaryMessageModel(messageId, HexPayloadParser.Parse(body)),
             _ => throw new NotSupportedException($"Unsupported serializer: {serializerType}")
         };
+    }
+
+    /// <summary>
+    /// bitfield schema와 named field assignment를 raw binary outbound 메시지로 조합합니다.
+    /// </summary>
+    /// <param name="messageId">메시지 식별자입니다.</param>
+    /// <param name="schema">payload compose에 적용할 bitfield schema입니다.</param>
+    /// <param name="fieldValues">schema field에 쓸 값 목록입니다.</param>
+    /// <returns>compose된 raw payload를 담은 binary outbound 메시지입니다.</returns>
+    public static IMessage Compose(ushort messageId, BitFieldPayloadSchema schema, IEnumerable<BitFieldFieldAssignment> fieldValues)
+    {
+        return new BinaryMessageModel(messageId, BitFieldPayloadSchemaCodec.Compose(schema, fieldValues));
     }
 }
