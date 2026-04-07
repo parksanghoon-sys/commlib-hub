@@ -18,7 +18,8 @@ public sealed class SerializerFactory : ISerializerFactory
     {
         return options.Type switch
         {
-            "AutoBinary" => new NoOpSerializer(),
+            SerializerTypes.AutoBinary => new NoOpSerializer(),
+            SerializerTypes.RawHex => new RawHexSerializer(),
             _ => throw new NotSupportedException($"Unsupported serializer: {options.Type}")
         };
     }
