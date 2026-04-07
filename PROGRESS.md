@@ -434,3 +434,48 @@
 - [ ] 실행 중인 `win-x64` WinUI 앱에서 Multicast in-app mock 흐름을 손으로 검증하고, self-echo 중복 로그 UX 설명이 더 필요한지 판단
 - [ ] 실제 마우스 포인터 기준으로 `Device Lab` / `Settings` transport 전환 시 현재 transport 설정만 보이는지, 텍스트 입력 위 휠 스크롤이 자연스러운지 점검
 - [ ] 필요하면 README 또는 UI copy에 `Serial`은 외부 peer 필요, `Multicast`는 단일 머신에서 로그가 중복될 수 있다는 점을 더 분명히 남길지 결정
+
+### 4. 추가 업데이트
+- [x] `Directory.Build.props`, `Directory.Packages.props`를 추가해 공통 `Nullable` / `ImplicitUsings`와 NuGet 버전을 repo 루트에서 중앙 관리하도록 정리
+- [x] `coverlet.collector`를 `CommLib.Unit.Tests`, `CommLib.Infrastructure.Tests`에만 연결하고, 비테스트 프로젝트에는 넣지 않는 구조로 정리
+- [x] 오늘 WinUI follow-up 변경을 기능 단위 커밋 3개(`1601dbc`, `f21d5dd`, `bad9ee7`)로 분리 정리
+- [x] `feat/winui-localization-foundation` 브랜치를 원격 `commlib-hub`에 push하고 GitHub CLI fallback으로 PR #3을 생성
+- [x] 이후 GitHub 기준으로 PR #3 `[codex] localize and streamline the WinUI device lab` 이 `main`에 merge된 상태를 확인
+
+### 5. 추가 검증
+- [x] `dotnet build commlib-codex-full.sln` 통과
+- [x] `dotnet test commlib-codex-full.sln --no-build` 통과
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"` 통과 및 Cobertura 산출물 생성 확인
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"` 통과 및 Cobertura 산출물 생성 확인
+
+### 6. 후속 메모
+- [ ] 남은 UDP / Multicast manual validation과 transport panel 실포인터 점검은 merge 이후 기준으로 `main` 동기화 또는 새 작업 브랜치 정리 후 이어서 진행
+- [ ] `PROGRESS.md` 인코딩 정규화는 append-only 기록이 가능해진 현재도 여전히 별도 hygiene 작업으로 남아 있음
+
+## 2026-04-06
+
+### 1. 추가 업데이트
+- [x] raw-hex / bitfield 후속 작업을 merged 브랜치와 분리하기 위해 작업 브랜치를 `feat/rawhex-compose-flow`로 회전
+- [x] `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `SerializerFactory` `RawHex` 분기를 추가해 text-only 가정을 깨고 raw payload 기반을 마련
+- [x] WinUI 예제에 serializer 선택 저장/연결 경로와 `OutboundMessageComposer`를 붙여 `Device Lab` / `Settings`에서 `RawHex` compose 경로를 실제 세션 전송으로 연결
+- [x] `RawHexConnectionManagerRoundtripTests`를 추가해 실제 `ConnectionManager` + `TcpTransport` + `LengthPrefixedProtocol` + `RawHexSerializer` 경로에서 direct binary payload와 hex-text bridge roundtrip을 고정
+- [x] `win-x64` WinUI `Device Lab`에서 in-app mock TCP peer로 live raw-hex roundtrip을 확인하고, 연결 후 `Send`가 비활성으로 남던 회귀를 `MainViewModel`, `SettingsViewModel`의 UI-context continuation 복구로 수정
+- [x] `BitFieldDefinition`, `BitFieldCodec`, `BitFieldCodecTests`를 추가해 `payload[0]` LSB = bit `0` 규약의 bit-range read/write foundation을 TDD로 고정
+
+### 2. 추가 검증
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~MessagePayloadFormatterTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexSerializerTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~SerializerFactoryTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexConnectionManagerRoundtripTests"`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~BitFieldCodecTests"`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- [x] `win-x64` UI Automation smoke에서 `Start Mock -> Connect -> Send`를 실행해 `Outbound message: id=321, body="DE AD BE EF"`와 `Inbound message: id=321, body="DE AD BE EF"`를 live log로 확인
+
+### 3. 후속 메모
+- [ ] `BitFieldDefinition` / `BitFieldCodec` 위에 schema-backed compose/inspect slice를 얹어 feature-level bitfield flow를 만들기
+- [ ] raw-hex / bitfield slice가 한 단계 더 정리된 뒤 UDP / Multicast / real-pointer WinUI manual validation을 재개하기
+- [ ] later device 계약이 pressure를 주기 전까지는 alternate bit numbering, richer scalar types, schema editor UI는 defer 유지
+- [ ] `PROGRESS.md`는 이번에도 기존 인코딩 혼합 위험 때문에 append-only로 기록했고, 별도 hygiene 작업으로 UTF-8 normalization이 필요

@@ -1,12 +1,19 @@
 # TODOS
 
 ## Current TODOs
-- [ ] Manually validate the new UDP in-app mock peer flow from the current `win-x64` WinUI app.
-- [ ] Manually validate the new Multicast in-app mock peer flow and decide whether the single-machine self-echo + peer-echo behavior needs clearer UX copy.
-- [ ] Step through TCP / UDP / Multicast / Serial selection on both `Device Lab` and `Settings` with a real pointer session and confirm only the selected transport panel stays visible.
-- [ ] Re-check transition feel, wheel-scroll behavior, and live-log manual scrolling only if the transport-panel/manual mock pass exposes a concrete regression.
+- [ ] Add the first real consumer of `SerializerOptions.BitFieldSchema`, preferring config-backed inbound inspection/log enrichment over a WinUI schema editor or any transport/protocol change.
 
 ## Deferred Backlog
+
+### [P1_SOON] Resume the older UDP / Multicast / real-pointer WinUI validation pass after the raw-hex composer work
+- What remains: re-run the manual UDP and Multicast mock endpoint checks, step through TCP / UDP / Multicast / Serial panel switching on both `Device Lab` and `Settings`, and only re-check transition feel / wheel-scroll / live-log manual scrolling if that pass surfaces a concrete regression.
+- Why deferred: raw-hex TCP is now wired, covered by automated lower-stack tests, validated through a live WinUI roundtrip, and the active implementation priority has shifted to the first bitfield foundation slice.
+- Objective: close the remaining interactive WinUI confidence gaps without mixing them into the current serializer-layer implementation slice.
+- Relevant context: transport-panel collapsing, live-log auto-follow, in-app mock peers, and the earlier TCP automation smoke are already in place; the remaining gaps are real-pointer confirmation plus UDP/Multicast behavior in the live app.
+- Scope: `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`, `examples/CommLib.Examples.WinUI/Views/SettingsView.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, and any resulting docs/status text.
+- Current status: TCP mock flow already has earlier automation smoke coverage, the raw-hex TCP transport/session path now has focused infrastructure roundtrip coverage, and a live WinUI raw-hex TCP pass is complete. UDP / Multicast and real-pointer confirmation are still manual-only.
+- Known blockers/open questions: whether multicast still needs clearer UX copy once the broader live pass happens, and whether any real-pointer issue appears that did not show up in automation.
+- Most natural next step: run one live `Device Lab` session that focuses on UDP, Multicast, panel switching, and real-pointer behavior rather than repeating the now-covered raw-hex TCP path.
 
 ### [P1_SOON] Clarify single-machine multicast mock UX if duplicate inbound lines feel confusing
 - What remains: decide whether the new in-app multicast mock flow needs stronger status/log copy, a dedicated note in the UI, or a small behavior tweak for one-machine validation sessions.
@@ -48,7 +55,34 @@
 - Known blockers/open questions: whether the file contains mixed UTF-8 and legacy code-page bytes, and what normalization path preserves the current readable Korean content best.
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result so future updates can use normal in-place editing again.
 
+### [P1_SOON] Extend the binary-capable serializer path toward future bitfield schema support without rewriting the transport/protocol layers
+- What remains: apply the new schema layer to at least one real runtime consumer, then decide from that concrete usage whether later phases truly need richer typed serializer/protocol options plus broader bitfield-aware schema mapping for byte/bit-oriented devices.
+- Why deferred: the repo now has raw-hex transport/session validation, a low-level bitfield codec, a schema model, overlap/range validation, and a serializer-adjacent schema setting seam, but it still does not use that schema in a real config-backed or UI-backed compose/inspect path.
+- Objective: support devices whose payload contract is defined in bytes and bit ranges while preserving the existing transport, session, and frame-boundary architecture.
+- Relevant context: `IProtocol` still owns frame boundaries only, which remains the intended boundary. The repo now has `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `OutboundMessageComposer`, persisted serializer selection in the WinUI example, `RawHexConnectionManagerRoundtripTests` covering both direct binary payloads and the hex-text bridge over the real TCP/session stack, `BitFieldDefinition`/`BitFieldCodec`, plus the new `BitFieldPayloadSchema` / `BitFieldPayloadSchemaValidator` / `BitFieldPayloadSchemaCodec` layer and optional `SerializerOptions.BitFieldSchema`.
+- Scope: `src/CommLib.Domain/Configuration/SerializerOptions.cs`, `src/CommLib.Domain/Configuration/ProtocolOptions.cs`, `src/CommLib.Domain/Messaging`, `src/CommLib.Application/Configuration/DeviceProfileMapper.cs`, `src/CommLib.Application/Configuration/DeviceProfileValidator.cs`, `src/CommLib.Infrastructure/Factories`, any future serializer/schema support under `src/CommLib.Infrastructure`, WinUI composer/settings files under `examples/CommLib.Examples.WinUI`, and focused tests/docs.
+- Current status: the repository now supports binary payload message representation, formatter-based binary display, `RawHex` serializer creation, outbound hex parsing, inbound binary message deserialization, persisted WinUI serializer choice, automated raw-hex TCP roundtrip coverage, a live WinUI raw-hex TCP proof, low-level bitfield read/write helpers, and a validated fixed-length signed/unsigned schema-backed compose/inspect layer. The remaining gap before widening is a real consumer that uses the schema at runtime.
+- Known blockers/open questions: whether the first real consumer should be inbound inspection/log enrichment or a config-backed outbound helper, whether the current optional schema property is enough or will later pressure a richer typed serializer-options model, whether inbound raw payloads should stay formatter-based or gain richer UI treatment, and how much schema-editing UX the WinUI example should expose in the first bitfield-aware phase.
+- Most natural next step: thread `SerializerOptions.BitFieldSchema` into one no-UI consumer, with config-backed inbound inspection/log enrichment preferred over a full schema editor.
+
+### [P2_LATER] Consider alternate bit numbering and richer scalar types after the first schema-backed bitfield slice
+- What remains: evaluate whether later devices need MSB-first bit numbering, scaled numeric fields, enums, floats, BCD, or packed string helpers beyond the current unsigned/signed integer foundation.
+- Why deferred: the current repo needed a single evidence-backed bitfield convention first, and widening into multiple numbering/data-type semantics before the schema layer exists would add more ambiguity than value.
+- Objective: keep the first bitfield implementation small and reviewable while leaving a clear slot for broader device-specific field semantics later.
+- Relevant context: the current `BitFieldCodec` uses the convention `payload[0]` LSB = bit `0`, supports up to 64-bit scalar reads, and writes unsigned scalar values in place.
+- Scope: `src/CommLib.Domain/Messaging/BitFieldDefinition.cs`, `src/CommLib.Domain/Messaging/BitFieldCodec.cs`, any future schema/value-type files under `src/CommLib.Domain` or `src/CommLib.Application`, and focused tests/docs.
+- Current status: the low-level bitfield seam exists and is covered by tests, but alternative numbering and richer value semantics are intentionally out of scope for this first slice.
+- Known blockers/open questions: whether real target devices describe bits as LSB-first or MSB-first, and which non-integer field types actually matter enough to justify first-class support.
+- Most natural next step: wait until the schema-backed compose/inspect layer exists and at least one real device contract pressures a broader numbering or value-type surface.
+
 ## Completed
+- [x] 2026-04-07: added the first schema-backed bitfield slice with `BitFieldPayloadSchema`, `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldPayloadSchemaValidator`, `BitFieldPayloadSchemaCodec`, optional `SerializerOptions.BitFieldSchema`, and schema-based `OutboundMessageComposer` support; validated with full unit tests, full infrastructure tests, and a solution build.
+- [x] 2026-04-06: added the first bitfield foundation slice with `BitFieldDefinition` and `BitFieldCodec`, covering unsigned reads, signed reads, and unsigned writes against named bit ranges using the `payload[0]` LSB = bit `0` convention; verified with focused `BitFieldCodecTests` plus full unit and infrastructure test runs.
+- [x] 2026-04-06: completed a live `win-x64` WinUI raw-hex TCP roundtrip through the in-app mock endpoint by launching the app in `RawHex` mode, invoking `Start Mock`, `Connect`, and `Send`, and confirming matching outbound/inbound `DE AD BE EF` log entries for message id `321`; fixed the UI command-state regression that had kept `Send` disabled after connect by removing `ConfigureAwait(false)` from WinUI async command handlers that update observable state.
+- [x] 2026-04-06: added `RawHexConnectionManagerRoundtripTests` to lock the real TCP `ConnectionManager`/`LengthPrefixedProtocol`/`RawHexSerializer` roundtrip for both direct binary payloads and the existing hex-text bridge; verified with the focused test filter and a full `CommLib.Infrastructure.Tests` run.
+- [x] 2026-04-06: wired serializer choice through the WinUI example by persisting `MessageComposer.SerializerType`, adding serializer choice state/UI on `Device Lab` and `Settings`, introducing `OutboundMessageComposer`, switching the session send path to composed `IMessage`, and surfacing localized raw-hex validation errors; verified with unit tests, infrastructure tests, and WinUI/console builds.
+- [x] 2026-04-06: established the first raw-hex foundation slice with `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `SerializerFactory` support for `RawHex`, and formatter-based binary payload rendering in WinUI session logs plus the console example; verified with unit tests, infrastructure tests, and example builds.
+- [x] 2026-04-03: split the day’s work into three local commits (`1601dbc`, `f21d5dd`, `bad9ee7`), pushed `feat/winui-localization-foundation`, created PR `#3`, and confirmed that GitHub now shows the PR as merged into `main`.
 - [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.
 - [x] 2026-04-03: centralized shared MSBuild defaults into `Directory.Build.props` and moved package versions into `Directory.Packages.props`, removing inline package-version declarations from the project files.
 - [x] 2026-04-03: re-validated the repo after central package management with `dotnet build commlib-codex-full.sln` and `dotnet test commlib-codex-full.sln --no-build`.
