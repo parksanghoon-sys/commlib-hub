@@ -121,7 +121,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
         }
     }
 
-    public async Task SendAsync(ushort messageId, string body, CancellationToken cancellationToken = default)
+    public async Task SendAsync(IMessage message, CancellationToken cancellationToken = default)
     {
         await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -132,13 +132,13 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
                 throw new InvalidOperationException(_localizer.Get("session.error.noActiveSession"));
             }
 
-            var message = new MessageModel(messageId, body);
             await _manager.SendAsync(_connectedDeviceId, message, cancellationToken).ConfigureAwait(false);
+            var body = MessagePayloadFormatter.FormatBody(message);
             EmitLocalizedLog(
                 LogSeverity.Info,
                 "session.log.outbound.title",
                 "session.log.outbound.message",
-                messageId,
+                message.MessageId,
                 body);
         }
         finally
@@ -176,7 +176,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
                 }
 
                 var message = await manager.ReceiveAsync(deviceId, cancellationToken).ConfigureAwait(false);
-                var body = message is IMessageBody bodyMessage ? bodyMessage.Body : string.Empty;
+                var body = MessagePayloadFormatter.FormatBody(message);
                 EmitLocalizedLog(
                     LogSeverity.Success,
                     "session.log.inbound.title",

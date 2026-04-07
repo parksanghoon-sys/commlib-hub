@@ -162,9 +162,23 @@ public sealed class SettingsView : Grid
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
         stack.Children.Add(CreateSectionTitle("settings.section.messageDefaults"));
+
+        var serializer = CreateComboBox("Settings.SerializerChoices", "Settings.SelectedSerializer");
+        serializer.DisplayMemberPath = "Label";
+
         stack.Children.Add(CreateTwoColumnRow(
             CreateLabeledField("field.messageId", CreateTextBox("Settings.OutboundMessageId")),
-            CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true))));
+            CreateLabeledField("field.serializer", serializer)));
+
+        var serializerHint = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+        Bind(serializerHint, TextBlock.TextProperty, "Settings.SelectedSerializerSubtitle");
+        stack.Children.Add(serializerHint);
+
+        stack.Children.Add(CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true)));
         card.Child = stack;
         return card;
     }
