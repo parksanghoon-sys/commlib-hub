@@ -24,6 +24,19 @@ public sealed class SerializerFactoryTests
     }
 
     /// <summary>
+    /// RawHex 설정이면 raw-hex serializer 구현을 생성하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public void Create_RawHexOptions_ReturnsRawHexSerializer()
+    {
+        var factory = new SerializerFactory();
+
+        var serializer = factory.Create(new SerializerOptions { Type = "RawHex" });
+
+        Assert.IsType<RawHexSerializer>(serializer);
+    }
+
+    /// <summary>
     /// 지원하지 않는 serializer 형식이면 예외를 던지는지 확인합니다.
     /// </summary>
     [Fact]
