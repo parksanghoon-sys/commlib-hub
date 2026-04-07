@@ -47,8 +47,35 @@ public sealed class OutboundMessageComposerTests
     }
 
     [Fact]
+    public void Compose_BitFieldSchema_ReturnsBinaryMessageModel()
+    {
+        var schema = new BitFieldPayloadSchema
+        {
+            PayloadLengthBytes = 2,
+            Fields = new[]
+            {
+                new BitFieldPayloadField { Name = "mode", BitOffset = 0, BitLength = 3 },
+                new BitFieldPayloadField { Name = "delta", BitOffset = 4, BitLength = 12, ScalarKind = BitFieldScalarKind.Signed }
+            }
+        };
+
+        var message = OutboundMessageComposer.Compose(
+            14,
+            schema,
+            new[]
+            {
+                new BitFieldFieldAssignment("mode", 5),
+                new BitFieldFieldAssignment("delta", -100)
+            });
+
+        var typed = Assert.IsType<BinaryMessageModel>(message);
+        Assert.Equal((ushort)14, typed.MessageId);
+        Assert.Equal(new byte[] { 0xC5, 0xF9 }, typed.Payload.ToArray());
+    }
+
+    [Fact]
     public void Compose_UnsupportedSerializer_ThrowsNotSupportedException()
     {
-        Assert.Throws<NotSupportedException>(() => OutboundMessageComposer.Compose("Custom", 14, "hello"));
+        Assert.Throws<NotSupportedException>(() => OutboundMessageComposer.Compose("Custom", 15, "hello"));
     }
 }
