@@ -248,6 +248,28 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_UnsupportedProtocolType_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-02b", displayName: "TCP 02B", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = new ProtocolOptions
+            {
+                Type = "StxEtx",
+                MaxFrameLength = 512
+            },
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
     /// <summary>
     /// 최대 대기 요청 수가 0 이하면 거부하는지 확인합니다.
     /// </summary>

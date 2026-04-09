@@ -1,44 +1,41 @@
 # Current Plan
 
 ## Date
-- 2026-04-03
+- 2026-04-09
 
 ## Current Scope
-- WinUI example follow-up after localization foundation, wheel-scroll forwarding, restored `win-x64` default startup, conservative page transitions, the new scrollable auto-follow live log, the live `DeviceLabTheme` hookup, the new in-app mock peer path, and repo-level package/version centralization
-- Next priority: validate the remaining UDP/Multicast mock flows and confirm transport-panel visibility in a real pointer session
+- Keep the runtime-hardening delivery on a clean branch rooted in `commlib-hub/main`
+- Land connection lifecycle hardening, truthful length-prefixed protocol contracts, and terminal session-failure semantics without carrying the raw-hex/bitfield branch lineage
 
 ## Confirmed State
-- Branch is now `feat/winui-localization-foundation`.
-- English/Korean language mode is persisted in the WinUI example settings.
-- Shell, Device Lab, Settings, and connection/session status copy now go through the example localizer.
-- `PointerWheelScrollBridge` forwards text-input wheel events to the page `ScrollViewer` in `DeviceLab` and `Settings`.
-- `AppShellView` animates page switches with a conservative fade + horizontal slide while keeping the existing dual-host layout.
-- `DeviceLabView` live log keeps its own scrolling and auto-follows the newest log entry.
-- The live-log follower now caches the inner `ScrollViewer` and explicitly scrolls it to the document end after each text update.
-- `DeviceLabTheme` is now actually consumed by `AppShellView`, `DeviceLabView`, and `SettingsView` for shared backgrounds, card chrome, and typography instead of sitting unused.
-- `DeviceLabView` and `SettingsView` now show only the currently selected transport panel instead of every transport preset at once.
-- `DeviceLabView` now exposes an in-app `Mock Endpoint` card:
-  - TCP and UDP pin loopback-friendly settings and start local echo peers
-  - Multicast joins the selected group locally and replies back to the sender port for one-machine checks
-  - Serial still requires an external paired COM environment
-- `Directory.Build.props` now owns the shared `Nullable` / `ImplicitUsings` defaults, and `Directory.Packages.props` centrally manages the repo's package versions.
-- The two test projects now reference `coverlet.collector` through the centralized package version file, and local `XPlat Code Coverage` runs produced Cobertura XML outputs successfully.
-- The main WinUI example files now include Korean comments for non-obvious bootstrap, transition, logging, session, and mock-peer logic.
+- `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
+- Branch is now `feat/runtime-hardening-clean-base`, created from `commlib-hub/main` as the clean delivery vehicle for the runtime-hardening slice.
+- `ConnectionManager` now:
+  - keeps one per-device state object
+  - serializes same-device lifecycle operations through per-device gates
+  - avoids the earlier accidental second `OpenAsync()` call
+  - treats background receive failure as terminal for that session
+  - hides failed sessions from `GetSession()`
+  - fails pending response tasks on receive failure, explicit disconnect, and same-device session replacement
+- `ProtocolOptions` / protocol runtime now match:
+  - `ProtocolOptions` exposes only `Type` and `MaxFrameLength`
+  - `LengthPrefixedProtocol` enforces `MaxFrameLength`
+  - `ProtocolFactory` passes the frame limit into the runtime protocol
+  - `DeviceProfileValidator` rejects unsupported protocol types and too-small frame limits before connect-time work
+- Sample/config/example surfaces no longer imply inactive CRC/STX/ETX framing support.
 - Verification completed with:
-  - `dotnet build commlib-codex-full.sln`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
-  - a `win-x64` UI Automation smoke that found the localized window, confirmed the UDP-only `Local Port` label was hidden on the default TCP screen, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001`
-  - a follow-up `win-x64` UI Automation smoke that sent 12 TCP messages and confirmed the visible log range still reached the document end after the explicit end-scroll change
-- `PROGRESS.md` still needs encoding normalization before safe in-place automated edits, although a UTF-8 append path worked for the 2026-04-03 daily log.
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- The next meaningful blockers are unbounded inbound buffering, missing connect/bootstrap validation policy, fail-fast bootstrap semantics, and the still-thin hosting/ops/security surface.
 
 ## Next Work Unit
-1. Manually validate UDP and Multicast through the new in-app mock peer card.
-2. Confirm transport-panel visibility while switching TCP / UDP / Multicast / Serial in both `Device Lab` and `Settings`.
-3. Only if the multicast UX is too confusing on one machine, adjust the status copy or behavior with the smallest safe change.
+1. Add bounded unsolicited inbound buffering and an explicit overflow/backpressure policy in `ConnectionManager`.
+2. Enforce profile validation at the connect/bootstrap boundary and choose the startup policy for partial failures.
+3. Revisit hosting diagnostics, health, and secure transport concerns once runtime memory and startup semantics are explicit.
 
 ## Deferred / Not For This Step
-- `PROGRESS.md` full encoding normalization as separate repo hygiene work so future in-place edits do not need append-only handling.
-- Full templated-control theming stays deferred until the WinUI default-style key coverage is mapped safely for this app shape.
+- Core-library auto-reconnect/state-machine work stays deferred until a real deployment requires it.
+- `ReconnectOptions` naming cleanup stays behind the first memory/startup hardening slices.
+- A new framing family for CRC or STX/ETX stays deferred until a concrete device contract requires it.

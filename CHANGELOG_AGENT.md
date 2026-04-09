@@ -1,111 +1,34 @@
 # CHANGELOG_AGENT
 
 ## 2026-04-03
-- Reconciled `PROGRESS.md`, `AGENT.md`, `docs/current-plan.md`, recent commits, branch state, and the current WinUI example code.
-- Confirmed that the worktree was clean, the active branch name no longer matched the latest example-focused work, and no canonical root state files existed yet.
-- Initialized `CURRENT_PLAN.md`, `TODOS.md`, and `DECISIONS.md` so future sessions can resume from repo state instead of chat memory.
-- Rewrote `docs/current-plan.md` to reflect the WinUI follow-up scope instead of the earlier core-library bootstrap phase.
-- Created the branch `feat/winui-localization-foundation` before new example edits.
-- Added `AppLanguageMode`, `IAppLocalizer`, and `AppLocalizer`, then persisted language mode through the WinUI example settings file.
-- Localized the shell, Device Lab page, Settings page, transport/language choices, main status flow, and session-service connection/log output.
-- Updated the WinUI example README to document the persisted English/Korean mode.
-- Verified the localization change set with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a `win-x86` smoke run that stayed alive for 12 seconds (`RUNNING_OK`)
-- Added `PointerWheelScrollBridge` and attached it to page text inputs so `DeviceLabView` and `SettingsView` forward mouse-wheel events back to their parent `ScrollViewer`.
-- Verified the wheel-scroll patch with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a focused UI Automation smoke run that switched to `Settings` and moved the root scroll position from `0` to `40.7907907907908`
-- Tried to replay raw mouse-wheel input from the terminal for a stronger end-to-end proof, but the local automation path was not reliable enough; tracked manual pointer-device validation as follow-up instead of overstating confidence.
-- Re-ran the old `win-x64` crash investigation on the current branch state and could not reproduce the earlier `Microsoft.UI.Xaml.dll` startup fault:
-  - direct `win-x64` exe stayed alive for 12 seconds
-  - `dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj -r win-x64 --no-build` stayed alive for 12 seconds
-  - explicit `win-x86` also stayed alive for 12 seconds as a comparison path
-  - Application Error / Windows Error Reporting / .NET Runtime logs stayed empty during those runs
-- Restored the WinUI example default runtime from `win-x86` back to `win-x64` and updated the README to reflect the fresh evidence instead of the stale workaround note.
-- Re-validated the restored default runtime with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj -p:RuntimeIdentifier=win-x86`
-  - `dotnet test commlib-codex-full.sln`
-  - a 12-second default `win-x64` smoke run
-  - a 12-second explicit `win-x86` smoke run
-- Replaced the old immediate `Visibility` toggling in `AppShellView` with a conservative queued fade + horizontal slide transition that keeps the existing dual-host page layout intact.
-- Verified the transition change with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a direct `win-x64` smoke run that found the app window and survived a scripted page-switch button sequence
-  - a direct `win-x86` regression smoke run that also survived the same page-switch button sequence
-- Reworked the `DeviceLabView` live log so it no longer wraps or gets clipped inside the page flow:
-  - kept the existing `LogText` binding
-  - gave the read-only multiline log box its own horizontal/vertical scrollbars
-  - stopped forwarding live-log wheel input to the parent page `ScrollViewer`
-  - auto-followed the newest log entry by selecting the document end after each update
-- Verified the live-log change with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a `win-x64` UI Automation run against the local TCP echo endpoint on `127.0.0.1:7001`
-  - a post-send `TextPattern` check showing the log reached 20 lines and the visible range still ended at the newest entry
-- Wired `DeviceLabTheme` into the real WinUI view code path instead of leaving it as unused theme scaffolding:
-  - `AppShellView`, `DeviceLabView`, and `SettingsView` now read shared background/card/typography resources from `DeviceLabTheme.Shared`
-  - kept the hookup conservative by applying safe brush/text/border resources in the existing code-built views rather than forcing a wider templated-control style rollout
-  - debugged a startup regression caused by touching `Application.Resources` too early and by stale exe locks hiding newer builds during repeated smoke runs
-  - confirmed that eager templated-control style creation can fail on missing WinUI default keys such as `DefaultListViewStyle`, so that broader theme surface is now tracked as deferred follow-up instead of shipping half-proven
-- Verified the theme hookup with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a fresh direct `win-x64` launch that stayed alive
-  - UI Automation detection of the `CommLib 디바이스 랩` window and its first button set after startup
-  - no `.NET Runtime` / `Application Error` / `Windows Error Reporting` events since the current successful app start
-- Updated the WinUI README to point local manual transport verification back to the existing console example helpers.
-- Tried to append planning/progress notes to `PROGRESS.md`, but kept deferring the in-place edit because `apply_patch` rejects the file as non-UTF-8; tracked encoding cleanup as backlog instead of risking history loss.
-- Reworked the WinUI transport-editing surface so it no longer shows every preset at once:
-  - `DeviceLabView` and `SettingsView` now bind each transport panel visibility to the existing `Settings.IsTcpSelected` / `IsUdpSelected` / `IsMulticastSelected` / `IsSerialSelected` state through `BooleanToVisibilityConverter`
-  - kept the current transport selector as the single source of truth instead of adding duplicate checkbox/radio visibility state
-- Added an in-app local mock-peer path directly to `Device Lab`:
-  - introduced `ILocalMockEndpointService` / `LocalMockEndpointService`
-  - `MainViewModel` now exposes localized mock start/stop commands and mock status text
-  - `DeviceLabView` now includes a localized `Mock Endpoint` card
-  - TCP and UDP mock starts pin loopback-friendly settings and open local echo peers
-  - Multicast mock starts join the selected group locally and reply back to the sender port for one-machine testing
-  - Serial intentionally remains external-only for this path
-- Verified the transport-visibility + mock-peer change set with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a `win-x64` UI Automation smoke that found the localized app window, confirmed the default TCP screen hid the UDP-only `Local Port` label, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001` with payload `mock-tcp-ping`
-- Strengthened the `DeviceLabView` live-log auto-follow so it no longer relies only on moving the text selection to the end:
-  - cache the log `TextBox` inner `ScrollViewer` once the control is loaded
-  - after each log text update, enqueue a follow-up that both selects the end of the text and explicitly scrolls the inner viewer to `ScrollableHeight`
-- Re-verified the stronger live-log follow behavior with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - a `win-x64` UI Automation smoke that started the local TCP mock, connected, sent 12 messages, and confirmed the live-log visible text range still reached the document end
-- Added Korean explanatory comments across the main WinUI example files:
-  - DI/bootstrap notes in `App.xaml.cs` and `MainWindow.xaml.cs`
-  - shell host / transition-queue rationale in `AppShellView.cs`
-  - wheel-forwarding intent in `PointerWheelScrollBridge.cs`
-  - session-state, dispatcher, and mock-peer reasoning in `MainViewModel.cs`, `DeviceLabSessionService.cs`, and `LocalMockEndpointService.cs`
-  - code-built view/localization/theme rationale in `DeviceLabView.cs`, `SettingsView.cs`, `DeviceLabTheme.cs`, and `AppLocalizer.cs`
-- Verified the comment-only pass with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-- Recorded the 2026-04-03 daily progress entry in `PROGRESS.md`:
-  - `apply_patch` still could not edit the file in place because the existing stream is not valid UTF-8
-  - appended the new dated section safely instead of rewriting older bytes
-  - kept full encoding normalization as deferred repo hygiene work
-- Centralized repo-wide package/build defaults:
-  - added `Directory.Build.props` for shared `Nullable` and `ImplicitUsings`
-  - added `Directory.Packages.props` with the package versions used across WinUI, hosting, console, infrastructure, and test projects
-  - removed inline package version declarations from the existing `.csproj` files so package references stay project-specific while versions live in one root file
-- Re-validated the repo after central package management with:
-  - `dotnet build commlib-codex-full.sln`
-  - `dotnet test commlib-codex-full.sln --no-build`
-- Added coverage collection support in the test layer only:
-  - added `coverlet.collector` to `Directory.Packages.props`
-  - referenced it from `CommLib.Unit.Tests` and `CommLib.Infrastructure.Tests` with `PrivateAssets=all`
-  - kept the package out of non-test projects because it is a test collector, not a runtime/library dependency
-- Verified coverage collection with:
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
-  - Cobertura XML outputs generated under each test project's `TestResults/.../coverage.cobertura.xml`
+
+- Published the WinUI/localization follow-up through PR `#3` and later confirmed it merged into `main`.
+- Centralized shared MSBuild defaults in `Directory.Build.props`, package versions in `Directory.Packages.props`, and added `coverlet.collector` only to the two test projects.
+- Completed the WinUI example follow-up around localization, mock endpoints, transport-panel collapsing, and the stronger live-log auto-follow behavior.
+
+## 2026-04-09
+
+- Normalized the runtime-hardening delivery onto a clean branch rooted in `commlib-hub/main` so the runtime review unit no longer rides on the raw-hex/bitfield branch lineage.
+- Landed the protocol-contract hardening slice:
+  - removed inactive `UseCrc`, `Stx`, and `Etx` options from `ProtocolOptions`
+  - enforced `MaxFrameLength` in `LengthPrefixedProtocol`
+  - passed the configured frame limit through `ProtocolFactory`
+  - rejected unsupported protocol types and too-small frame limits up front in `DeviceProfileValidator`
+  - cleaned sample/config/example surfaces so they no longer imply inactive framing behavior
+- Landed the runtime recovery slice:
+  - kept one per-device state object in `ConnectionManager`
+  - serialized same-device lifecycle work through per-device gates
+  - removed the accidental second `OpenAsync()` during connect
+  - treated background receive failure as terminal for that session
+  - hid failed sessions from `GetSession()`
+  - failed pending response tasks on receive failure, explicit disconnect, and same-device session replacement
+- Verified the runtime-hardening slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Re-ran the production-readiness review and kept the next blockers explicit:
+  - unbounded unsolicited inbound buffering
+  - missing connect/bootstrap validation policy
+  - fail-fast bootstrap semantics
+  - thin hosting / observability / secure-transport surface

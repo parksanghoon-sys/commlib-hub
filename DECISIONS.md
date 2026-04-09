@@ -1,5 +1,23 @@
 # DECISIONS
 
+## 2026-04-08 - Harden `ConnectionManager` with one per-device state object and same-device lifecycle serialization
+- Context: the production-readiness review found that `ConnectionManager` was the highest-value first hardening target because it kept active state in multiple unsynchronized dictionaries and also opened transports twice during connect.
+- Decision: create branch `feat/runtime-readiness-hardening`, consolidate runtime state into a single per-device connection object inside `ConnectionManager`, serialize same-device `ConnectAsync` / `DisconnectAsync` operations with per-device gates, and surface background receive-pump failures as `DeviceConnectionException(..., "receive", ...)` instead of leaving raw transport exceptions to leak without device context.
+- Why: this is the smallest structurally correct slice that materially improves lifecycle correctness without widening into broader reconnect orchestration, hosting integration, or transport/protocol redesign.
+- Consequences: the library is safer under same-device concurrent lifecycle access and clearer when runtime receive fails, but automatic reconnect/state-machine policy is still a separate follow-up decision.
+
+## 2026-04-08 - Treat the current library as a strong foundation, not an industrial-ready runtime yet
+- Context: the user explicitly asked whether the current repo is already suitable for industrial/real deployment. The codebase now has clean transport/protocol/serializer separation, configuration validation, connect-time retry, raw-hex/bitfield foundations, and passing unit/infrastructure suites, but the latest review also surfaced lifecycle and ops gaps.
+- Decision: do not describe the current repo as industrial/runtime-ready yet. Treat it as a solid extensible foundation and sample-integrated toolkit until `ConnectionManager` concurrency semantics, runtime failure recovery, and the intended diagnostics/security integration surface are made explicit.
+- Why: that framing matches the current evidence better than either dismissing the architecture or overclaiming production readiness.
+- Consequences: if production readiness becomes the next objective, the first hardening slice should target connection/session lifecycle behavior before more UI/schema expansion, and any current production adoption should assume project-specific wrappers for diagnostics, health, and network-security concerns.
+
+## 2026-04-08 - Use config-backed WinUI session-log enrichment as the first real `BitFieldSchema` consumer
+- Context: the repo already had `SerializerOptions.BitFieldSchema`, schema validation, and schema-based compose/inspect helpers, but no live runtime path actually consumed that schema yet. The next planned step explicitly preferred config-backed inbound inspection/log enrichment over adding a schema editor or widening the transport/protocol layers.
+- Decision: preserve an optional `BitFieldSchema` in the WinUI `messageComposer` appsettings model, thread it into the live `DeviceProfile`, and use `DeviceLabSessionService` log formatting as the first runtime consumer by appending decoded field summaries to inbound/outbound `RawHex` logs.
+- Why: this is the smallest structurally correct path that proves the schema seam in a real session without adding new transport behavior, a second compose flow, or an in-app schema-editing UX.
+- Consequences: the first live schema experience is now JSON-configured rather than UI-authored, log enrichment must stay non-fatal when schema inspection fails, and the next follow-up should be a focused live validation pass before considering any richer schema editor or additional consumers.
+
 ## 2026-04-03 - Prioritize localization foundation before other WinUI follow-ups
 - Context: planned follow-up work includes Korean UI mode, content transition animation, mouse-wheel scroll fixes, and `win-x64` crash investigation. The current WinUI code still hard-codes user-facing strings across multiple views and view models.
 - Decision: make localization foundation the next implementation unit before animation or runtime-specific investigation.
@@ -83,3 +101,15 @@
 - Decision: add the package version once in `Directory.Packages.props`, then reference it only from `CommLib.Unit.Tests` and `CommLib.Infrastructure.Tests` with `PrivateAssets=all`.
 - Why: this matches the package's actual execution model, keeps non-test projects free of irrelevant dependencies, and still gives the repo-wide coverage behavior the user is aiming for because all executable tests now support `--collect:"XPlat Code Coverage"`.
 - Consequences: future coverage collection commands should run at the test-project or solution test layer; if new test projects are added later, they should opt into `coverlet.collector` the same way.
+
+## 2026-04-09 - Make `ProtocolOptions` truthful to the live length-prefixed runtime contract
+- Context: `ProtocolOptions` still exposed `UseCrc`, `Stx`, and `Etx`, and the root sample config even advertised `StxEtx`, but the runtime only shipped `LengthPrefixedProtocol` and `ProtocolFactory` ignored every option except `Type`. `MaxFrameLength` was validated in `DeviceProfileValidator`, yet the live protocol implementation did not enforce it during encode/decode.
+- Decision: keep the current runtime protocol surface narrow and truthful instead of widening into a second framing family. Remove inactive CRC/STX/ETX knobs from `ProtocolOptions`, make `LengthPrefixedProtocol` enforce `MaxFrameLength`, pass that limit through `ProtocolFactory`, and reject unsupported protocol types early in `DeviceProfileValidator`. Clean the sample config/example code so they no longer imply unsupported framing behavior.
+- Why: this is the smallest structurally correct change that turns configuration and runtime behavior into the same contract without introducing a half-designed delimiter/CRC protocol just to preserve old config fields.
+- Consequences: the repo now tells the truth about its framing support, sample config is less misleading, and any future CRC or STX/ETX work should be handled as an explicit new protocol-expansion slice driven by a real device contract instead of by dormant settings.
+
+## 2026-04-09 - Keep post-connect receive failure terminal in the core library and fail pending requests on session shutdown
+- Context: after the first `ConnectionManager` hardening slice and the protocol-contract cleanup, the next unresolved runtime question was whether a live session whose background receive pump fails should auto-reconnect, remain terminal, or delegate recovery to a higher orchestration layer. At the same time, pending request tasks could otherwise hang forever on receive failure, explicit disconnect, or same-device session replacement.
+- Decision: keep the core-library policy intentionally conservative. A post-connect background receive failure now makes that session terminal inside `ConnectionManager`; failed sessions are hidden from `GetSession()`, later send/manual-inbound calls rethrow the stored receive failure, and pending response tasks fail immediately on receive failure, explicit disconnect, and same-device session replacement. Keep `ReconnectOptions` as a connect-time transport-open retry contract only for now instead of interpreting it as live-session auto-recovery.
+- Why: this is the smallest structurally correct runtime contract that removes ambiguity and hanging request tasks without widening into a half-designed reconnect state machine, resend policy, or user-visible orchestration model.
+- Consequences: callers now get immediate failure instead of silently waiting on dead sessions, manual reconnect stays an explicit higher-layer action, and any future automatic runtime recovery must be designed as a separate slice with clear semantics for session identity and in-flight requests.

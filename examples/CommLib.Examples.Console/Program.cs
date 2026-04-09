@@ -14,7 +14,8 @@ return await ExampleConsole.RunAsync(args);
 
 internal static class ExampleConsole
 {
-    private static readonly LengthPrefixedProtocol Protocol = new();
+    private const int DemoMaxFrameLength = 4096;
+    private static readonly LengthPrefixedProtocol Protocol = new(DemoMaxFrameLength);
     private static readonly NoOpSerializer Serializer = new();
 
     public static async Task<int> RunAsync(string[] args)
@@ -264,8 +265,7 @@ internal static class ExampleConsole
             Protocol = new ProtocolOptions
             {
                 Type = "LengthPrefixed",
-                MaxFrameLength = 4096,
-                UseCrc = false
+                MaxFrameLength = DemoMaxFrameLength
             },
             Serializer = new SerializerOptions
             {
@@ -307,6 +307,13 @@ internal static class ExampleConsole
         if (payloadLength < 0)
         {
             throw new InvalidOperationException("Frame length cannot be negative.");
+        }
+
+        var frameLength = header.Length + payloadLength;
+        if (frameLength > DemoMaxFrameLength)
+        {
+            throw new InvalidOperationException(
+                $"Frame length {frameLength} exceeds the configured maximum of {DemoMaxFrameLength}.");
         }
 
         var payload = new byte[payloadLength];
