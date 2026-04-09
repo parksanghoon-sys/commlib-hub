@@ -1,5 +1,49 @@
 # CHANGELOG_AGENT
 
+## 2026-04-08
+- Created branch `feat/runtime-readiness-hardening` from the current `feat/bitfield-endianness` worktree so runtime hardening can continue without shelving the in-progress bitfield/runtime changes.
+- Completed the first `ConnectionManager` hardening slice:
+  - consolidated active connection/session/sender/receiver/transport state into one per-device state object
+  - serialized same-device lifecycle operations with per-device gates
+  - removed the accidental second `OpenAsync()` call during `ConnectAsync()`
+  - changed background receive-pump failures to surface as `DeviceConnectionException(deviceId, "receive", ...)` and emit `IConnectionEventSink` failure events
+- Added focused infrastructure regression coverage for:
+  - single-open behavior during connect
+  - same-device concurrent connect serialization
+  - sticky receive-failure surfacing after the background receive pump dies
+- Verified the hardening slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- One earlier parallel validation attempt hit a transient `CommLib.Infrastructure.dll` file lock; rerunning the build sequentially resolved it.
+- Reconciled the new follow-up request with the current repo state and chose the smallest next runtime slice: config-backed WinUI session-log enrichment for `BitFieldSchema` rather than a schema editor or transport/protocol change.
+- Added the first real runtime `BitFieldSchema` consumer in the WinUI example:
+  - `MessageComposerAppSettings` now preserves an optional `BitFieldSchema`
+  - `DeviceLabSettingsViewModel` now carries that schema through load/save snapshots
+  - `MainViewModel.BuildProfile()` now threads the schema into the live `SerializerOptions`
+  - `DeviceLabSessionService` now appends decoded field summaries, or a non-fatal schema decode warning, to inbound/outbound log payload text
+- Extended `MessagePayloadFormatter` with `TryFormatBitFieldSummary()` so the schema-inspection/log-format seam stays reusable and testable outside the WinUI layer.
+- Strengthened endian-aware coverage instead of assuming the earlier tests were enough:
+  - added big-endian codec coverage for non-zero byte offsets
+  - added big-endian signed read coverage
+  - added mixed-endian schema compose/inspect coverage with big-endian offset fields and a signed big-endian field
+  - added formatter coverage for schema summaries plus safe schema/payload mismatch handling
+- Updated the WinUI README to document the new `messageComposer.bitFieldSchema` config-only seam and the current no-editor limitation.
+- Verification for this slice completed with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- One earlier parallel validation attempt hit a transient `CommLib.Domain.dll` file lock; rerunning the validation steps sequentially resolved it, so no code rollback was needed.
+- Re-ran repo verification during an industrial/runtime-readiness review:
+  - `dotnet build commlib-codex-full.sln --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`
+- Captured the review result as project state rather than widening implementation immediately:
+  - the repo is a strong foundation with good validation and boundary separation
+  - it is not yet a confident industrial/runtime-ready claim because `ConnectionManager` lifecycle state is unsynchronized, runtime reconnect/recovery semantics are not yet first-class, and hosting/ops/security integration remains intentionally thin
+
 ## 2026-04-06
 - Rotated the ongoing raw-hex work off `feat/winui-localization-foundation` and onto the dedicated branch `feat/rawhex-compose-flow` after the feature scope clearly diverged from the already-merged WinUI localization line.
 - Reconciled the new user request with the current repo state and chose the smallest TDD-backed raw-hex implementation slice instead of widening immediately into WinUI UI work or future bitfield schema mapping.
@@ -208,3 +252,63 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
+- Created the feature branch `feat/bitfield-endianness` from `feat/rawhex-compose-flow` before changing the bitfield semantics again.
+- Extended the bitfield layer to carry explicit byte order:
+  - added `BitFieldEndianness`
+  - `BitFieldDefinition` and `BitFieldPayloadField` now carry endianness metadata
+  - `BitFieldCodec` still keeps `payload[0]` LSB = bit `0`, but now supports `BigEndian` for byte-aligned multi-byte fields with whole-byte lengths
+  - schema-backed compose/inspect now honors that endianness through `ToDefinition()`
+- Chose to keep this slice intentionally narrow:
+  - endianness means byte order for multi-byte fields
+  - it does not change bit numbering within a byte
+  - it does not yet support partial-byte big-endian multi-byte fields
+- Added focused tests for the new endianness behavior:
+  - `BitFieldCodecTests` now cover big-endian read/write and invalid partial-byte big-endian layout
+  - `BitFieldPayloadSchemaCodecTests` now cover big-endian schema compose/inspect
+  - `BitFieldPayloadSchemaValidatorTests` now reject invalid big-endian schema layout
+- Verified the endianness slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+
+## 2026-04-09
+
+- Aligned the protocol contract with the runtime we actually ship:
+  - removed inactive `UseCrc`, `Stx`, and `Etx` fields from `ProtocolOptions`
+  - kept `ProtocolOptions` focused on the active `LengthPrefixed` shape (`Type` + `MaxFrameLength`)
+  - taught `LengthPrefixedProtocol` to enforce `MaxFrameLength` on both encode and decode instead of ignoring the option
+  - updated `ProtocolFactory` to pass the configured frame limit into `LengthPrefixedProtocol` and accept the built-in protocol name case-insensitively
+  - updated `DeviceProfileValidator` to reject unsupported protocol types before connect-time runtime work begins
+- Cleaned sample/config surfaces so they no longer advertise unsupported framing behavior:
+  - removed inactive CRC/STX/ETX protocol settings from the root `appsettings.json`
+  - normalized the stale sample reconnect label from `FixedInterval` to the supported `Linear`
+  - updated the console example to reuse the same frame-length contract in its manual echo helper
+  - removed the dead `UseCrc` assignment from the WinUI live-profile builder
+- Added focused protocol tests for the new truthfulness boundary:
+  - `LengthPrefixedProtocolTests` now cover constructor guardrails plus oversize encode/decode rejection
+  - `ProtocolFactoryTests` now verify the configured `MaxFrameLength` reaches the concrete protocol instance and that the built-in protocol name is treated case-insensitively
+  - `DeviceProfileValidatorTests` now cover unsupported protocol-type rejection
+- Verified this slice sequentially to avoid the repo's earlier transient `dotnet` output-lock issue:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Locked down the runtime recovery boundary in `ConnectionManager` instead of widening into implicit auto-reconnect:
+  - chose terminal failed sessions inside the core library after a post-connect background receive failure
+  - made `SendAsync()` and `TryHandleInboundFrame()` rethrow the stored receive failure once the receive pump has died
+  - changed `GetSession()` to hide failed sessions until the caller explicitly disconnects or reconnects that device
+  - added `IDeviceSession.FailPendingResponses()` / `DeviceSession.FailPendingResponses()` so session shutdown can fail caller-held pending response tasks immediately
+- Extended the same terminal-session contract to explicit shutdown paths:
+  - `ConnectionManager` now fails pending response tasks immediately on background receive failure
+  - `DisconnectAsync()` now fails pending response tasks with a `DeviceConnectionException(..., "disconnect", ...)`
+  - same-device `ConnectAsync()` replacement now fails pending response tasks from the replaced session instead of leaving them hanging
+- Added focused runtime-hardening coverage for:
+  - send-after-failed-receive throwing the stored receive failure and hiding the session
+  - pending-request failure on background receive failure
+  - pending-request failure on explicit disconnect
+  - pending-request failure on same-device session replacement during reconnect
+  - direct `DeviceSession` pending-response failure/cleanup behavior
+- Verified the runtime recovery slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+- One initial parallel validation attempt hit a transient `CommLib.Domain.dll` file lock; rerunning the validation sequentially succeeded, so no implementation rollback was needed.

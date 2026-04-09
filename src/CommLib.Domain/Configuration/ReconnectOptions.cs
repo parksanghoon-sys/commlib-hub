@@ -5,6 +5,7 @@ namespace CommLib.Domain.Configuration;
 /// </summary>
 public sealed class ReconnectOptions
 {
+    // ConnectAsync retries transport open only. Runtime receive failures stay terminal until a higher layer reconnects.
     /// <summary>
     /// 재연결 전략 이름을 가져옵니다.
     /// </summary>

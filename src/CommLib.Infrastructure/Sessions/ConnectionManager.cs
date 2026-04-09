@@ -20,13 +20,10 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     private readonly ISerializerFactory _serializerFactory;
     private readonly IConnectionEventSink _eventSink;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
-    private readonly Dictionary<string, IDeviceSession> _sessions = new();
-    private readonly Dictionary<string, TransportMessageSender> _senders = new();
-    private readonly Dictionary<string, TransportMessageReceiver> _receivers = new();
-    private readonly Dictionary<string, ITransport> _transports = new();
-    private readonly Dictionary<string, Channel<InboundEnvelope>> _inboundQueues = new();
-    private readonly Dictionary<string, CancellationTokenSource> _receivePumpTokens = new();
-    private readonly Dictionary<string, Task> _receivePumpTasks = new();
+    private readonly object _syncRoot = new();
+    private readonly Dictionary<string, DeviceConnectionState> _connections = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SemaphoreSlim> _deviceOperationGates = new(StringComparer.Ordinal);
+    private bool _disposeRequested;
 
     /// <summary>
     /// <see cref="ConnectionManager"/> 클래스의 새 인스턴스를 초기화합니다.
@@ -71,46 +68,66 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public async Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var protocol = _protocolFactory.Create(profile.Protocol);
-        var serializer = _serializerFactory.Create(profile.Serializer);
-        var transport = await CreateOpenedTransportAsync(profile, cancellationToken).ConfigureAwait(false);
-        var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
-        var decoder = new MessageFrameDecoder(protocol, serializer);
-        var receiver = new TransportMessageReceiver(decoder, transport);
-        var session = new DeviceSession(profile.DeviceId, profile.RequestResponse);
-        var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
-        var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var receivePumpTask = Task.CompletedTask;
+        ThrowIfDisposeRequested();
+
+        var deviceGate = await AcquireDeviceGateAsync(profile.DeviceId, cancellationToken).ConfigureAwait(false);
+        DeviceConnectionState? existingState = null;
+        DeviceConnectionState? newState = null;
 
         try
         {
-            await transport.OpenAsync(cancellationToken).ConfigureAwait(false);
+            ThrowIfDisposeRequested();
 
-            if (_sessions.ContainsKey(profile.DeviceId))
+            var protocol = _protocolFactory.Create(profile.Protocol);
+            var serializer = _serializerFactory.Create(profile.Serializer);
+            var transport = await CreateOpenedTransportAsync(profile, cancellationToken).ConfigureAwait(false);
+            var sender = new TransportMessageSender(new MessageFrameEncoder(serializer, protocol), transport);
+            var decoder = new MessageFrameDecoder(protocol, serializer);
+            var receiver = new TransportMessageReceiver(decoder, transport);
+            var session = new DeviceSession(profile.DeviceId, profile.RequestResponse);
+            var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
+            var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            newState = new DeviceConnectionState(
+                session,
+                sender,
+                receiver,
+                transport,
+                inboundQueue,
+                receivePumpTokenSource);
+            existingState = GetConnectionState(profile.DeviceId);
+
+            if (existingState is not null)
             {
-                await DisconnectAsync(profile.DeviceId, cancellationToken).ConfigureAwait(false);
+                await CloseTransportAsync(profile.DeviceId, existingState.Transport, "disconnect", cancellationToken).ConfigureAwait(false);
+                existingState.Session.FailPendingResponses(CreatePendingResponseTerminationException(profile.DeviceId, "disconnect"));
             }
 
-            _transports[profile.DeviceId] = transport;
-            _senders[profile.DeviceId] = sender;
-            _receivers[profile.DeviceId] = receiver;
-            _sessions[profile.DeviceId] = session;
-            _inboundQueues[profile.DeviceId] = inboundQueue;
-            _receivePumpTokens[profile.DeviceId] = receivePumpTokenSource;
-            receivePumpTask = RunReceivePumpAsync(
-                session,
-                receiver,
-                inboundQueue.Writer,
-                receivePumpTokenSource.Token);
-            _receivePumpTasks[profile.DeviceId] = receivePumpTask;
+            RegisterConnectionState(profile.DeviceId, newState);
+            newState.ReceivePumpTask = RunReceivePumpAsync(
+                profile.DeviceId,
+                newState,
+                newState.InboundQueue.Writer,
+                newState.ReceivePumpTokenSource.Token);
+
+            if (existingState is not null)
+            {
+                StopConnectionState(existingState);
+            }
         }
         catch
         {
-            receivePumpTokenSource.Cancel();
-            receivePumpTokenSource.Dispose();
-            DropPendingInbound(inboundQueue);
-            await TryCloseTransportAsync(transport).ConfigureAwait(false);
+            if (newState is not null)
+            {
+                RemoveConnectionState(profile.DeviceId, newState);
+                await CleanupConnectionStateAsync(newState).ConfigureAwait(false);
+            }
+
             throw;
+        }
+        finally
+        {
+            deviceGate.Release();
         }
     }
 
@@ -123,26 +140,21 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public async Task DisconnectAsync(string deviceId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var deviceGate = await AcquireDeviceGateAsync(deviceId, cancellationToken).ConfigureAwait(false);
+        DeviceConnectionState? state = null;
 
-        if (!_sessions.ContainsKey(deviceId))
+        try
         {
-            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
+            state = GetRequiredConnectionState(deviceId);
+            await CloseTransportAsync(deviceId, state.Transport, "disconnect", cancellationToken).ConfigureAwait(false);
+            state.Session.FailPendingResponses(CreatePendingResponseTerminationException(deviceId, "disconnect"));
+            RemoveConnectionState(deviceId, state);
+            StopConnectionState(state);
         }
-
-        if (!_transports.TryGetValue(deviceId, out var transport))
+        finally
         {
-            throw new InvalidOperationException($"No transport registered for device '{deviceId}'.");
+            deviceGate.Release();
         }
-
-        await CloseTransportAsync(deviceId, transport, "disconnect", cancellationToken).ConfigureAwait(false);
-
-        _sessions.Remove(deviceId);
-        _senders.Remove(deviceId);
-        _receivers.Remove(deviceId);
-        _transports.Remove(deviceId);
-        StopReceivePump(deviceId);
-
-        return;
     }
 
     /// <summary>
@@ -154,17 +166,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <returns>전송 작업입니다.</returns>
     public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
     {
-        if (!_sessions.TryGetValue(deviceId, out var session))
-        {
-            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
-        }
-
-        if (!_senders.TryGetValue(deviceId, out var sender))
-        {
-            throw new InvalidOperationException($"No sender registered for device '{deviceId}'.");
-        }
-
-        return SendFromSessionAsync(session, sender, message, cancellationToken);
+        var state = GetRequiredConnectionState(deviceId);
+        ThrowIfReceivePumpFailed(state);
+        return SendFromSessionAsync(state, message, cancellationToken);
     }
 
     /// <summary>
@@ -175,12 +179,18 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <returns>복원된 inbound 메시지입니다.</returns>
     public async Task<IMessage> ReceiveAsync(string deviceId, CancellationToken cancellationToken = default)
     {
-        if (!_inboundQueues.TryGetValue(deviceId, out var inboundQueue))
+        var state = GetRequiredConnectionState(deviceId);
+        InboundEnvelope envelope;
+        try
         {
-            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
+            envelope = await state.InboundQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ChannelClosedException) when (state.ReceivePumpFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(state.ReceivePumpFailure).Throw();
+            throw;
         }
 
-        var envelope = await inboundQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
         if (envelope.Exception is not null)
         {
             throw envelope.Exception;
@@ -197,8 +207,10 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <returns>활성 세션이 있으면 반환하고, 없으면 <see langword="null"/>을 반환합니다.</returns>
     public IDeviceSession? GetSession(string deviceId)
     {
-        _sessions.TryGetValue(deviceId, out var session);
-        return session;
+        var state = GetConnectionState(deviceId);
+        return state is null || state.ReceivePumpFailure is not null
+            ? null
+            : state.Session;
     }
 
     /// <summary>
@@ -207,7 +219,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <returns>비동기 정리 작업입니다.</returns>
     public async ValueTask DisposeAsync()
     {
-        var deviceIds = _sessions.Keys.ToArray();
+        string[] deviceIds;
+        lock (_syncRoot)
+        {
+            _disposeRequested = true;
+            deviceIds = _connections.Keys.ToArray();
+        }
+
         List<Exception>? exceptions = null;
         foreach (var deviceId in deviceIds)
         {
@@ -235,21 +253,6 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         throw new AggregateException("One or more device disconnect operations failed during disposal.", exceptions);
     }
 
-    private void StopReceivePump(string deviceId)
-    {
-        if (_receivePumpTokens.Remove(deviceId, out var cancellationTokenSource))
-        {
-            cancellationTokenSource.Cancel();
-            cancellationTokenSource.Dispose();
-        }
-
-        _receivePumpTasks.Remove(deviceId);
-        if (_inboundQueues.Remove(deviceId, out var inboundQueue))
-        {
-            DropPendingInbound(inboundQueue);
-        }
-    }
-
     /// <summary>
     /// 입력 프레임을 디코드하고 필요하면 대기 중인 응답을 완료 처리합니다.
     /// </summary>
@@ -263,17 +266,10 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         message = null;
         bytesConsumed = 0;
 
-        if (!_receivers.TryGetValue(deviceId, out var receiver))
-        {
-            throw new InvalidOperationException($"No receiver registered for device '{deviceId}'.");
-        }
+        var state = GetRequiredConnectionState(deviceId);
+        ThrowIfReceivePumpFailed(state);
 
-        if (!_sessions.TryGetValue(deviceId, out var session))
-        {
-            throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
-        }
-
-        if (!receiver.TryDecode(buffer, out var decodedMessage, out bytesConsumed))
+        if (!state.Receiver.TryDecode(buffer, out var decodedMessage, out bytesConsumed))
         {
             return false;
         }
@@ -281,18 +277,18 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         message = decodedMessage;
         if (message is IResponseMessage response)
         {
-            session.TryCompleteResponse(response);
+            state.Session.TryCompleteResponse(response);
         }
 
         return true;
     }
 
     private static async Task SendFromSessionAsync(
-        IDeviceSession session,
-        TransportMessageSender sender,
+        DeviceConnectionState state,
         IMessage message,
         CancellationToken cancellationToken)
     {
+        var session = state.Session;
         var result = session.Send(message);
         await result.SendCompletedTask.ConfigureAwait(false);
 
@@ -301,12 +297,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             throw new InvalidOperationException($"Session '{session.DeviceId}' did not expose an outbound message.");
         }
 
-        await sender.SendAsync(outbound, cancellationToken).ConfigureAwait(false);
+        ThrowIfReceivePumpFailed(state);
+        await state.Sender.SendAsync(outbound, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task RunReceivePumpAsync(
-        IDeviceSession session,
-        TransportMessageReceiver receiver,
+    private async Task RunReceivePumpAsync(
+        string deviceId,
+        DeviceConnectionState state,
         ChannelWriter<InboundEnvelope> inboundWriter,
         CancellationToken cancellationToken)
     {
@@ -314,8 +311,8 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var message = await receiver.ReceiveAsync(cancellationToken).ConfigureAwait(false);
-                if (message is IResponseMessage response && session.TryCompleteResponse(response))
+                var message = await state.Receiver.ReceiveAsync(cancellationToken).ConfigureAwait(false);
+                if (message is IResponseMessage response && state.Session.TryCompleteResponse(response))
                 {
                     continue;
                 }
@@ -328,9 +325,15 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            if (!inboundWriter.TryWrite(new InboundEnvelope(null, exception)))
+            var wrapped = new DeviceConnectionException(deviceId, "receive", exception);
+            state.ReceivePumpFailure = wrapped;
+            state.Session.FailPendingResponses(wrapped);
+            _eventSink.OnOperationFailed(deviceId, "receive", wrapped);
+            await TryCloseTransportAsync(state.Transport).ConfigureAwait(false);
+
+            if (!inboundWriter.TryWrite(new InboundEnvelope(null, wrapped)))
             {
-                inboundWriter.TryComplete(exception);
+                inboundWriter.TryComplete(wrapped);
             }
         }
         finally
@@ -340,6 +343,41 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
+
+    private sealed class DeviceConnectionState
+    {
+        public DeviceConnectionState(
+            IDeviceSession session,
+            TransportMessageSender sender,
+            TransportMessageReceiver receiver,
+            ITransport transport,
+            Channel<InboundEnvelope> inboundQueue,
+            CancellationTokenSource receivePumpTokenSource)
+        {
+            Session = session;
+            Sender = sender;
+            Receiver = receiver;
+            Transport = transport;
+            InboundQueue = inboundQueue;
+            ReceivePumpTokenSource = receivePumpTokenSource;
+        }
+
+        public IDeviceSession Session { get; }
+
+        public TransportMessageSender Sender { get; }
+
+        public TransportMessageReceiver Receiver { get; }
+
+        public ITransport Transport { get; }
+
+        public Channel<InboundEnvelope> InboundQueue { get; }
+
+        public CancellationTokenSource ReceivePumpTokenSource { get; }
+
+        public Task ReceivePumpTask { get; set; } = Task.CompletedTask;
+
+        public volatile Exception? ReceivePumpFailure;
+    }
 
     private static void DropPendingInbound(Channel<InboundEnvelope> inboundQueue)
     {
@@ -358,6 +396,37 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         catch
         {
         }
+    }
+
+    private static async Task CleanupConnectionStateAsync(DeviceConnectionState state)
+    {
+        StopConnectionState(state);
+        await TryCloseTransportAsync(state.Transport).ConfigureAwait(false);
+    }
+
+    private static DeviceConnectionException CreatePendingResponseTerminationException(string deviceId, string operation)
+    {
+        return new DeviceConnectionException(
+            deviceId,
+            operation,
+            new InvalidOperationException("Device session closed before a pending response arrived."));
+    }
+
+    private static void ThrowIfReceivePumpFailed(DeviceConnectionState state)
+    {
+        if (state.ReceivePumpFailure is null)
+        {
+            return;
+        }
+
+        ExceptionDispatchInfo.Capture(state.ReceivePumpFailure).Throw();
+    }
+
+    private static void StopConnectionState(DeviceConnectionState state)
+    {
+        state.ReceivePumpTokenSource.Cancel();
+        state.ReceivePumpTokenSource.Dispose();
+        DropPendingInbound(state.InboundQueue);
     }
 
     private async Task CloseTransportAsync(
@@ -379,6 +448,78 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             var wrapped = new DeviceConnectionException(deviceId, operation, exception);
             _eventSink.OnOperationFailed(deviceId, operation, wrapped);
             throw wrapped;
+        }
+    }
+
+    private async Task<SemaphoreSlim> AcquireDeviceGateAsync(string deviceId, CancellationToken cancellationToken)
+    {
+        var deviceGate = GetOrCreateDeviceGate(deviceId);
+        await deviceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return deviceGate;
+    }
+
+    private SemaphoreSlim GetOrCreateDeviceGate(string deviceId)
+    {
+        lock (_syncRoot)
+        {
+            if (!_deviceOperationGates.TryGetValue(deviceId, out var deviceGate))
+            {
+                deviceGate = new SemaphoreSlim(1, 1);
+                _deviceOperationGates[deviceId] = deviceGate;
+            }
+
+            return deviceGate;
+        }
+    }
+
+    private DeviceConnectionState GetRequiredConnectionState(string deviceId)
+    {
+        return GetConnectionState(deviceId) ??
+               throw new InvalidOperationException($"No session registered for device '{deviceId}'.");
+    }
+
+    private DeviceConnectionState? GetConnectionState(string deviceId)
+    {
+        lock (_syncRoot)
+        {
+            _connections.TryGetValue(deviceId, out var state);
+            return state;
+        }
+    }
+
+    private void RegisterConnectionState(string deviceId, DeviceConnectionState state)
+    {
+        lock (_syncRoot)
+        {
+            ThrowIfDisposeRequestedLocked();
+            _connections[deviceId] = state;
+        }
+    }
+
+    private void RemoveConnectionState(string deviceId, DeviceConnectionState expectedState)
+    {
+        lock (_syncRoot)
+        {
+            if (_connections.TryGetValue(deviceId, out var state) && ReferenceEquals(state, expectedState))
+            {
+                _connections.Remove(deviceId);
+            }
+        }
+    }
+
+    private void ThrowIfDisposeRequested()
+    {
+        lock (_syncRoot)
+        {
+            ThrowIfDisposeRequestedLocked();
+        }
+    }
+
+    private void ThrowIfDisposeRequestedLocked()
+    {
+        if (_disposeRequested)
+        {
+            throw new ObjectDisposedException(nameof(ConnectionManager));
         }
     }
 

@@ -155,6 +155,40 @@ public sealed class DeviceSession : IDeviceSession
         }
     }
 
+    /// <summary>
+    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
+    /// </summary>
+    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
+    public void FailPendingResponses(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        object[] pendingResponses;
+        Guid[] correlationIds;
+
+        lock (_syncRoot)
+        {
+            if (_pendingResponses.Count == 0)
+            {
+                return;
+            }
+
+            pendingResponses = _pendingResponses.Values.ToArray();
+            correlationIds = _pendingResponses.Keys.ToArray();
+            _pendingResponses.Clear();
+
+            foreach (var correlationId in correlationIds)
+            {
+                _pendingRequestStore.Complete(correlationId);
+            }
+        }
+
+        foreach (var pending in pendingResponses)
+        {
+            TrySetPendingException(pending, exception);
+        }
+    }
+
     private Task SendRequest<TRequest, TResponse>(
         TRequest request,
         TaskCompletionSource<TResponse> responseTcs,
@@ -228,5 +262,17 @@ public sealed class DeviceSession : IDeviceSession
 
         var trySetResult = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetResult));
         return trySetResult is not null && (bool)(trySetResult.Invoke(pending, new object[] { response }) ?? false);
+    }
+
+    private static bool TrySetPendingException(object pending, Exception exception)
+    {
+        var pendingType = pending.GetType();
+        if (!pendingType.IsGenericType || pendingType.GetGenericTypeDefinition() != typeof(TaskCompletionSource<>))
+        {
+            return false;
+        }
+
+        var trySetException = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetException), new[] { typeof(Exception) });
+        return trySetException is not null && (bool)(trySetException.Invoke(pending, new object[] { exception }) ?? false);
     }
 }
