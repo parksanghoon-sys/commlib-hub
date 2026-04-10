@@ -6,12 +6,12 @@ using Xunit;
 namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// 활성 프로필에 대한 부트스트랩 동작을 검증합니다.
+/// <see cref="DeviceBootstrapper"/>의 시작 정책과 오류 전파 방식을 검증합니다.
 /// </summary>
 public sealed class DeviceBootstrapperTests
 {
     /// <summary>
-    /// 부트스트래퍼가 활성화된 프로필만 연결하는지 확인합니다.
+    /// 활성화된 프로필만 연결하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task StartAsync_ConnectsOnlyEnabledProfiles()
@@ -51,7 +51,7 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
-    /// 호출자가 전달한 취소 토큰을 연결 관리자까지 그대로 전달하는지 확인합니다.
+    /// 호출자가 전달한 취소 토큰이 연결 관리자까지 그대로 전달되는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task StartAsync_PassesCancellationTokenToConnectionManager()
@@ -145,7 +145,26 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
-    /// 연결 관리자 예외를 숨기지 않고 호출자에게 전파하는지 확인합니다.
+    /// 잘못된 프로필은 연결 관리자에 전달되기 전에 검증 단계에서 중단되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task StartAsync_WhenProfileIsInvalid_ThrowsBeforeConnectionManagerIsCalled()
+    {
+        var manager = new FakeConnectionManager();
+        var bootstrapper = new DeviceBootstrapper(manager);
+        var profiles = new[]
+        {
+            CreateInvalidTcpProfile("invalid-1", enabled: true, port: 1000)
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => bootstrapper.StartAsync(profiles));
+
+        Assert.Contains("[invalid-1] TCP Host is required.", exception.Message);
+        Assert.Empty(manager.ConnectedIds);
+    }
+
+    /// <summary>
+    /// 연결 관리자에서 발생한 예외를 숨기지 않고 호출자에게 전파하는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task StartAsync_WhenConnectionManagerThrows_PropagatesException()
@@ -170,7 +189,7 @@ public sealed class DeviceBootstrapperTests
     }
 
     /// <summary>
-    /// 중간 연결이 실패하면 이후 프로필 연결은 시도하지 않는지 확인합니다.
+    /// fail-fast 경로에서는 중간 연결이 실패하면 이후 프로필은 더 처리하지 않는지 확인합니다.
     /// </summary>
     [Fact]
     public async Task StartAsync_WhenConnectionFails_StopsProcessingRemainingProfiles()
@@ -201,6 +220,54 @@ public sealed class DeviceBootstrapperTests
         Assert.Equal(new[] { "enabled-1", "enabled-2" }, manager.ConnectedIds);
     }
 
+    /// <summary>
+    /// 보고서 경로에서는 검증 실패와 연결 실패를 누적하면서 다음 프로필 처리를 계속하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task StartWithReportAsync_WhenProfilesIncludeValidationAndConnectionFailures_ContinuesAndReturnsReport()
+    {
+        var manager = new FakeConnectionManager
+        {
+            ConnectAsyncHandler = profile =>
+            {
+                if (profile.DeviceId == "enabled-2")
+                {
+                    throw new InvalidOperationException("boom");
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+        var bootstrapper = new DeviceBootstrapper(manager);
+
+        var profiles = new[]
+        {
+            CreateProfile("enabled-1", enabled: true, port: 1000),
+            CreateInvalidTcpProfile("invalid-1", enabled: true, port: 1001),
+            CreateProfile("enabled-2", enabled: true, port: 1002),
+            CreateProfile("enabled-3", enabled: true, port: 1003),
+            CreateProfile("disabled-1", enabled: false, port: 1004)
+        };
+
+        var report = await bootstrapper.StartWithReportAsync(profiles);
+
+        Assert.Equal(new[] { "enabled-1", "enabled-2", "enabled-3" }, manager.ConnectedIds);
+        Assert.Equal(new[] { "enabled-1", "enabled-3" }, report.ConnectedDeviceIds);
+        Assert.True(report.HasFailures);
+        Assert.Collection(
+            report.Failures,
+            failure =>
+            {
+                Assert.Equal("invalid-1", failure.DeviceId);
+                Assert.Equal("[invalid-1] TCP Host is required.", failure.Exception.Message);
+            },
+            failure =>
+            {
+                Assert.Equal("enabled-2", failure.DeviceId);
+                Assert.Equal("boom", failure.Exception.Message);
+            });
+    }
+
     private static DeviceProfile CreateProfile(string deviceId, bool enabled, int port)
     {
         return new DeviceProfile
@@ -219,8 +286,26 @@ public sealed class DeviceBootstrapperTests
         };
     }
 
+    private static DeviceProfile CreateInvalidTcpProfile(string deviceId, bool enabled, int port)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = deviceId,
+            DisplayName = deviceId,
+            Enabled = enabled,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = string.Empty,
+                Port = port
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
     /// <summary>
-    /// 부트스트랩 테스트에 사용하는 최소 메모리 연결 관리자입니다.
+    /// 부트스트랩 테스트에 사용하는 최소 구현 연결 관리자입니다.
     /// </summary>
     private sealed class FakeConnectionManager : IConnectionManager
     {
@@ -235,16 +320,16 @@ public sealed class DeviceBootstrapperTests
         public CancellationToken LastCancellationToken { get; private set; }
 
         /// <summary>
-        /// 테스트가 연결 동작을 가로챌 수 있게 하는 핸들러입니다.
+        /// 테스트에서 연결 동작을 가로채기 위한 핸들러입니다.
         /// </summary>
         public Func<DeviceProfile, Task>? ConnectAsyncHandler { get; init; }
 
         /// <summary>
-        /// 연결 요청 장치 식별자를 기록합니다.
+        /// 연결 요청 장치 식별자를 기록하고 필요하면 사용자 정의 핸들러를 실행합니다.
         /// </summary>
-        /// <param name="profile">부트스트래퍼가 전달한 장치 프로필입니다.</param>
-        /// <param name="cancellationToken">작업 취소에 사용하는 토큰입니다.</param>
-        /// <returns>완료 작업입니다.</returns>
+        /// <param name="profile">연결할 장치 프로필입니다.</param>
+        /// <param name="cancellationToken">작업 취소 토큰입니다.</param>
+        /// <returns>연결 처리 작업입니다.</returns>
         public Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
         {
             ConnectedIds.Add(profile.DeviceId);
@@ -254,14 +339,7 @@ public sealed class DeviceBootstrapperTests
         }
 
         /// <summary>
-        /// 부트스트랩 테스트에서는 송신 기능을 사용하지 않습니다.
-        /// </summary>
-        /// <param name="deviceId">메시지를 보낼 장치 식별자입니다.</param>
-        /// <param name="message">전송할 메시지입니다.</param>
-        /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
-        /// <returns>완료 작업입니다.</returns>
-        /// <summary>
-        /// 부트스트래퍼 테스트에서는 연결 해제 기능을 사용하지 않습니다.
+        /// 부트스트랩 테스트에서는 연결 해제 기능을 사용하지 않습니다.
         /// </summary>
         /// <param name="deviceId">연결 해제할 장치 식별자입니다.</param>
         /// <param name="cancellationToken">연결 해제 취소 토큰입니다.</param>
@@ -272,6 +350,13 @@ public sealed class DeviceBootstrapperTests
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// 부트스트랩 테스트에서는 송신 기능을 사용하지 않습니다.
+        /// </summary>
+        /// <param name="deviceId">메시지를 보낼 장치 식별자입니다.</param>
+        /// <param name="message">전송할 메시지입니다.</param>
+        /// <param name="cancellationToken">전송 취소 토큰입니다.</param>
+        /// <returns>항상 완료된 작업을 반환합니다.</returns>
         public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -279,12 +364,7 @@ public sealed class DeviceBootstrapperTests
         }
 
         /// <summary>
-        /// 가짜 구현에서는 활성 세션을 반환하지 않습니다.
-        /// </summary>
-        /// <param name="deviceId">조회할 장치 식별자입니다.</param>
-        /// <returns>항상 <see langword="null"/>을 반환합니다.</returns>
-        /// <summary>
-        /// 부트스트래퍼 테스트에서는 수신 기능을 사용하지 않습니다.
+        /// 부트스트랩 테스트에서는 수신 기능을 사용하지 않습니다.
         /// </summary>
         /// <param name="deviceId">메시지를 수신할 장치 식별자입니다.</param>
         /// <param name="cancellationToken">수신 취소 토큰입니다.</param>
@@ -295,6 +375,11 @@ public sealed class DeviceBootstrapperTests
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// 가짜 구현에서는 활성 세션을 반환하지 않습니다.
+        /// </summary>
+        /// <param name="deviceId">조회할 장치 식별자입니다.</param>
+        /// <returns>항상 <see langword="null"/>을 반환합니다.</returns>
         public IDeviceSession? GetSession(string deviceId) => null;
     }
 }

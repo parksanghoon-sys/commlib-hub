@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
-using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using CommLib.Infrastructure.Factories;
