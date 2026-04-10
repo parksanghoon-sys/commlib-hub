@@ -1,17 +1,28 @@
 # TODOS
 
 ## Current TODOs
-- [ ] Replace the unbounded unsolicited inbound queue in `ConnectionManager` with a bounded queue and an explicit overflow/backpressure policy.
-- [ ] Enforce profile validation at the runtime connect/bootstrap boundary and decide whether startup should stop on the first connection failure or continue and report.
+- [ ] Decide whether inbound queue capacity and pressure signaling should become explicit runtime options.
+  Scope: decide whether `ConnectionManager`'s bounded unsolicited inbound queue should keep the current internal default (`256` + `BoundedChannelFullMode.Wait`) or expose queue sizing and/or queue-pressure visibility through hosting/runtime contracts.
+  Validation: if the decision changes public/runtime surface area, add focused infrastructure/unit coverage for the chosen option path and re-run `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
 
 ## Deferred Backlog
+
+### [P1_SOON] Decide whether hosting/bootstrap layers should expose the report-based startup path
+- What remains: decide whether the new `DeviceBootstrapper.StartWithReportAsync()` path should stay as an application-level opt-in or whether `CommLib.Hosting` and related DI/bootstrap conventions should expose/report partial-startup results directly.
+- Why deferred: the runtime boundary and bootstrap semantics are now explicit, but no current hosting entry point consumes or returns the richer bootstrap report yet.
+- Objective: keep startup behavior explicit for adopters without widening the hosting surface unnecessarily.
+- Relevant context: `StartAsync()` remains fail-fast for compatibility, while `StartWithReportAsync()` continues across enabled profiles and returns `DeviceBootstrapReport` / `DeviceBootstrapFailure`; invalid profiles now fail before runtime factories run because validation moved into `CommLib.Domain.Configuration.DeviceProfileValidator`.
+- Scope: `src/CommLib.Application/Bootstrap`, `src/CommLib.Hosting`, example startup flows, and any docs that describe startup semantics.
+- Current status: application callers can opt into partial-startup reporting now, but hosting conventions still only imply the legacy fail-fast path.
+- Known blockers/open questions: whether the hosting package should return a report, log/report failures through existing sinks, or deliberately stay thin and leave startup policy to application composition.
+- Most natural next step: finish the queue contract decision first, then revisit whether there is enough real hosting value to justify widening bootstrap APIs.
 
 ### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
 - What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
 - Why deferred: the runtime policy is now explicit and tested, but the public naming still suggests broader live-session auto-reconnect semantics than the implementation actually provides.
 - Objective: keep configuration and API naming truthful without breaking existing consumers unnecessarily.
 - Relevant context: `ConnectionManager` now treats post-connect receive failure as terminal, hides failed sessions, and fails pending requests immediately on receive failure, explicit disconnect, and same-device session replacement; `ReconnectOptions` currently only affects connect-time `OpenAsync()` retry behavior inside `CreateOpenedTransportAsync()`.
-- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, `src/CommLib.Application/Configuration/DeviceProfileValidator.cs`, config/docs samples, and any compatibility shim that becomes necessary.
+- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, `src/CommLib.Domain/Configuration/DeviceProfileValidator.cs`, config/docs samples, and any compatibility shim that becomes necessary.
 - Current status: the runtime contract is explicit, but the public type/property names remain `ReconnectOptions` and `Reconnect`.
 - Known blockers/open questions: whether external consumers already depend on the current JSON/property names, whether a doc-only clarification is sufficient for now, and whether a rename is worth the churn before a stable external package surface exists.
 - Most natural next step: inventory references and choose between doc-only clarification, a staged alias, or a later breaking rename.
@@ -67,6 +78,9 @@
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result.
 
 ## Completed
+- [x] 2026-04-10: reviewed the latest runtime-hardening paths and rewrote Korean XML/inline comments in `DeviceBootstrapper`, `DeviceBootstrapReport`, `DeviceBootstrapFailure`, `DeviceProfileValidator`, `ConnectionManager`, and the changed bootstrap/connection tests; verified with `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-10: moved `DeviceProfileValidator` into `CommLib.Domain.Configuration`, enforced profile validation at the `ConnectionManager.ConnectAsync()` boundary before runtime factory/open work, kept `DeviceBootstrapper.StartAsync()` as the fail-fast compatibility path, and added `StartWithReportAsync()` plus `DeviceBootstrapReport` / `DeviceBootstrapFailure` for continue-and-report startup; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-10: replaced `ConnectionManager`'s unbounded unsolicited inbound queue with a bounded queue using backpressure-first full behavior, kept the first capacity choice internal (`256`), and added infrastructure coverage proving transport backpressure plus blocked-writer disconnect/reconnect cleanup; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
 - [x] 2026-04-09: aligned `ProtocolOptions` with the live `LengthPrefixedProtocol` contract by removing inactive `UseCrc` / `Stx` / `Etx` settings, enforcing `MaxFrameLength` during encode/decode, passing that limit through `ProtocolFactory`, rejecting unsupported protocol types up front in `DeviceProfileValidator`, and cleaning the repo samples so they no longer advertise unsupported framing behavior; verified with focused infrastructure/unit tests plus console/WinUI example builds.
 - [x] 2026-04-09: made runtime recovery semantics explicit in `ConnectionManager` by treating background receive failure as terminal, hiding failed sessions from `GetSession()`, rethrowing stored receive failures on later send/manual-inbound calls, and failing pending response tasks immediately on receive failure, explicit disconnect, and same-device session replacement; verified with focused infrastructure and unit tests.
 - [x] 2026-04-08: completed the first `ConnectionManager` hardening slice by consolidating per-device state, serializing same-device lifecycle operations, removing the accidental second `OpenAsync()` call during connect, and surfacing background receive failures as `DeviceConnectionException(..., \"receive\", ...)`; verified with infrastructure tests and focused builds.

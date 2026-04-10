@@ -1,11 +1,11 @@
 # Current Plan
 
 ## Date
-- 2026-04-09
+- 2026-04-10
 
 ## Current Scope
 - Keep the runtime-hardening delivery on a clean branch rooted in `commlib-hub/main`
-- Land connection lifecycle hardening, truthful length-prefixed protocol contracts, and terminal session-failure semantics without carrying the raw-hex/bitfield branch lineage
+- Land runtime hardening one safe slice at a time without carrying the raw-hex/bitfield branch lineage
 
 ## Confirmed State
 - `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
@@ -28,12 +28,21 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
-- The next meaningful blockers are unbounded inbound buffering, missing connect/bootstrap validation policy, fail-fast bootstrap semantics, and the still-thin hosting/ops/security surface.
+- `ConnectionManager` now also uses a bounded unsolicited inbound queue with backpressure-first full behavior instead of an unbounded queue.
+- The first queue-capacity slice keeps capacity internal (`256`) and proves blocked-writer disconnect/reconnect cleanup through infrastructure tests.
+- `DeviceProfileValidator` now lives in `CommLib.Domain.Configuration` so validation can be enforced at runtime boundaries without adding an infrastructure-to-application dependency.
+- `ConnectionManager.ConnectAsync()` now validates profiles before runtime factories or transport-open work starts.
+- `DeviceBootstrapper.StartAsync()` remains fail-fast for compatibility, but now validates before connect-time side effects, and `StartWithReportAsync()` provides an explicit continue-and-report startup path.
+- Latest verification completed with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- The next meaningful blockers are the queue contract surface, whether hosting should surface report-based bootstrap, and the still-thin hosting/ops/security surface.
 
 ## Next Work Unit
-1. Add bounded unsolicited inbound buffering and an explicit overflow/backpressure policy in `ConnectionManager`.
-2. Enforce profile validation at the connect/bootstrap boundary and choose the startup policy for partial failures.
-3. Revisit hosting diagnostics, health, and secure transport concerns once runtime memory and startup semantics are explicit.
+1. Decide whether inbound queue capacity and queue-pressure signaling should remain internal defaults or become real runtime options now that the bootstrap contract is explicit.
+2. Decide whether hosting/DI should surface the new `StartWithReportAsync()` partial-startup path or keep it application-level.
+3. Revisit hosting diagnostics, health, and secure transport concerns once queue and startup surfaces are explicit.
 
 ## Deferred / Not For This Step
 - Core-library auto-reconnect/state-machine work stays deferred until a real deployment requires it.

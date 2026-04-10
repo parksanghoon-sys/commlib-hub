@@ -32,3 +32,39 @@
   - missing connect/bootstrap validation policy
   - fail-fast bootstrap semantics
   - thin hosting / observability / secure-transport surface
+
+## 2026-04-10
+
+- Landed the bounded unsolicited-inbound slice in `ConnectionManager`:
+  - replaced the unbounded per-device inbound queue with a bounded queue
+  - chose backpressure-first full behavior (`BoundedChannelFullMode.Wait`) for the first slice
+  - kept queue capacity internal (`256`) instead of widening the public contract immediately
+- Added focused infrastructure coverage proving:
+  - transport reads stop advancing once unsolicited inbound backlog hits queue capacity
+  - disconnect still cleans up a receive pump that is blocked waiting for queue capacity
+  - reconnect still succeeds after that blocked-writer cleanup path
+- Verified the slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- Landed the connect/bootstrap validation slice:
+  - moved `DeviceProfileValidator` into `CommLib.Domain.Configuration` so runtime callers can validate without adding an infrastructure-to-application dependency
+  - enforced profile validation at the start of `ConnectionManager.ConnectAsync()` before transport/protocol/serializer factory work runs
+  - kept `DeviceBootstrapper.StartAsync()` fail-fast for compatibility while validating each enabled profile before connect-time side effects
+  - added `DeviceBootstrapper.StartWithReportAsync()` plus `DeviceBootstrapReport` / `DeviceBootstrapFailure` for continue-and-report startup behavior
+  - updated the console and WinUI examples to consume the validator from its new domain location
+- Added focused coverage proving:
+  - invalid profiles fail before `ConnectionManager` runtime factories are invoked
+  - `DeviceBootstrapper.StartAsync()` rejects invalid profiles before calling the connection manager
+  - `StartWithReportAsync()` continues across mixed validation/connect failures and returns explicit success/failure results
+- Reviewed the latest runtime-hardening paths and rewrote Korean XML/inline comments around:
+  - connect-boundary validation policy
+  - fail-fast vs. report-based bootstrap semantics
+  - bounded inbound queue backpressure behavior
+  - receive-failure propagation and reconnect cleanup intent
+  - bootstrap/report unit tests that changed in this slice
+- Verified the latest slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- One parallel test invocation hit a transient `CommLib.Domain.dll` file-lock issue; a sequential rerun of the same validation commands passed cleanly.
