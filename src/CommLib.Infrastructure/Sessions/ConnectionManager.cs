@@ -48,6 +48,30 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     {
     }
 
+    /// <summary>
+    /// 지정한 inbound queue capacity로 <see cref="ConnectionManager"/> 인스턴스를 초기화합니다.
+    /// </summary>
+    /// <param name="transportFactory">장치 전송을 생성하는 transport factory입니다.</param>
+    /// <param name="protocolFactory">장치 프로토콜을 생성하는 protocol factory입니다.</param>
+    /// <param name="serializerFactory">메시지 serializer를 생성하는 serializer factory입니다.</param>
+    /// <param name="eventSink">연결 이벤트를 관측하는 sink입니다.</param>
+    /// <param name="inboundQueueCapacity">장치별 비요청 inbound queue capacity입니다.</param>
+    public ConnectionManager(
+        ITransportFactory transportFactory,
+        IProtocolFactory protocolFactory,
+        ISerializerFactory serializerFactory,
+        IConnectionEventSink? eventSink,
+        int inboundQueueCapacity)
+        : this(
+            transportFactory,
+            protocolFactory,
+            serializerFactory,
+            eventSink,
+            static (delay, cancellationToken) => Task.Delay(delay, cancellationToken),
+            inboundQueueCapacity)
+    {
+    }
+
     internal ConnectionManager(
         ITransportFactory transportFactory,
         IProtocolFactory protocolFactory,
