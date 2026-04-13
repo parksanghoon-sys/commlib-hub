@@ -3,7 +3,7 @@
 Date: 2026-04-13
 
 ## Goal
-Continue production-readiness hardening on the clean branch, now that bounded unsolicited inbound buffering, explicit connect/bootstrap validation, hosting-level queue sizing, and the first queue-pressure signal are all landed while report-based bootstrap remains an application-level opt-in. The next truthfulness slice is reconnect-contract naming.
+Continue production-readiness hardening on the clean branch, now that bounded unsolicited inbound buffering, explicit connect/bootstrap validation, hosting-level queue sizing, the first queue-pressure signal, and reconnect-contract clarification are all landed while report-based bootstrap remains an application-level opt-in. The next safe expansion point now depends on concrete deployment requirements for diagnostics/security or on external pressure for a future reconnect rename.
 
 ## Confirmed Facts
 - The repository continuity rules currently point at `AGENT.md`; a root `AGENT_RULES.md` file is not present.
@@ -43,6 +43,10 @@ Continue production-readiness hardening on the clean branch, now that bounded un
   - `ConnectionManager` now emits that callback when the bounded unsolicited inbound queue fills and the receive pump actually blocks waiting for consumer drain.
   - the signal is intentionally best-effort and once-per-pressure-episode rather than a new queue-metrics subsystem.
   - focused infrastructure tests now prove the signal fires once per pressure episode while the existing bounded-queue backpressure behavior still holds.
+- The reconnect-contract clarification slice landed on 2026-04-13:
+  - the repo keeps the public names `ReconnectOptions` and `DeviceProfile.Reconnect` for compatibility instead of adding an alias or a breaking rename now.
+  - XML docs and sample-facing README text now explicitly describe the contract as connect-time transport-open retry only.
+  - live-session receive failure remains terminal until a higher layer explicitly reconnects.
 - The report-based bootstrap review completed on 2026-04-13:
   - `AddCommLibCore()` already registers `DeviceBootstrapper`, so DI callers can explicitly resolve it and choose `StartAsync()` or `StartWithReportAsync()` today.
   - no extra hosting wrapper or hosted bootstrap abstraction is justified yet because that would also choose lifecycle/reporting semantics the repo still has not proven.
@@ -57,17 +61,17 @@ Continue production-readiness hardening on the clean branch, now that bounded un
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "DeviceBootstrapperTests" --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
 - The next production-readiness blockers remain:
-  - `ReconnectOptions` / `DeviceProfile.Reconnect` still describe a broader story than the current connect-time retry implementation
   - queue pressure now has a best-effort event-sink signal, but richer metrics/counters/health semantics are still intentionally absent
   - intentionally thin hosting / observability / secure-transport surface
+  - any future reconnect rename still needs real external API pressure before compatibility churn is justified
 
 ## Next Work Unit
-1. Decide whether `ReconnectOptions` needs a clearer connect-time retry contract, a staged alias, or a deliberate later breaking rename.
-2. Keep the new `IConnectionEventSink.OnInboundBackpressure(...)` signal as the current queue-pressure contract unless real operator requirements justify richer metrics/counters.
-3. Revisit hosting diagnostics, health, and secure transport options only after reconnect-contract truthfulness is explicit.
+1. Keep the new `IConnectionEventSink.OnInboundBackpressure(...)` signal as the current queue-pressure contract unless real operator requirements justify richer metrics/counters.
+2. Revisit the production integration surface for diagnostics, health, and secure transport only when the target deployment environment is explicit enough to choose the right owner.
+3. Consider a future reconnect rename only if external package consumers or a stable public API process justify compatibility churn beyond the current doc-only clarification.
 
 ## Stop / Reassess Conditions
 - If exposing more queue controls starts to widen `DeviceProfile` without a concrete deployment need, keep the contract in `CommLib.Hosting`.
 - If real device traffic or operator feedback shows `256` is not a defensible default inbound capacity, revisit the hosting default and whether the best-effort pressure callback needs a richer metrics/counters contract.
-- If reconnect naming cleanup would become a breaking public API/config migration, pause and decide whether doc-only clarification or a staged alias/deprecation path is the safer next step.
+- If reconnect naming pressure returns, prefer doc-only clarification or a staged alias before a breaking rename unless the repo has already committed to a stable package migration.
 - If later delivery cleanup would require force-pushing review history, prefer a replacement branch/PR over rewriting a branch that is already under review.

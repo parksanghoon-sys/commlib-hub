@@ -1,9 +1,9 @@
 # TODOS
 
 ## Current TODOs
-- [ ] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract.
-  Scope: determine whether the current public naming should stay as doc-only clarification, gain a staged alias/deprecation path, or be left for a later breaking rename.
-  Validation: choose the compatibility boundary first, then add only the minimal docs/code/tests needed for the selected path.
+- [ ] Wait for a concrete deployment requirement before widening diagnostics, health, or secure transport surfaces.
+  Scope: keep the current runtime hardening line stable until there is enough deployment context to choose whether the next surface belongs in core, hosting, or a future integration package.
+  Validation: do not widen the runtime surface speculatively; record new requirements first.
 
 ## Deferred Backlog
 
@@ -17,15 +17,15 @@
 - Known blockers/open questions: whether operators need queue depth trends versus simple pressure episodes, whether any future signal should be best-effort or guaranteed, and whether such telemetry belongs in core, hosting, or a future integration package.
 - Most natural next step: wait for a concrete deployment/ops requirement, then add only the smallest stronger telemetry contract that requirement justifies.
 
-### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
-- What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
-- Why deferred: the runtime policy is now explicit and tested, but the public naming still suggests broader live-session auto-reconnect semantics than the implementation actually provides.
-- Objective: keep configuration and API naming truthful without breaking existing consumers unnecessarily.
-- Relevant context: `ConnectionManager` now treats post-connect receive failure as terminal, hides failed sessions, and fails pending requests immediately on receive failure, explicit disconnect, and same-device session replacement; `ReconnectOptions` currently only affects connect-time `OpenAsync()` retry behavior inside `CreateOpenedTransportAsync()`.
-- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, `src/CommLib.Domain/Configuration/DeviceProfileValidator.cs`, config/docs samples, and any compatibility shim that becomes necessary.
-- Current status: the runtime contract is explicit, but the public type/property names remain `ReconnectOptions` and `Reconnect`.
-- Known blockers/open questions: whether external consumers already depend on the current JSON/property names, whether a doc-only clarification is sufficient for now, and whether a rename is worth the churn before a stable external package surface exists.
-- Most natural next step: inventory references and choose between doc-only clarification, a staged alias, or a later breaking rename.
+### [P2_LATER] Revisit a reconnect rename only if future API/package stabilization makes doc-only clarification insufficient
+- What remains: decide whether a later compatibility alias or breaking rename is worth doing if external consumers or a stable package surface still find `ReconnectOptions` / `DeviceProfile.Reconnect` misleading after the current doc clarification.
+- Why deferred: the repo now explicitly documents the current contract as connect-time transport-open retry only, and there is still no evidence that the compatibility cost of a rename is justified today.
+- Objective: preserve truthful documentation now without paying rename churn until a real consumer or package-stability process proves it necessary.
+- Relevant context: `ConnectionManager` treats post-connect receive failure as terminal, XML docs on `ReconnectOptions` / `DeviceProfile.Reconnect` now call out connect-time-only semantics, and sample-facing docs also reflect that contract.
+- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, raw/config docs, samples, and any future compatibility shim.
+- Current status: doc-only clarification is now the chosen compatibility boundary; no alias or alternate property exists.
+- Known blockers/open questions: whether external package consumers will still find the name misleading, whether a later alias is enough, and whether the repo will even commit to a stable breaking-change process before then.
+- Most natural next step: wait for concrete external API pressure or package-stabilization work, then decide between keeping docs-only, adding an alias, or planning a later breaking rename.
 
 ### [P2_LATER] Consider core-library auto-reconnect only if a real deployment needs runtime reconnect orchestration
 - What remains: design a real runtime recovery/state-machine path only if a concrete deployment needs the core library itself to reopen transports and restore live sessions after a post-connect failure.
@@ -78,6 +78,7 @@
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result.
 
 ## Completed
+- [x] 2026-04-13: reviewed the reconnect-contract naming question, decided that a rename is not justified yet, and clarified the contract as connect-time transport-open retry only through XML docs on `ReconnectOptions` / `DeviceProfile.Reconnect` plus sample-facing README text; kept any future rename as deferred compatibility work.
 - [x] 2026-04-13: exposed the first queue-pressure signal without widening hosting/profile contracts by adding a default no-op `IConnectionEventSink.OnInboundBackpressure(deviceId, queueCapacity)` callback and teaching `ConnectionManager` to emit it once per pressure episode when the bounded unsolicited inbound queue actually blocks the receive pump; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore` and `dotnet build commlib-codex-full.sln --no-restore`.
 - [x] 2026-04-13: reviewed whether hosting/DI should surface `DeviceBootstrapper.StartWithReportAsync()` as a new bootstrap contract, decided to keep it as an application-level opt-in because `AddCommLibCore()` already registers `DeviceBootstrapper` for explicit DI resolution, and re-validated the relevant seams with focused `ConnectionManagerTests`, `ServiceCollectionExtensionsTests`, and `DeviceBootstrapperTests`.
 - [x] 2026-04-10: exposed inbound queue capacity through `CommLib.Hosting.CommLibRuntimeOptions`, kept `AddCommLibCore()` backward compatible while adding an override overload, added a thin public `ConnectionManager` constructor for hosting-only queue sizing, and verified the default/override wiring with focused unit tests.

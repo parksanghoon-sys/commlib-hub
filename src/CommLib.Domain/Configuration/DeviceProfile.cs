@@ -32,7 +32,11 @@ public sealed class DeviceProfile
     /// <summary>
     /// 끊어진 연결을 복구할 때 사용할 재연결 정책을 가져옵니다.
     /// </summary>
-    // Connect-time retry only. Live-session recovery stays outside the core profile contract for now.
+    // Name kept for config compatibility. Live-session recovery remains a higher-layer concern for now.
+    /// <remarks>
+    /// This section controls transport-open retries during <c>ConnectionManager.ConnectAsync()</c> only.
+    /// It does not mean the library will automatically recover a live session after a later receive failure.
+    /// </remarks>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>
     /// 이 장치의 요청/응답 흐름 제어 설정을 가져옵니다.

@@ -34,7 +34,11 @@ public sealed class DeviceProfileRaw
     /// <summary>
     /// 재연결 설정 섹션을 가져옵니다.
     /// </summary>
-    // Connect-time retry only. Live-session recovery stays outside the current bound config contract.
+    // Name kept for config compatibility. The current bound contract is connect-time retry only.
+    /// <remarks>
+    /// This section binds transport-open retry settings for <c>ConnectAsync()</c>.
+    /// It does not represent automatic live-session recovery after a later receive failure.
+    /// </remarks>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>
     /// 요청/응답 설정 섹션을 가져옵니다.

@@ -6,7 +6,7 @@
 ## Current Scope
 - Keep the runtime-hardening delivery on a clean branch rooted in `commlib-hub/main`
 - Land runtime hardening one safe slice at a time without carrying the raw-hex/bitfield branch lineage
-- Treat reconnect-contract truthfulness as the next narrow runtime slice
+- Keep reconnect-contract clarification as a docs-only compatibility choice for now
 
 ## Confirmed State
 - `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
@@ -34,6 +34,7 @@
 - `CommLib.Hosting` now exposes `CommLibRuntimeOptions` so hosting callers can override `InboundQueueCapacity` without widening `DeviceProfile`.
 - `AddCommLibCore()` keeps the default runtime path, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` now passes queue capacity into the resolved `ConnectionManager`.
 - `IConnectionEventSink` now exposes a default no-op `OnInboundBackpressure(deviceId, queueCapacity)` callback, and `ConnectionManager` emits it when the bounded inbound queue actually blocks the receive pump.
+- `ReconnectOptions` / `DeviceProfile.Reconnect` keep their existing names for compatibility, but the XML docs and sample docs now explicitly describe them as connect-time transport-open retry only.
 - `DeviceProfileValidator` now lives in `CommLib.Domain.Configuration` so validation can be enforced at runtime boundaries without adding an infrastructure-to-application dependency.
 - `ConnectionManager.ConnectAsync()` now validates profiles before runtime factories or transport-open work starts.
 - `DeviceBootstrapper.StartAsync()` remains fail-fast for compatibility, but now validates before connect-time side effects, and `StartWithReportAsync()` provides an explicit continue-and-report startup path.
@@ -46,12 +47,12 @@
   - `ConnectionManagerTests`
   - `ServiceCollectionExtensionsTests`
   - `DeviceBootstrapperTests`
-- The next meaningful blockers are reconnect-contract truthfulness, richer queue-pressure diagnostics only if a real deployment needs more than the new event-sink callback, and the still-thin hosting/ops/security surface.
+- The next meaningful blockers are richer queue-pressure diagnostics only if a real deployment needs more than the new event-sink callback, the still-thin hosting/ops/security surface, and any future reconnect rename only if external API pressure makes doc-only clarification insufficient.
 
 ## Next Work Unit
-1. Decide whether `ReconnectOptions` needs a clearer connect-time retry contract or a staged compatibility path.
-2. Keep queue-pressure signaling on the current best-effort `IConnectionEventSink` callback unless deployments prove they need richer metrics/counters.
-3. Revisit hosting diagnostics, health, and secure transport concerns once reconnect-contract truthfulness is explicit.
+1. Keep queue-pressure signaling on the current best-effort `IConnectionEventSink` callback unless deployments prove they need richer metrics/counters.
+2. Revisit hosting diagnostics, health, and secure transport concerns only when the target deployment environment is explicit enough to choose the right owner.
+3. Revisit a reconnect rename only if later package/API stabilization work makes doc-only clarification insufficient.
 
 ## Deferred / Not For This Step
 - Core-library auto-reconnect/state-machine work stays deferred until a real deployment requires it.

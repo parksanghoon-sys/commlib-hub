@@ -88,6 +88,11 @@
   - added default no-op `IConnectionEventSink.OnInboundBackpressure(deviceId, queueCapacity)` so existing sink implementations stay source-compatible
   - taught `ConnectionManager` to emit that callback only when the bounded unsolicited inbound queue actually blocks the receive pump
   - kept the signal intentionally best-effort and once-per-pressure-episode instead of inventing queue-depth metrics or health semantics prematurely
+- Closed the reconnect-contract truthfulness question with the smallest compatibility-safe move:
+  - kept the public names `ReconnectOptions` and `DeviceProfile.Reconnect`
+  - clarified in XML docs that the contract is connect-time transport-open retry only
+  - updated the console sample README so it no longer implies live-session auto-reconnect semantics
+  - deferred any alias or breaking rename until a future stable API/package process actually needs it
 - Re-validated the relevant seams with focused tests:
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "ServiceCollectionExtensionsTests" --no-restore`
