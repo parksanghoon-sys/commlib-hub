@@ -4,7 +4,7 @@ using Xunit;
 namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// bitfield payload schema validator가 payload 길이, overlap, duplicate 조건을 검증하는지 확인합니다.
+/// Verifies that the payload schema validator catches invalid field layouts.
 /// </summary>
 public sealed class BitFieldPayloadSchemaValidatorTests
 {
@@ -59,5 +59,28 @@ public sealed class BitFieldPayloadSchemaValidatorTests
         var exception = Assert.Throws<InvalidOperationException>(() => BitFieldPayloadSchemaValidator.ValidateAndThrow(schema));
 
         Assert.Contains("overlap", exception.Message);
+    }
+
+    [Fact]
+    public void ValidateAndThrow_BigEndianNonByteAlignedField_Throws()
+    {
+        var schema = new BitFieldPayloadSchema
+        {
+            PayloadLengthBytes = 2,
+            Fields = new[]
+            {
+                new BitFieldPayloadField
+                {
+                    Name = "register",
+                    BitOffset = 4,
+                    BitLength = 12,
+                    Endianness = BitFieldEndianness.BigEndian
+                }
+            }
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => BitFieldPayloadSchemaValidator.ValidateAndThrow(schema));
+
+        Assert.Contains("byte-aligned", exception.InnerException?.Message ?? exception.Message);
     }
 }

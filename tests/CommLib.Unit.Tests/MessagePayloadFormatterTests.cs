@@ -32,5 +32,53 @@ public sealed class MessagePayloadFormatterTests
         Assert.Equal(string.Empty, body);
     }
 
+    [Fact]
+    public void TryFormatBitFieldSummary_BigEndianSchemaAtOffset_ReturnsFieldSummary()
+    {
+        var message = new BinaryMessageModel(10, new byte[] { 0xAA, 0x12, 0x34, 0x7F });
+        var schema = new BitFieldPayloadSchema
+        {
+            PayloadLengthBytes = 4,
+            Fields = new[]
+            {
+                new BitFieldPayloadField { Name = "prefix", BitOffset = 0, BitLength = 8 },
+                new BitFieldPayloadField
+                {
+                    Name = "register",
+                    BitOffset = 8,
+                    BitLength = 16,
+                    Endianness = BitFieldEndianness.BigEndian
+                },
+                new BitFieldPayloadField { Name = "tail", BitOffset = 24, BitLength = 8 }
+            }
+        };
+
+        var result = MessagePayloadFormatter.TryFormatBitFieldSummary(message, schema, out var summary, out var error);
+
+        Assert.True(result);
+        Assert.Equal("prefix=170, register=4660, tail=127", summary);
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void TryFormatBitFieldSummary_PayloadLengthMismatch_ReturnsErrorWithoutThrowing()
+    {
+        var message = new BinaryMessageModel(10, new byte[] { 0x12 });
+        var schema = new BitFieldPayloadSchema
+        {
+            PayloadLengthBytes = 2,
+            Fields = new[]
+            {
+                new BitFieldPayloadField { Name = "register", BitOffset = 0, BitLength = 16 }
+            }
+        };
+
+        var result = MessagePayloadFormatter.TryFormatBitFieldSummary(message, schema, out var summary, out var error);
+
+        Assert.False(result);
+        Assert.Null(summary);
+        Assert.Contains("does not match", error);
+    }
+
     private sealed record NoPayloadMessage(ushort MessageId) : IMessage;
 }
