@@ -434,3 +434,58 @@
 - [ ] 실행 중인 `win-x64` WinUI 앱에서 Multicast in-app mock 흐름을 손으로 검증하고, self-echo 중복 로그 UX 설명이 더 필요한지 판단
 - [ ] 실제 마우스 포인터 기준으로 `Device Lab` / `Settings` transport 전환 시 현재 transport 설정만 보이는지, 텍스트 입력 위 휠 스크롤이 자연스러운지 점검
 - [ ] 필요하면 README 또는 UI copy에 `Serial`은 외부 peer 필요, `Multicast`는 단일 머신에서 로그가 중복될 수 있다는 점을 더 분명히 남길지 결정
+
+## 2026-04-10
+
+### 1. 오늘 완료한 일
+- [x] clean runtime-hardening 브랜치 `feat/runtime-hardening-clean-base`에서 프로토콜/세션 런타임 계약 하드닝, bounded unsolicited inbound queue, connect/bootstrap validation, report-based bootstrap 경로를 정리
+- [x] `DeviceProfileValidator`를 `CommLib.Domain.Configuration`으로 이동하고 `ConnectionManager.ConnectAsync()` 경계에서 validation을 강제
+- [x] `DeviceBootstrapper.StartAsync()`는 fail-fast 호환 경로로 유지하고 `StartWithReportAsync()` + `DeviceBootstrapReport` / `DeviceBootstrapFailure`를 추가
+- [x] `ConnectionManager`의 비요청 inbound queue를 bounded queue로 교체하고 `BoundedChannelFullMode.Wait` 기반 backpressure-first 동작을 고정
+- [x] runtime/bootstrap 경계와 관련 테스트의 XML/inline 주석을 한국어로 정리
+- [x] `CommLib.Hosting`에 `CommLibRuntimeOptions`를 추가하고 `AddCommLibCore(Action<CommLibRuntimeOptions>)`로 inbound queue capacity override 경로를 열어 `DeviceProfile`을 넓히지 않고 hosting에서만 조정 가능하게 정리
+- [x] `ServiceCollectionExtensionsTests`를 추가해 hosting 기본값(`256`)과 override wiring을 검증
+- [x] clean branch의 runtime-hardening 커밋 메시지를 한글로 정리하고 draft PR `#5` 제목/본문/리뷰 포인트 코멘트를 갱신
+
+### 2. 오늘 검증한 것
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore` 통과 (`64`개 테스트)
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore` 통과 (`117`개 테스트)
+- [x] `dotnet build commlib-codex-full.sln --no-restore` 통과
+- [x] draft PR `#5`가 `feat/runtime-hardening-clean-base -> main` 기준으로 열려 있고, 한글 제목/본문으로 갱신된 상태 확인
+
+### 3. 다음 할 일
+- [ ] `StartWithReportAsync()`를 `CommLib.Hosting`/DI가 직접 노출할지, 계속 application-level opt-in으로 둘지 결정
+- [ ] bounded inbound queue의 pressure observability를 내부 구현으로 둘지, hosting/runtime signal로 올릴지 결정
+- [ ] diagnostics / health / secure transport 확장은 startup/queue surface 결정 이후로 재평가
+
+### 4. 다음 세션 메모
+- [ ] 현재 clean worktree에는 queue/hosting option slice가 아직 미커밋 상태로 남아 있음
+- [ ] 미커밋 파일: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Hosting/CommLibRuntimeOptions.cs`, `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, `tests/CommLib.Unit.Tests/ServiceCollectionExtensionsTests.cs`, `tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`, `CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`
+- [ ] PR `#5`에는 현재까지 push된 runtime-hardening 커밋은 반영되어 있지만, 이번 queue/hosting option slice는 아직 push되지 않았음
+
+## 2026-04-13
+
+### 1. 오늘 완료한 일
+- [x] `feat/runtime-hardening-clean-base`에서 hosting queue contract 후속으로 queue-pressure signaling 슬라이스를 마무리
+- [x] `IConnectionEventSink`에 기본 no-op `OnInboundBackpressure(deviceId, queueCapacity)`를 추가해 기존 sink 구현을 깨지 않고 pressure episode를 관측할 수 있게 정리
+- [x] `ConnectionManager`가 bounded unsolicited inbound queue 때문에 실제로 block될 때만 pressure callback을 발생시키고, episode당 1회로 제한되도록 정리
+- [x] `ConnectionManagerTests`에 pressure signal 회귀 테스트를 추가해 기존 bounded-queue backpressure 동작과 새 callback 동작을 함께 고정
+- [x] clean runtime branch의 state 파일(`CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`)을 현재 truth에 맞게 갱신
+- [x] runtime clean branch에 `feat(runtime): emit inbound queue pressure events` (`60e91f8`) 커밋을 만들고 원격에 push
+- [x] draft PR `#5` 본문을 현재 runtime-hardening 범위와 queue-pressure signal slice까지 반영하도록 다시 정리
+
+### 2. 오늘 검증한 것
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore` 통과 (`52`개 테스트)
+- [x] `dotnet build commlib-codex-full.sln --no-restore` 통과
+- [x] draft PR `#5`가 `feat/runtime-hardening-clean-base -> main` 기준으로 최신 본문과 함께 열려 있는 상태 확인
+
+### 3. 다음 할 일
+- [ ] `ReconnectOptions` / `DeviceProfile.Reconnect`가 현재 connect-time retry only semantics를 충분히 설명하는지 검토
+- [ ] rename 없이 doc-only clarification으로 충분한지, 아니면 staged alias/deprecation path가 필요한지 결정
+- [ ] richer queue metrics / counters / health semantics는 실제 운영 요구가 생길 때까지 defer 유지
+- [ ] diagnostics / health / secure transport 확장은 reconnect naming truthfulness 정리 이후로 재평가
+
+### 4. 다음 세션 메모
+- [x] runtime clean worktree의 이번 슬라이스는 커밋/푸시까지 끝났고, 남은 미커밋 파일은 `PROGRESS.md` 하나뿐
+- [ ] `feat/runtime-hardening-clean-base`의 다음 current TODO는 reconnect-contract truthfulness 검토
+- [ ] 기존 mixed worktree `feat/runtime-readiness-hardening`는 delivery 브랜치가 아니라 preserved local context로 계속 취급
