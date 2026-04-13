@@ -1,21 +1,21 @@
 # TODOS
 
 ## Current TODOs
-- [ ] Decide whether queue-pressure signaling should become a real hosting/runtime signal.
-  Scope: determine whether bounded unsolicited-inbound pressure should remain implicit backpressure only, or whether `IConnectionEventSink`, hosting options, or a future diagnostics surface should expose it explicitly.
-  Validation: choose the boundary first, then add only the smallest focused coverage for the selected signal path and re-run the relevant unit/infrastructure tests.
+- [ ] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract.
+  Scope: determine whether the current public naming should stay as doc-only clarification, gain a staged alias/deprecation path, or be left for a later breaking rename.
+  Validation: choose the compatibility boundary first, then add only the minimal docs/code/tests needed for the selected path.
 
 ## Deferred Backlog
 
-### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
-- What remains: decide whether the bounded inbound queue should keep pressure visibility internal-only or whether the hosting/runtime surface should expose queue-pressure events, counters, or diagnostics hooks.
-- Why deferred: queue capacity is now configurable through `CommLib.Hosting.CommLibRuntimeOptions`, but no concrete operator or deployment requirement has shown what a useful pressure signal should look like.
-- Objective: avoid inventing a weak or noisy observability contract while keeping a clear path if real deployments need queue-pressure insight.
-- Relevant context: `ConnectionManager` now uses a bounded unsolicited inbound queue with `BoundedChannelFullMode.Wait`, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` can override `InboundQueueCapacity` without widening `DeviceProfile`.
-- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, `src/CommLib.Hosting`, `IConnectionEventSink`, and any docs that describe runtime/hosting options.
-- Current status: queue pressure currently manifests only as transport backpressure; there is no first-class event or diagnostic surface for it.
-- Known blockers/open questions: whether consumers need a metric, log event, callback, health signal, or nothing at all; whether any signal should be best-effort or contractually guaranteed.
-- Most natural next step: gather operator/deployment requirements first, then add only the smallest useful pressure signal to the hosting/runtime surface.
+### [P2_LATER] Consider richer queue-pressure diagnostics only if real deployments need more than the new callback
+- What remains: decide whether queue pressure eventually needs metrics, counters, health reporting, or a stronger contract than the current event-sink callback.
+- Why deferred: the current runtime now emits a best-effort `IConnectionEventSink.OnInboundBackpressure(deviceId, queueCapacity)` signal when the receive pump actually blocks on a full bounded queue, and there is still no concrete operator requirement for more than that.
+- Objective: keep the first queue-pressure observability surface narrow and non-noisy while leaving a clear path if production deployments need stronger telemetry.
+- Relevant context: `ConnectionManager` uses a bounded unsolicited inbound queue with `BoundedChannelFullMode.Wait`, hosting can override `InboundQueueCapacity` through `CommLibRuntimeOptions`, and the new callback intentionally fires once per pressure episode rather than streaming queue-depth metrics.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, `src/CommLib.Infrastructure/Sessions/IConnectionEventSink.cs`, `src/CommLib.Hosting`, and any future diagnostics/health integration docs.
+- Current status: queue pressure is now observable through `IConnectionEventSink`, but there is still no built-in metrics/counters/health surface.
+- Known blockers/open questions: whether operators need queue depth trends versus simple pressure episodes, whether any future signal should be best-effort or guaranteed, and whether such telemetry belongs in core, hosting, or a future integration package.
+- Most natural next step: wait for a concrete deployment/ops requirement, then add only the smallest stronger telemetry contract that requirement justifies.
 
 ### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
 - What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
@@ -78,6 +78,7 @@
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result.
 
 ## Completed
+- [x] 2026-04-13: exposed the first queue-pressure signal without widening hosting/profile contracts by adding a default no-op `IConnectionEventSink.OnInboundBackpressure(deviceId, queueCapacity)` callback and teaching `ConnectionManager` to emit it once per pressure episode when the bounded unsolicited inbound queue actually blocks the receive pump; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore` and `dotnet build commlib-codex-full.sln --no-restore`.
 - [x] 2026-04-13: reviewed whether hosting/DI should surface `DeviceBootstrapper.StartWithReportAsync()` as a new bootstrap contract, decided to keep it as an application-level opt-in because `AddCommLibCore()` already registers `DeviceBootstrapper` for explicit DI resolution, and re-validated the relevant seams with focused `ConnectionManagerTests`, `ServiceCollectionExtensionsTests`, and `DeviceBootstrapperTests`.
 - [x] 2026-04-10: exposed inbound queue capacity through `CommLib.Hosting.CommLibRuntimeOptions`, kept `AddCommLibCore()` backward compatible while adding an override overload, added a thin public `ConnectionManager` constructor for hosting-only queue sizing, and verified the default/override wiring with focused unit tests.
 - [x] 2026-04-10: reviewed the latest runtime-hardening paths and rewrote Korean XML/inline comments in `DeviceBootstrapper`, `DeviceBootstrapReport`, `DeviceBootstrapFailure`, `DeviceProfileValidator`, `ConnectionManager`, and the changed bootstrap/connection tests; verified with `dotnet build commlib-codex-full.sln --no-restore`.

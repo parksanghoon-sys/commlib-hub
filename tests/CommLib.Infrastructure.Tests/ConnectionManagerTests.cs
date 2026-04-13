@@ -320,6 +320,45 @@ public sealed class ConnectionManagerTests
         Assert.Equal((ushort)43, third.MessageId);
     }
 
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_EmitsBackpressureSignalOncePerPressureEpisode()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var eventSink = new RecordingConnectionEventSink();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            eventSink: eventSink,
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+
+        _ = await manager.ReceiveAsync(profile.DeviceId);
+
+        await WaitForAsync(
+            () => eventSink.Events.Count(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)) == 2);
+
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1",
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+    }
+
     /// <summary>
     /// transport 수신 응답 메시지는 pending 요청 완료까지 연결되는지 확인합니다.
     /// </summary>
@@ -1596,6 +1635,11 @@ public sealed class ConnectionManagerTests
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
             Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
+        }
+
+        public void OnInboundBackpressure(string deviceId, int queueCapacity)
+        {
+            Events.Add($"backpressure:{deviceId}:{queueCapacity}");
         }
     }
 

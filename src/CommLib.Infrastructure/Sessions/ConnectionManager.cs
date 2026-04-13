@@ -359,7 +359,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
                 }
 
                 // 큐가 가득 차면 writer가 대기하므로 추가 transport 수신도 함께 backpressure를 받습니다.
-                await inboundWriter.WriteAsync(new InboundEnvelope(message, null), cancellationToken).ConfigureAwait(false);
+                await WriteInboundEnvelopeAsync(
+                        deviceId,
+                        state,
+                        inboundWriter,
+                        new InboundEnvelope(message, null),
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -383,6 +389,43 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         {
             inboundWriter.TryComplete();
         }
+    }
+
+    private async Task WriteInboundEnvelopeAsync(
+        string deviceId,
+        DeviceConnectionState state,
+        ChannelWriter<InboundEnvelope> inboundWriter,
+        InboundEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        if (inboundWriter.TryWrite(envelope))
+        {
+            return;
+        }
+
+        SignalInboundBackpressure(deviceId, state);
+
+        try
+        {
+            // queue가 꽉 찬 동안에는 receive pump가 여기서 대기하고,
+            // 그만큼 추가 transport 수신도 자연스럽게 backpressure를 받습니다.
+            await inboundWriter.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            state.InboundBackpressureSignaled = false;
+        }
+    }
+
+    private void SignalInboundBackpressure(string deviceId, DeviceConnectionState state)
+    {
+        if (state.InboundBackpressureSignaled)
+        {
+            return;
+        }
+
+        state.InboundBackpressureSignaled = true;
+        _eventSink.OnInboundBackpressure(deviceId, _inboundQueueCapacity);
     }
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
@@ -433,6 +476,8 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         public Task ReceivePumpTask { get; set; } = Task.CompletedTask;
 
         public volatile Exception? ReceivePumpFailure;
+
+        public bool InboundBackpressureSignaled { get; set; }
     }
 
     private static void DropPendingInbound(Channel<InboundEnvelope> inboundQueue)

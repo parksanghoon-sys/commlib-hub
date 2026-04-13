@@ -84,7 +84,14 @@
   - confirmed `AddCommLibCore()` already registers `DeviceBootstrapper`, so DI callers can explicitly resolve it and choose `StartAsync()` or `StartWithReportAsync()` today
   - decided not to add a hosted-service wrapper or alternate hosting bootstrap abstraction yet because that would also force lifecycle/reporting semantics the repo has not proven
   - promoted queue-pressure signaling to the next current TODO instead of inventing more bootstrap surface area
+- Landed the first queue-pressure observability slice without widening profile/hosting configuration:
+  - added default no-op `IConnectionEventSink.OnInboundBackpressure(deviceId, queueCapacity)` so existing sink implementations stay source-compatible
+  - taught `ConnectionManager` to emit that callback only when the bounded unsolicited inbound queue actually blocks the receive pump
+  - kept the signal intentionally best-effort and once-per-pressure-episode instead of inventing queue-depth metrics or health semantics prematurely
 - Re-validated the relevant seams with focused tests:
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "ServiceCollectionExtensionsTests" --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "DeviceBootstrapperTests" --no-restore`
+- Verified the queue-pressure signal slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`

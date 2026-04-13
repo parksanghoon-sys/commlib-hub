@@ -132,6 +132,12 @@
 - Why: this is the smallest structurally correct way to make queue sizing adjustable per deployment environment without pretending queue pressure already has a well-designed public observability contract.
 - Consequences: hosting callers can now tune inbound queue capacity without touching per-device configuration, the core runtime remains honest about its backpressure-first behavior, and any future pressure signal must be designed as an explicit follow-up instead of leaking out accidentally.
 
+## 2026-04-13 - Expose queue-pressure as a best-effort event-sink callback, not a broader metrics contract
+- Context: once hosting could override `InboundQueueCapacity`, queue pressure was no longer purely an internal implementation detail. The next open question was whether to keep pressure fully implicit, add a callback, or widen immediately into metrics/counters/health semantics.
+- Decision: extend `IConnectionEventSink` with a default no-op `OnInboundBackpressure(deviceId, queueCapacity)` member and have `ConnectionManager` emit it when the bounded unsolicited inbound queue actually blocks the receive pump. Keep the signal best-effort and once-per-pressure-episode; do not add queue-depth metrics, health status, or more hosting/profile options yet.
+- Why: this is the smallest structurally correct observability step that makes pressure visible to real adopters without creating a noisy or overcommitted telemetry contract before operator requirements are known.
+- Consequences: existing sink implementations stay source-compatible, hosting/profile contracts stay unchanged, queue pressure is now observable through the existing callback seam, and richer telemetry remains an explicit later decision instead of accidental scope creep.
+
 ## 2026-04-13 - Keep report-based bootstrap as an application-level opt-in, not a new hosting contract
 - Context: after queue sizing became configurable through `CommLib.Hosting`, the next open question was whether hosting/DI should also add a new wrapper, hosted service, or alternate entry point for `DeviceBootstrapper.StartWithReportAsync()`. The current registration already exposes `DeviceBootstrapper` through `AddCommLibCore()`.
 - Decision: keep `StartWithReportAsync()` as an application-level opt-in for now. Do not add a new hosting wrapper or hosted bootstrap abstraction yet; callers that need partial-startup reporting can resolve `DeviceBootstrapper` from DI and call the report-based path explicitly.

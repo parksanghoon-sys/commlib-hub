@@ -6,6 +6,7 @@
 ## Current Scope
 - Keep the runtime-hardening delivery on a clean branch rooted in `commlib-hub/main`
 - Land runtime hardening one safe slice at a time without carrying the raw-hex/bitfield branch lineage
+- Treat reconnect-contract truthfulness as the next narrow runtime slice
 
 ## Confirmed State
 - `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
@@ -32,6 +33,7 @@
 - The first queue-capacity slice keeps capacity internal (`256`) and proves blocked-writer disconnect/reconnect cleanup through infrastructure tests.
 - `CommLib.Hosting` now exposes `CommLibRuntimeOptions` so hosting callers can override `InboundQueueCapacity` without widening `DeviceProfile`.
 - `AddCommLibCore()` keeps the default runtime path, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` now passes queue capacity into the resolved `ConnectionManager`.
+- `IConnectionEventSink` now exposes a default no-op `OnInboundBackpressure(deviceId, queueCapacity)` callback, and `ConnectionManager` emits it when the bounded inbound queue actually blocks the receive pump.
 - `DeviceProfileValidator` now lives in `CommLib.Domain.Configuration` so validation can be enforced at runtime boundaries without adding an infrastructure-to-application dependency.
 - `ConnectionManager.ConnectAsync()` now validates profiles before runtime factories or transport-open work starts.
 - `DeviceBootstrapper.StartAsync()` remains fail-fast for compatibility, but now validates before connect-time side effects, and `StartWithReportAsync()` provides an explicit continue-and-report startup path.
@@ -44,14 +46,14 @@
   - `ConnectionManagerTests`
   - `ServiceCollectionExtensionsTests`
   - `DeviceBootstrapperTests`
-- The next meaningful blockers are queue-pressure observability, reconnect-contract truthfulness, and the still-thin hosting/ops/security surface.
+- The next meaningful blockers are reconnect-contract truthfulness, richer queue-pressure diagnostics only if a real deployment needs more than the new event-sink callback, and the still-thin hosting/ops/security surface.
 
 ## Next Work Unit
-1. Decide whether queue-pressure signaling should remain internal or become a real hosting/runtime signal now that queue capacity is configurable.
-2. Revisit reconnect-contract naming cleanup vs. queue-pressure signaling as the next truthfulness/operability slice.
-3. Revisit hosting diagnostics, health, and secure transport concerns once queue-observability expectations are explicit.
+1. Decide whether `ReconnectOptions` needs a clearer connect-time retry contract or a staged compatibility path.
+2. Keep queue-pressure signaling on the current best-effort `IConnectionEventSink` callback unless deployments prove they need richer metrics/counters.
+3. Revisit hosting diagnostics, health, and secure transport concerns once reconnect-contract truthfulness is explicit.
 
 ## Deferred / Not For This Step
 - Core-library auto-reconnect/state-machine work stays deferred until a real deployment requires it.
-- `ReconnectOptions` naming cleanup stays behind the first memory/startup hardening slices.
+- Richer queue-pressure metrics, counters, or health semantics stay deferred until a concrete operator requirement appears.
 - A new framing family for CRC or STX/ETX stays deferred until a concrete device contract requires it.
