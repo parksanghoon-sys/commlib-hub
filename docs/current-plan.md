@@ -1,7 +1,7 @@
 # Current Plan
 
 ## Date
-- 2026-04-10
+- 2026-04-13
 
 ## Current Scope
 - Keep the runtime-hardening delivery on a clean branch rooted in `commlib-hub/main`
@@ -30,6 +30,8 @@
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
 - `ConnectionManager` now also uses a bounded unsolicited inbound queue with backpressure-first full behavior instead of an unbounded queue.
 - The first queue-capacity slice keeps capacity internal (`256`) and proves blocked-writer disconnect/reconnect cleanup through infrastructure tests.
+- `CommLib.Hosting` now exposes `CommLibRuntimeOptions` so hosting callers can override `InboundQueueCapacity` without widening `DeviceProfile`.
+- `AddCommLibCore()` keeps the default runtime path, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` now passes queue capacity into the resolved `ConnectionManager`.
 - `DeviceProfileValidator` now lives in `CommLib.Domain.Configuration` so validation can be enforced at runtime boundaries without adding an infrastructure-to-application dependency.
 - `ConnectionManager.ConnectAsync()` now validates profiles before runtime factories or transport-open work starts.
 - `DeviceBootstrapper.StartAsync()` remains fail-fast for compatibility, but now validates before connect-time side effects, and `StartWithReportAsync()` provides an explicit continue-and-report startup path.
@@ -37,12 +39,17 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
-- The next meaningful blockers are the queue contract surface, whether hosting should surface report-based bootstrap, and the still-thin hosting/ops/security surface.
+- `DeviceBootstrapper` is already registered through `AddCommLibCore()`, so callers can resolve it from DI and choose `StartAsync()` or `StartWithReportAsync()` directly without a new hosting wrapper.
+- Focused verification on 2026-04-13 also completed with:
+  - `ConnectionManagerTests`
+  - `ServiceCollectionExtensionsTests`
+  - `DeviceBootstrapperTests`
+- The next meaningful blockers are queue-pressure observability, reconnect-contract truthfulness, and the still-thin hosting/ops/security surface.
 
 ## Next Work Unit
-1. Decide whether inbound queue capacity and queue-pressure signaling should remain internal defaults or become real runtime options now that the bootstrap contract is explicit.
-2. Decide whether hosting/DI should surface the new `StartWithReportAsync()` partial-startup path or keep it application-level.
-3. Revisit hosting diagnostics, health, and secure transport concerns once queue and startup surfaces are explicit.
+1. Decide whether queue-pressure signaling should remain internal or become a real hosting/runtime signal now that queue capacity is configurable.
+2. Revisit reconnect-contract naming cleanup vs. queue-pressure signaling as the next truthfulness/operability slice.
+3. Revisit hosting diagnostics, health, and secure transport concerns once queue-observability expectations are explicit.
 
 ## Deferred / Not For This Step
 - Core-library auto-reconnect/state-machine work stays deferred until a real deployment requires it.

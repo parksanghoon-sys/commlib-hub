@@ -1,21 +1,21 @@
 # TODOS
 
 ## Current TODOs
-- [ ] Decide whether inbound queue capacity and pressure signaling should become explicit runtime options.
-  Scope: decide whether `ConnectionManager`'s bounded unsolicited inbound queue should keep the current internal default (`256` + `BoundedChannelFullMode.Wait`) or expose queue sizing and/or queue-pressure visibility through hosting/runtime contracts.
-  Validation: if the decision changes public/runtime surface area, add focused infrastructure/unit coverage for the chosen option path and re-run `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [ ] Decide whether queue-pressure signaling should become a real hosting/runtime signal.
+  Scope: determine whether bounded unsolicited-inbound pressure should remain implicit backpressure only, or whether `IConnectionEventSink`, hosting options, or a future diagnostics surface should expose it explicitly.
+  Validation: choose the boundary first, then add only the smallest focused coverage for the selected signal path and re-run the relevant unit/infrastructure tests.
 
 ## Deferred Backlog
 
-### [P1_SOON] Decide whether hosting/bootstrap layers should expose the report-based startup path
-- What remains: decide whether the new `DeviceBootstrapper.StartWithReportAsync()` path should stay as an application-level opt-in or whether `CommLib.Hosting` and related DI/bootstrap conventions should expose/report partial-startup results directly.
-- Why deferred: the runtime boundary and bootstrap semantics are now explicit, but no current hosting entry point consumes or returns the richer bootstrap report yet.
-- Objective: keep startup behavior explicit for adopters without widening the hosting surface unnecessarily.
-- Relevant context: `StartAsync()` remains fail-fast for compatibility, while `StartWithReportAsync()` continues across enabled profiles and returns `DeviceBootstrapReport` / `DeviceBootstrapFailure`; invalid profiles now fail before runtime factories run because validation moved into `CommLib.Domain.Configuration.DeviceProfileValidator`.
-- Scope: `src/CommLib.Application/Bootstrap`, `src/CommLib.Hosting`, example startup flows, and any docs that describe startup semantics.
-- Current status: application callers can opt into partial-startup reporting now, but hosting conventions still only imply the legacy fail-fast path.
-- Known blockers/open questions: whether the hosting package should return a report, log/report failures through existing sinks, or deliberately stay thin and leave startup policy to application composition.
-- Most natural next step: finish the queue contract decision first, then revisit whether there is enough real hosting value to justify widening bootstrap APIs.
+### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
+- What remains: decide whether the bounded inbound queue should keep pressure visibility internal-only or whether the hosting/runtime surface should expose queue-pressure events, counters, or diagnostics hooks.
+- Why deferred: queue capacity is now configurable through `CommLib.Hosting.CommLibRuntimeOptions`, but no concrete operator or deployment requirement has shown what a useful pressure signal should look like.
+- Objective: avoid inventing a weak or noisy observability contract while keeping a clear path if real deployments need queue-pressure insight.
+- Relevant context: `ConnectionManager` now uses a bounded unsolicited inbound queue with `BoundedChannelFullMode.Wait`, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` can override `InboundQueueCapacity` without widening `DeviceProfile`.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, `src/CommLib.Hosting`, `IConnectionEventSink`, and any docs that describe runtime/hosting options.
+- Current status: queue pressure currently manifests only as transport backpressure; there is no first-class event or diagnostic surface for it.
+- Known blockers/open questions: whether consumers need a metric, log event, callback, health signal, or nothing at all; whether any signal should be best-effort or contractually guaranteed.
+- Most natural next step: gather operator/deployment requirements first, then add only the smallest useful pressure signal to the hosting/runtime surface.
 
 ### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
 - What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
@@ -78,6 +78,8 @@
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result.
 
 ## Completed
+- [x] 2026-04-13: reviewed whether hosting/DI should surface `DeviceBootstrapper.StartWithReportAsync()` as a new bootstrap contract, decided to keep it as an application-level opt-in because `AddCommLibCore()` already registers `DeviceBootstrapper` for explicit DI resolution, and re-validated the relevant seams with focused `ConnectionManagerTests`, `ServiceCollectionExtensionsTests`, and `DeviceBootstrapperTests`.
+- [x] 2026-04-10: exposed inbound queue capacity through `CommLib.Hosting.CommLibRuntimeOptions`, kept `AddCommLibCore()` backward compatible while adding an override overload, added a thin public `ConnectionManager` constructor for hosting-only queue sizing, and verified the default/override wiring with focused unit tests.
 - [x] 2026-04-10: reviewed the latest runtime-hardening paths and rewrote Korean XML/inline comments in `DeviceBootstrapper`, `DeviceBootstrapReport`, `DeviceBootstrapFailure`, `DeviceProfileValidator`, `ConnectionManager`, and the changed bootstrap/connection tests; verified with `dotnet build commlib-codex-full.sln --no-restore`.
 - [x] 2026-04-10: moved `DeviceProfileValidator` into `CommLib.Domain.Configuration`, enforced profile validation at the `ConnectionManager.ConnectAsync()` boundary before runtime factory/open work, kept `DeviceBootstrapper.StartAsync()` as the fail-fast compatibility path, and added `StartWithReportAsync()` plus `DeviceBootstrapReport` / `DeviceBootstrapFailure` for continue-and-report startup; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
 - [x] 2026-04-10: replaced `ConnectionManager`'s unbounded unsolicited inbound queue with a bounded queue using backpressure-first full behavior, kept the first capacity choice internal (`256`), and added infrastructure coverage proving transport backpressure plus blocked-writer disconnect/reconnect cleanup; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.

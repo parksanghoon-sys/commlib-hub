@@ -35,6 +35,15 @@
 
 ## 2026-04-10
 
+- Landed the first queue/hosting contract slice:
+  - added `CommLib.Hosting.CommLibRuntimeOptions` with `InboundQueueCapacity`
+  - kept `AddCommLibCore()` backward compatible and added `AddCommLibCore(Action<CommLibRuntimeOptions>)` for hosting-level queue sizing
+  - added a thin public `ConnectionManager` constructor overload so the hosting layer can pass inbound queue capacity without widening `DeviceProfile`
+- Added focused unit coverage proving:
+  - the default hosting registration keeps inbound queue capacity at `256`
+  - a hosting override propagates the configured capacity into the resolved connection manager
+- Verified the slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
 - Landed the bounded unsolicited-inbound slice in `ConnectionManager`:
   - replaced the unbounded per-device inbound queue with a bounded queue
   - chose backpressure-first full behavior (`BoundedChannelFullMode.Wait`) for the first slice
@@ -68,3 +77,14 @@
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
 - One parallel test invocation hit a transient `CommLib.Domain.dll` file-lock issue; a sequential rerun of the same validation commands passed cleanly.
+
+## 2026-04-13
+
+- Reviewed the next hosting/bootstrap question instead of widening the hosting surface by reflex:
+  - confirmed `AddCommLibCore()` already registers `DeviceBootstrapper`, so DI callers can explicitly resolve it and choose `StartAsync()` or `StartWithReportAsync()` today
+  - decided not to add a hosted-service wrapper or alternate hosting bootstrap abstraction yet because that would also force lifecycle/reporting semantics the repo has not proven
+  - promoted queue-pressure signaling to the next current TODO instead of inventing more bootstrap surface area
+- Re-validated the relevant seams with focused tests:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "ServiceCollectionExtensionsTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "DeviceBootstrapperTests" --no-restore`

@@ -1,9 +1,9 @@
 # Current Plan
 
-Date: 2026-04-10
+Date: 2026-04-13
 
 ## Goal
-Continue production-readiness hardening on the clean branch, with bounded unsolicited inbound buffering plus explicit connect/bootstrap validation semantics now landed and the next safe slice narrowed to queue/hosting contract decisions.
+Continue production-readiness hardening on the clean branch, with bounded unsolicited inbound buffering, explicit connect/bootstrap validation semantics, and the first hosting-level queue contract already landed while report-based bootstrap remains an application-level opt-in.
 
 ## Confirmed Facts
 - The repository continuity rules currently point at `AGENT.md`; a root `AGENT_RULES.md` file is not present.
@@ -33,22 +33,33 @@ Continue production-readiness hardening on the clean branch, with bounded unsoli
   - `DeviceBootstrapper.StartAsync()` remains the compatibility fail-fast path, but now validates each enabled profile before any runtime side effects start.
   - `DeviceBootstrapper.StartWithReportAsync()` now provides an explicit continue-and-report bootstrap path via `DeviceBootstrapReport` and `DeviceBootstrapFailure`.
   - focused unit/infrastructure tests now prove invalid profiles fail before runtime factories run and that mixed validation/connect failures still produce a usable aggregate bootstrap report.
+- The queue/hosting contract slice landed on 2026-04-10:
+  - `CommLib.Hosting` now exposes `CommLibRuntimeOptions` with `InboundQueueCapacity`.
+  - `AddCommLibCore()` keeps the old default path, while `AddCommLibCore(Action<CommLibRuntimeOptions>)` now lets hosting callers override inbound queue capacity without widening `DeviceProfile`.
+  - `ConnectionManager` now has a thin public constructor overload so the hosting layer can pass inbound queue capacity without relying on internal-only seams.
+  - focused unit tests now prove the hosting registration uses the default capacity (`256`) and propagates an override into the resolved connection manager.
+- The report-based bootstrap review completed on 2026-04-13:
+  - `AddCommLibCore()` already registers `DeviceBootstrapper`, so DI callers can explicitly resolve it and choose `StartAsync()` or `StartWithReportAsync()` today.
+  - no extra hosting wrapper or hosted bootstrap abstraction is justified yet because that would also choose lifecycle/reporting semantics the repo still has not proven.
+  - the richer bootstrap report path therefore stays an application-level opt-in for now rather than a new hosting contract.
 - Latest verification for the clean runtime-hardening branch completed with:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
+- Focused verification completed on 2026-04-13:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "ServiceCollectionExtensionsTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "DeviceBootstrapperTests" --no-restore`
 - The next production-readiness blockers remain:
-  - inbound queue capacity and pressure observability are still internal-only defaults rather than an explicit public/runtime contract
-  - the richer bootstrap report path is application-level only and is not yet surfaced through hosting/DI conventions
+  - inbound queue capacity is now configurable through hosting, but queue-pressure observability is still internal-only
   - intentionally thin hosting / observability / secure-transport surface
 
 ## Next Work Unit
-1. Decide whether inbound queue capacity and pressure signaling should stay internal or become a real hosting/runtime option now that startup semantics are explicit.
-2. Decide whether hosting/DI should expose the new `StartWithReportAsync()` partial-startup path or keep it as an application-level opt-in.
-3. Revisit hosting diagnostics, health, and secure transport options only after queue and startup surface decisions are explicit.
+1. Decide whether queue-pressure observability should stay internal or grow into a first-class hosting/runtime signal now that queue sizing is configurable.
+2. Revisit whether reconnect-contract naming cleanup or queue-pressure signaling is the clearer next truthfulness/operability slice.
+3. Revisit hosting diagnostics, health, and secure transport options only after queue-pressure observability expectations are explicit.
 
 ## Stop / Reassess Conditions
-- If making queue sizing public starts to widen `DeviceProfile` without a concrete deployment need, prefer a hosting/runtime option or keep the current internal default.
-- If surfacing `StartWithReportAsync()` through hosting starts to imply a larger bootstrap orchestration redesign, keep the current explicit application-level path and defer the wider hosting shape.
-- If real device traffic or operator feedback shows `256` is not a defensible default inbound capacity, revisit whether queue sizing or pressure events need a first-class runtime option rather than silently tuning a private constant.
+- If exposing more queue controls starts to widen `DeviceProfile` without a concrete deployment need, keep the contract in `CommLib.Hosting`.
+- If real device traffic or operator feedback shows `256` is not a defensible default inbound capacity, revisit the hosting default and whether pressure events need a first-class runtime signal rather than silently tuning a private constant.
 - If later delivery cleanup would require force-pushing review history, prefer a replacement branch/PR over rewriting a branch that is already under review.
