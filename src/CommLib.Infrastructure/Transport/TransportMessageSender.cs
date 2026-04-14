@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Transport;
 using CommLib.Infrastructure.Protocol;
 
@@ -9,7 +9,13 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class TransportMessageSender
 {
+    /// <summary>
+    /// _frameEncoder 값을 나타냅니다.
+    /// </summary>
     private readonly MessageFrameEncoder _frameEncoder;
+    /// <summary>
+    /// _transport 값을 나타냅니다.
+    /// </summary>
     private readonly ITransport _transport;
 
     /// <summary>

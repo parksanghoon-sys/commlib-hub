@@ -83,3 +83,63 @@
 - Decision: add the package version once in `Directory.Packages.props`, then reference it only from `CommLib.Unit.Tests` and `CommLib.Infrastructure.Tests` with `PrivateAssets=all`.
 - Why: this matches the package's actual execution model, keeps non-test projects free of irrelevant dependencies, and still gives the repo-wide coverage behavior the user is aiming for because all executable tests now support `--collect:"XPlat Code Coverage"`.
 - Consequences: future coverage collection commands should run at the test-project or solution test layer; if new test projects are added later, they should opt into `coverlet.collector` the same way.
+
+## 2026-04-03 - Use `gh` CLI fallback when the GitHub connector cannot create the PR
+- Context: after the branch was pushed, the GitHub connector's pull-request creation call returned `403 Resource not accessible by integration` for `parksanghoon-sys/commlib-hub`.
+- Decision: keep the connector as the preferred path, but fall back to authenticated `gh` CLI PR creation when connector permissions block the operation.
+- Why: this preserves the intended publish flow without stalling on integration-scope limitations that are outside the repository code itself.
+- Consequences: future publish steps can still complete end-to-end from this environment as long as `gh` remains installed and authenticated, even if connector PR-creation permissions stay limited.
+
+## 2026-04-06 - Put raw hex/bitfield payload support in the serializer/composer path, not the transport or framing layer
+- Context: a follow-up design request asked whether the project can support payloads expressed as raw hex and messages whose semantics live in byte/bit fields. The current codebase already separates `IProtocol` frame-boundary work from `ISerializer` payload shaping, and the WinUI example still composes outbound data as a plain-text body.
+- Decision: if this capability is implemented, keep `IProtocol` focused on frame extraction/encoding and add the new behavior under serializer/payload-codec plus message-composer/UI configuration layers.
+- Why: bitfield semantics belong to payload interpretation, not to transport or frame boundaries, and reusing the existing protocol/session pipeline is the smallest structurally correct change.
+- Consequences: the first implementation slice should target raw-hex payload roundtrips with focused serializer/factory/UI changes; declarative bitfield schema mapping should be added only after that smaller path is validated.
+
+## 2026-04-06 - Prefer a reusable binary-payload seam over a one-off `RawHex` serializer bolt-on
+- Context: a second design review found that adding only `RawHex` to the current `SerializerFactory` would work for one immediate use case, but the surrounding seams are still too closed: `SerializerOptions` and `ProtocolOptions` are flat classes, the factories are hard-coded switches, and most example/logging paths still assume `string Body`.
+- Decision: keep the overall work in the serializer/composer layer, but shape it around a reusable binary payload representation plus cleaner typed/polymorphic serializer and protocol options rather than a single special-case serializer.
+- Why: this gives the project a path for raw hex, future bitfield schema mapping, and additional device-specific codecs without repeatedly changing the same central classes and WinUI assumptions.
+- Consequences: the next implementation plan should likely start with option-model/factory seam cleanup plus a raw-binary message/formatter path, then add the first raw-hex codec on top of that seam.
+
+## 2026-04-06 - Start the raw-hex implementation with binary message contracts and a bridge serializer before WinUI compose-mode UI
+- Context: the user asked to continue implementation from the raw hex / bitfield design, but the current codebase still assumed text bodies in message models and display/logging paths. Jumping straight to WinUI mode selection without a binary-capable core contract would have pushed more serializer-specific branching into the app layer.
+- Decision: implement the first TDD slice as new binary-capable message contracts (`IBinaryMessagePayload` plus binary message models), a shared `MessagePayloadFormatter`, and a `RawHexSerializer` that can bridge both direct binary payloads and the current hex-text compose input style.
+- Why: this is the smallest structurally correct slice that unlocks raw payload roundtrips, keeps transport/protocol untouched, and gives the next WinUI step a real backend contract instead of a UI-only toggle with no binary message foundation.
+- Consequences: binary inbound payloads can now render safely in logs and examples, `SerializerFactory` can create `RawHex`, and the next step should focus on explicit WinUI composer/settings wiring plus end-to-end manual validation; schema-driven bitfield mapping remains deferred.
+
+## 2026-04-06 - Keep serializer choice fixed for the active session and treat mid-session selector edits as next-session changes
+- Context: the WinUI example now persists and exposes serializer choice, but `ConnectionManager` still creates the active serializer only during `ConnectAsync`. Letting the send path immediately obey a changed selector while connected would desynchronize UI composition from the already-open session serializer.
+- Decision: capture the serializer type from the connected `DeviceProfile` and compose outbound messages against that active serializer for the lifetime of the session. If the user changes the serializer selector while still connected, the new choice is stored for the next connect rather than mutating the live session behavior.
+- Why: this preserves protocol correctness with the smallest safe change and avoids pretending the session's framing/serialization contract can be hot-swapped after connection without a deliberate reconnect boundary.
+- Consequences: current sends stay aligned with the live session serializer, while a future UX refinement may still choose to disable the serializer selector during connection or surface a clearer "applies on next session" hint if operators find the current behavior ambiguous.
+
+## 2026-04-06 - Rotate raw-hex work onto its own feature branch instead of continuing on the merged WinUI branch
+- Context: the earlier WinUI localization/device-lab work was already merged through PR `#3`, but raw-hex serializer/composer development had started locally while still on `feat/winui-localization-foundation`.
+- Decision: move the ongoing raw-hex work onto `feat/rawhex-compose-flow` and continue future changes there.
+- Why: once the work expanded into a new feature area, keeping it on the old merged branch would blur scope, history, and review boundaries.
+- Consequences: future raw-hex and later bitfield-adjacent work should continue from the dedicated branch lineage unless a new feature split justifies another branch rotation.
+
+## 2026-04-06 - Keep WinUI async command continuations on the UI context when they update observable state
+- Context: during the live raw-hex TCP WinUI validation, connection succeeded and logs updated, but buttons such as `Send` remained disabled. The WinUI `MainViewModel` command handlers and `SettingsViewModel` save/reload handlers were awaiting service/store calls with `ConfigureAwait(false)` and then mutating observable properties/command state.
+- Decision: in WinUI command handlers that update observable UI state after awaiting, do not use `ConfigureAwait(false)`; let the continuation resume on the captured UI context.
+- Why: the WinUI layer owns button/status/property updates, and resuming those continuations off the UI context creates command-enable/state propagation bugs even when the underlying operation succeeded.
+- Consequences: service/infrastructure layers can still use `ConfigureAwait(false)` freely, but UI-facing command handlers should keep their post-await state changes on the UI context unless they explicitly marshal back through the dispatcher.
+
+## 2026-04-06 - Start bitfield support with an LSB-first payload convention and a low-level field codec
+- Context: the next requested direction after raw-hex validation was to begin thinking in bit units, but the repo still lacked even a minimal shared definition for named bit ranges or a proven read/write seam above raw payload bytes.
+- Decision: start with `BitFieldDefinition` plus `BitFieldCodec`, using the convention that `payload[0]` LSB is bit `0`. Support unsigned reads, signed reads via sign extension, and unsigned in-place writes up to 64 bits in this first slice.
+- Why: this is the smallest structurally correct foundation that can support future schema-backed compose/inspect work without dragging transport/protocol changes, UI schema editing, or multiple competing bit-numbering semantics into the first implementation.
+- Consequences: future schema-backed layers can reuse one proven low-level bit-addressing rule immediately, while alternate bit numbering and richer value types remain explicit follow-up decisions instead of implicit assumptions.
+
+## 2026-04-07 - Model the first schema-backed bitfield layer as payload metadata above `RawHex`, not as a new transport/protocol concern
+- Context: after the low-level `BitFieldDefinition` / `BitFieldCodec` slice landed, the repo still lacked a reusable schema model, schema validation, and a settings seam that could carry those definitions without widening into a WinUI schema editor or a transport rewrite.
+- Decision: add `BitFieldPayloadSchema` plus `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldPayloadSchemaValidator`, and `BitFieldPayloadSchemaCodec` above the low-level codec, expose that schema through optional `SerializerOptions.BitFieldSchema`, and treat schema usage as valid only with `RawHex` in the current validator. Use `decimal` for compose assignments and inspect results so the first schema API can cover the full signed and unsigned 64-bit scalar range without introducing a heavier numeric abstraction yet.
+- Why: this is the smallest structurally correct way to create a reusable schema-backed compose/inspect seam that stays in the serializer/composer layer, keeps configuration binding straightforward, and avoids mixing schema semantics into transport or frame-boundary code.
+- Consequences: the project now has a config-friendly payload schema model and a validated compose/inspect helper that future UI or config-backed consumers can reuse directly; the next slice should choose one real consumer of `SerializerOptions.BitFieldSchema` before any broader typed serializer-options refactor or WinUI schema-editor work.
+
+## 2026-04-14 - Refresh local `main` through one temporary integration branch instead of merging the old mixed branch directly
+- Context: the original mixed branch was not a safe delivery vehicle because it blended earlier raw-hex/bitfield history, runtime hardening work, and the later 2026-04-14 maintenance/docs commits. The user explicitly asked to merge to `main` once and restart cleanly.
+- Decision: create `integration/main-refresh-20260414` from `commlib-hub/main`, merge the already-clean feature/runtime branches there, cherry-pick the new 2026-04-14 work-unit commits on top, and use that single integration branch as the source for refreshing local `main`.
+- Why: this preserves narrow work-unit commits, avoids reusing the dirty mixed branch as a delivery line, and gives the requested one-time `main` merge without discarding already split review lines.
+- Consequences: refreshed `main` becomes the new baseline, and the next implementation should start from a fresh branch whose only scope is the remaining `DeviceSession` timeout-cancellation cleanup.

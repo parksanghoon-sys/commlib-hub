@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
@@ -10,6 +10,9 @@ namespace CommLib.Infrastructure.Protocol;
 /// </summary>
 public sealed class NoOpSerializer : ISerializer
 {
+    /// <summary>
+    /// Separator 상수입니다.
+    /// </summary>
     private const char Separator = '|';
 
     /// <summary>
@@ -76,6 +79,9 @@ public sealed class NoOpSerializer : ISerializer
         };
     }
 
+    /// <summary>
+    /// TryEncodeBody 작업을 수행합니다.
+    /// </summary>
     private static string TryEncodeBody(IMessage message)
     {
         if (message is not IMessageBody bodyMessage)
@@ -86,6 +92,9 @@ public sealed class NoOpSerializer : ISerializer
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(bodyMessage.Body));
     }
 
+    /// <summary>
+    /// TryParseBody 작업을 수행합니다.
+    /// </summary>
     private static bool TryParseBody(string[] parts, int index, out string body)
     {
         if (parts.Length <= index)
@@ -112,11 +121,17 @@ public sealed class NoOpSerializer : ISerializer
         }
     }
 
+    /// <summary>
+    /// TryParseCorrelationId 작업을 수행합니다.
+    /// </summary>
     private static bool TryParseCorrelationId(string text, out Guid correlationId)
     {
         return Guid.TryParseExact(text, "D", out correlationId);
     }
 
+    /// <summary>
+    /// TryParseSuccess 작업을 수행합니다.
+    /// </summary>
     private static bool TryParseSuccess(string text, out bool isSuccess)
     {
         if (text == "1")

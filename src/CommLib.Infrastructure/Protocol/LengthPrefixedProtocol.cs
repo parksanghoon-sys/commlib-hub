@@ -1,14 +1,44 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using CommLib.Domain.Protocol;
 
 namespace CommLib.Infrastructure.Protocol;
 
 /// <summary>
-/// 4바이트 길이 prefix 기반 프레임 프로토콜 구현입니다.
+/// 4바이트 big-endian 길이 prefix 프레임을 인코드하고 디코드합니다.
 /// </summary>
 public sealed class LengthPrefixedProtocol : IProtocol
 {
+    /// <summary>
+    /// HeaderSize 상수입니다.
+    /// </summary>
     private const int HeaderSize = 4;
+    /// <summary>
+    /// _maxFrameLength 값을 나타냅니다.
+    /// </summary>
+    private readonly int _maxFrameLength;
+
+    /// <summary>
+    /// 기본 최대 인코딩 프레임 길이입니다.
+    /// </summary>
+    public const int DefaultMaxFrameLength = 65536;
+
+    /// <summary>
+    /// <see cref="LengthPrefixedProtocol"/> 인스턴스를 초기화합니다.
+    /// </summary>
+    /// <param name="maxFrameLength">4바이트 헤더를 포함한 최대 인코딩 프레임 길이입니다.</param>
+    /// <exception cref="ArgumentOutOfRangeException">설정한 길이가 헤더를 담을 수 없을 때 발생합니다.</exception>
+    public LengthPrefixedProtocol(int maxFrameLength = DefaultMaxFrameLength)
+    {
+        if (maxFrameLength < HeaderSize)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxFrameLength),
+                maxFrameLength,
+                $"Max frame length must be at least {HeaderSize} bytes.");
+        }
+
+        _maxFrameLength = maxFrameLength;
+    }
 
     /// <summary>
     /// 프로토콜 이름을 가져옵니다.
@@ -16,25 +46,38 @@ public sealed class LengthPrefixedProtocol : IProtocol
     public string Name => "LengthPrefixed";
 
     /// <summary>
-    /// 페이로드 앞에 4바이트 big-endian 길이 값을 붙여 프레임을 생성합니다.
+    /// <summary>
+    /// 현재 인스턴스가 허용하는 최대 인코딩 프레임 길이를 가져옵니다.
     /// </summary>
-    /// <param name="payload">프레임에 담을 원본 페이로드입니다.</param>
-    /// <returns>길이 prefix가 포함된 프레임입니다.</returns>
+    public int MaxFrameLength => _maxFrameLength;
+
+    /// <summary>
+    /// 페이로드를 4바이트 big-endian 길이 prefix 프레임으로 감쌉니다.
+    /// </summary>
+    /// <param name="payload">인코딩할 원본 페이로드입니다.</param>
+    /// <returns>인코딩된 프레임입니다.</returns>
     public byte[] Encode(ReadOnlySpan<byte> payload)
     {
-        var frame = new byte[HeaderSize + payload.Length];
+        var frameLength = HeaderSize + payload.Length;
+        if (frameLength > _maxFrameLength)
+        {
+            throw new InvalidOperationException(
+                $"Frame length {frameLength} exceeds the configured maximum of {_maxFrameLength}.");
+        }
+
+        var frame = new byte[frameLength];
         BinaryPrimitives.WriteInt32BigEndian(frame.AsSpan(0, HeaderSize), payload.Length);
         payload.CopyTo(frame.AsSpan(HeaderSize));
         return frame;
     }
 
     /// <summary>
-    /// 입력 버퍼에서 하나의 완전한 프레임을 읽어 페이로드를 추출합니다.
+    /// 입력 버퍼에서 완전한 페이로드 하나를 디코드합니다.
     /// </summary>
-    /// <param name="buffer">프레임 추출을 시도할 입력 버퍼입니다.</param>
-    /// <param name="payload">추출된 페이로드입니다.</param>
-    /// <param name="bytesConsumed">사용한 전체 바이트 수입니다.</param>
-    /// <returns>완전한 프레임을 읽었으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    /// <param name="buffer">입력 버퍼입니다.</param>
+    /// <param name="payload">디코드된 페이로드입니다.</param>
+    /// <param name="bytesConsumed">소비한 전체 바이트 수입니다.</param>
+    /// <returns>완전한 프레임을 디코드했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
     public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
     {
         payload = Array.Empty<byte>();
@@ -52,6 +95,12 @@ public sealed class LengthPrefixedProtocol : IProtocol
         }
 
         var frameLength = HeaderSize + payloadLength;
+        if (frameLength > _maxFrameLength)
+        {
+            throw new InvalidOperationException(
+                $"Frame length {frameLength} exceeds the configured maximum of {_maxFrameLength}.");
+        }
+
         if (buffer.Length < frameLength)
         {
             return false;

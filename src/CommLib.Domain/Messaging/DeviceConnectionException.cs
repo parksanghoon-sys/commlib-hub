@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 디바이스 연결 수명주기 작업이 실패했을 때 작업 단계와 디바이스 식별자를 함께 전달합니다.

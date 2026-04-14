@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Transport;
+﻿namespace CommLib.Domain.Transport;
 
 /// <summary>
 /// 장치와 바이트 프레임을 주고받을 수 있는 구체적인 전송 매체의 계약입니다.

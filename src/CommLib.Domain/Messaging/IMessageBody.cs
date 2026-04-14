@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 메시지 본문 텍스트를 함께 전달하는 메시지 계약입니다.

@@ -1,3 +1,5 @@
+﻿using CommLib.Domain.Messaging;
+
 namespace CommLib.Domain.Configuration;
 
 /// <summary>
@@ -8,5 +10,10 @@ public sealed class SerializerOptions
     /// <summary>
     /// 직렬화기 구현 이름을 가져옵니다.
     /// </summary>
-    public string Type { get; init; } = "AutoBinary";
+    public string Type { get; init; } = SerializerTypes.AutoBinary;
+
+    /// <summary>
+    /// raw payload bitfield schema 설정이 필요할 때 사용하는 optional schema입니다.
+    /// </summary>
+    public BitFieldPayloadSchema? BitFieldSchema { get; init; }
 }

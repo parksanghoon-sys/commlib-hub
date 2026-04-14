@@ -1,12 +1,19 @@
-using System.Globalization;
+﻿using System.Globalization;
+using CommLib.Domain.Configuration;
 using CommLib.Examples.WinUI.Models;
 
 namespace CommLib.Examples.WinUI.Services;
 
+/// <summary>
+/// AppLocalizer 타입입니다.
+/// </summary>
 public sealed class AppLocalizer : IAppLocalizer
 {
     // WinUI 화면이 대부분 코드로 구성되어 있어서 XAML resource보다 key-value 사전을 직접 들고 가는 편이 단순하다.
     // 키는 View / ViewModel / Service 어디에서 써도 같게 유지하고, 실제 언어 문자열만 여기에서 바꾼다.
+    /// <summary>
+    /// EnglishStrings 값을 나타냅니다.
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, string> EnglishStrings = new Dictionary<string, string>
     {
         ["window.title"] = "CommLib Device Lab",
@@ -53,6 +60,7 @@ public sealed class AppLocalizer : IAppLocalizer
         ["field.readBufferSize"] = "Read Buffer Size",
         ["field.writeBufferSize"] = "Write Buffer Size",
         ["field.messageId"] = "Message Id",
+        ["field.serializer"] = "Serializer",
         ["field.body"] = "Body",
         ["check.noDelay"] = "Disable Nagle (NoDelay)",
         ["check.loopback"] = "Enable loopback",
@@ -123,6 +131,8 @@ public sealed class AppLocalizer : IAppLocalizer
         ["session.log.outbound.message"] = "id={0}, body=\"{1}\"",
         ["session.log.inbound.title"] = "Inbound message",
         ["session.log.inbound.message"] = "id={0}, body=\"{1}\"",
+        ["session.payload.fieldsSuffix"] = "fields[{0}]",
+        ["session.payload.schemaErrorSuffix"] = "schema decode failed: {0}",
         ["session.log.receiveLoopStopped.title"] = "Receive loop stopped",
         ["session.event.connectAttempt.title"] = "Connect attempt",
         ["session.event.connectAttempt.message"] = "{0} ({1}/{2})",
@@ -133,6 +143,7 @@ public sealed class AppLocalizer : IAppLocalizer
         ["session.event.operationFailed.title"] = "Connection operation failed",
         ["session.event.operationFailed.message"] = "{0} {1}: {2}",
         ["session.error.noActiveSession"] = "No active device session exists.",
+        ["composer.error.invalidRawHex"] = "Raw hex mode expects hexadecimal byte pairs like \"DE AD BE EF\".",
         ["transport.detail.tcp"] = "TCP {0}:{1}",
         ["transport.detail.udp"] = "UDP local={0}, remote={1}:{2}",
         ["transport.detail.multicast"] = "Multicast {0}:{1}",
@@ -140,6 +151,9 @@ public sealed class AppLocalizer : IAppLocalizer
         ["transport.detail.generic"] = "Transport {0}"
     };
 
+    /// <summary>
+    /// KoreanStrings 값을 나타냅니다.
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, string> KoreanStrings = new Dictionary<string, string>
     {
         ["window.title"] = "CommLib 디바이스 랩",
@@ -186,6 +200,7 @@ public sealed class AppLocalizer : IAppLocalizer
         ["field.readBufferSize"] = "읽기 버퍼 크기",
         ["field.writeBufferSize"] = "쓰기 버퍼 크기",
         ["field.messageId"] = "메시지 ID",
+        ["field.serializer"] = "직렬화기",
         ["field.body"] = "본문",
         ["check.noDelay"] = "네이글 비활성화(NoDelay)",
         ["check.loopback"] = "루프백 사용",
@@ -266,17 +281,29 @@ public sealed class AppLocalizer : IAppLocalizer
         ["session.event.operationFailed.title"] = "연결 작업 실패",
         ["session.event.operationFailed.message"] = "{0} {1}: {2}",
         ["session.error.noActiveSession"] = "현재 활성 디바이스 세션이 없습니다.",
+        ["composer.error.invalidRawHex"] = "Raw hex 모드는 \"DE AD BE EF\" 같은 16진수 바이트 쌍이 필요합니다.",
         ["transport.detail.tcp"] = "TCP {0}:{1}",
         ["transport.detail.udp"] = "UDP 로컬={0}, 원격={1}:{2}",
         ["transport.detail.multicast"] = "멀티캐스트 {0}:{1}",
         ["transport.detail.serial"] = "시리얼 {0} @ {1}",
-        ["transport.detail.generic"] = "전송 {0}"
+        ["transport.detail.generic"] = "전송 {0}",
+        ["session.payload.fieldsSuffix"] = "\uD544\uB4DC[{0}]",
+        ["session.payload.schemaErrorSuffix"] = "\uC2A4\uD0A4\uB9C8 \uD574\uC11D \uC2E4\uD328: {0}"
     };
 
+    /// <summary>
+    /// _currentLanguage 값을 나타냅니다.
+    /// </summary>
     private AppLanguageMode _currentLanguage;
 
+    /// <summary>
+    /// LanguageChanged 이벤트입니다.
+    /// </summary>
     public event EventHandler? LanguageChanged;
 
+    /// <summary>
+    /// CurrentLanguage 값을 가져옵니다.
+    /// </summary>
     public AppLanguageMode CurrentLanguage
     {
         get => _currentLanguage;
@@ -294,16 +321,25 @@ public sealed class AppLocalizer : IAppLocalizer
         }
     }
 
+    /// <summary>
+    /// Get 작업을 수행합니다.
+    /// </summary>
     public string Get(string key)
     {
         return GetStrings().TryGetValue(key, out var value) ? value : key;
     }
 
+    /// <summary>
+    /// Format 작업을 수행합니다.
+    /// </summary>
     public string Format(string key, params object?[] args)
     {
         return string.Format(CultureInfo.CurrentCulture, Get(key), args);
     }
 
+    /// <summary>
+    /// GetShellPageLabel 작업을 수행합니다.
+    /// </summary>
     public string GetShellPageLabel(ShellPageKind kind)
     {
         // 자주 쓰는 shell/transport/language 라벨은 별도 key 조회보다 switch helper가 더 읽기 쉬워서
@@ -318,6 +354,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetShellPageSubtitle 작업을 수행합니다.
+    /// </summary>
     public string GetShellPageSubtitle(ShellPageKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -330,6 +369,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetTransportLabel 작업을 수행합니다.
+    /// </summary>
     public string GetTransportLabel(TransportKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -346,6 +388,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetTransportSubtitle 작업을 수행합니다.
+    /// </summary>
     public string GetTransportSubtitle(TransportKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -362,6 +407,39 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetSerializerLabel 작업을 수행합니다.
+    /// </summary>
+    public string GetSerializerLabel(string serializerType)
+    {
+        return (CurrentLanguage, serializerType) switch
+        {
+            (AppLanguageMode.Korean, SerializerTypes.AutoBinary) => "텍스트 (AutoBinary)",
+            (AppLanguageMode.Korean, SerializerTypes.RawHex) => "Raw Hex",
+            (_, SerializerTypes.AutoBinary) => "Text (AutoBinary)",
+            (_, SerializerTypes.RawHex) => "Raw Hex",
+            _ => serializerType
+        };
+    }
+
+    /// <summary>
+    /// GetSerializerSubtitle 작업을 수행합니다.
+    /// </summary>
+    public string GetSerializerSubtitle(string serializerType)
+    {
+        return (CurrentLanguage, serializerType) switch
+        {
+            (AppLanguageMode.Korean, SerializerTypes.AutoBinary) => "UTF-8 본문을 현재 예제 serializer 형식으로 보냅니다.",
+            (AppLanguageMode.Korean, SerializerTypes.RawHex) => "공백 허용 16진수 바이트를 raw payload로 보냅니다.",
+            (_, SerializerTypes.AutoBinary) => "Sends UTF-8 body text through the current example serializer format.",
+            (_, SerializerTypes.RawHex) => "Sends whitespace-tolerant hexadecimal bytes as the raw payload.",
+            _ => serializerType
+        };
+    }
+
+    /// <summary>
+    /// GetLanguageLabel 작업을 수행합니다.
+    /// </summary>
     public string GetLanguageLabel(AppLanguageMode mode)
     {
         return (CurrentLanguage, mode) switch
@@ -374,6 +452,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetStrings 작업을 수행합니다.
+    /// </summary>
     private IReadOnlyDictionary<string, string> GetStrings()
     {
         return CurrentLanguage == AppLanguageMode.Korean ? KoreanStrings : EnglishStrings;

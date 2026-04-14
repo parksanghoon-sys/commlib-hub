@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Transport;
 using CommLib.Infrastructure.Protocol;
 
@@ -9,8 +9,17 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class TransportMessageReceiver
 {
+    /// <summary>
+    /// _frameDecoder 값을 나타냅니다.
+    /// </summary>
     private readonly MessageFrameDecoder _frameDecoder;
+    /// <summary>
+    /// _transport 값을 나타냅니다.
+    /// </summary>
     private readonly ITransport _transport;
+    /// <summary>
+    /// _pendingBuffer 값을 나타냅니다.
+    /// </summary>
     private byte[] _pendingBuffer = Array.Empty<byte>();
 
     /// <summary>
@@ -62,6 +71,9 @@ public sealed class TransportMessageReceiver
         return false;
     }
 
+    /// <summary>
+    /// AppendChunk 작업을 수행합니다.
+    /// </summary>
     private void AppendChunk(ReadOnlySpan<byte> chunk)
     {
         if (chunk.IsEmpty)
@@ -75,6 +87,9 @@ public sealed class TransportMessageReceiver
         _pendingBuffer = merged;
     }
 
+    /// <summary>
+    /// TryDecodePending 작업을 수행합니다.
+    /// </summary>
     private bool TryDecodePending(out IMessage message)
     {
         if (!TryDecode(_pendingBuffer, out message, out var bytesConsumed))

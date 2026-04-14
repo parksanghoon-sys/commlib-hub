@@ -1,3 +1,5 @@
+﻿using System.Collections;
+using System.Reflection;
 using System.Threading.Channels;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -19,6 +21,9 @@ public sealed class ConnectionManagerTests
     /// 연결 시 장치 프로필의 transport 설정으로 transport factory를 호출하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_TransportFactoryIsCalledWithProfileTransport 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_TransportFactoryIsCalledWithProfileTransport()
     {
         var transportFactory = new FakeTransportFactory();
@@ -31,9 +36,51 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 잘못된 프로필은 runtime factory가 동작하기 전에 검증 단계에서 중단되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ConnectAsync_InvalidProfile_ThrowsBeforeRuntimeFactoriesRun()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var protocolFactory = new FakeProtocolFactory();
+        var serializerFactory = new FakeSerializerFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: protocolFactory,
+            serializerFactory: serializerFactory);
+        var profile = CreateTcpProfile();
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = string.Empty,
+                Port = 502
+            },
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+
+        Assert.Equal("[device-1] TCP Host is required.", exception.Message);
+        Assert.Null(transportFactory.LastOptions);
+        Assert.Null(protocolFactory.LastOptions);
+        Assert.Null(serializerFactory.LastOptions);
+    }
+
+    /// <summary>
     /// 연결 시 프로필의 protocol 설정으로 protocol factory를 호출하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_ProtocolFactoryIsCalledWithProfileProtocol 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_ProtocolFactoryIsCalledWithProfileProtocol()
     {
         var protocolFactory = new FakeProtocolFactory();
@@ -49,6 +96,9 @@ public sealed class ConnectionManagerTests
     /// 연결 시 프로필의 serializer 설정으로 serializer factory를 호출하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_SerializerFactoryIsCalledWithProfileSerializer 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_SerializerFactoryIsCalledWithProfileSerializer()
     {
         var serializerFactory = new FakeSerializerFactory();
@@ -64,6 +114,9 @@ public sealed class ConnectionManagerTests
     /// 장치 프로필을 연결하면 장치 식별자로 조회 가능한 세션을 등록하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_RegistersSessionAccessibleByDeviceId 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_RegistersSessionAccessibleByDeviceId()
     {
         var manager = CreateManager();
@@ -81,6 +134,9 @@ public sealed class ConnectionManagerTests
     /// 연결 시 생성된 transport를 실제 open 단계까지 진행하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_OpensCreatedTransport 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_OpensCreatedTransport()
     {
         var transportFactory = new FakeTransportFactory();
@@ -90,12 +146,42 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
 
         Assert.True(transportFactory.Transport.IsOpen);
+        Assert.Equal(1, transportFactory.Transport.OpenCount);
+    }
+
+    [Fact]
+    /// <summary>
+    /// ConnectAsync_ConcurrentSameDeviceCalls_SerializesTransportOpen 작업을 수행합니다.
+    /// </summary>
+    public async Task ConnectAsync_ConcurrentSameDeviceCalls_SerializesTransportOpen()
+    {
+        var firstTransport = new BlockingOpenTransport();
+        var secondTransport = new FakeTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(firstTransport, secondTransport));
+        var profile = CreateTcpProfile();
+
+        var firstConnect = manager.ConnectAsync(profile);
+        await firstTransport.OpenStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        var secondConnect = manager.ConnectAsync(profile);
+        await Task.Delay(100);
+        Assert.Equal(0, secondTransport.OpenCount);
+
+        firstTransport.ReleaseOpen();
+        await firstConnect;
+        await secondConnect;
+
+        Assert.Equal(1, firstTransport.OpenCount);
+        Assert.Equal(1, secondTransport.OpenCount);
     }
 
     /// <summary>
     /// 연결 후 같은 장치 식별자로 메시지를 보내면 조립된 sender를 통해 transport까지 전달되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_ConnectedDevice_SendsEncodedFrameThroughTransport 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_ConnectedDevice_SendsEncodedFrameThroughTransport()
     {
         var transportFactory = new FakeTransportFactory();
@@ -113,6 +199,9 @@ public sealed class ConnectionManagerTests
     /// 연결 후 송신하면 세션 outbound 큐가 비워진 상태로 유지되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_ConnectedDevice_DrainsSessionOutboundQueue 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_ConnectedDevice_DrainsSessionOutboundQueue()
     {
         var manager = CreateManager();
@@ -129,6 +218,9 @@ public sealed class ConnectionManagerTests
     /// inbound frame을 처리하면 메시지를 복원하고 소비 바이트 수를 반환하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryHandleInboundFrame_CompleteFrame_ReturnsDecodedMessage 작업을 수행합니다.
+    /// </summary>
     public async Task TryHandleInboundFrame_CompleteFrame_ReturnsDecodedMessage()
     {
         var manager = CreateManager(protocolFactory: new ProtocolFactory());
@@ -152,6 +244,9 @@ public sealed class ConnectionManagerTests
     /// inbound frame이 미완성이면 메시지를 복원하지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryHandleInboundFrame_IncompleteFrame_ReturnsFalse 작업을 수행합니다.
+    /// </summary>
     public async Task TryHandleInboundFrame_IncompleteFrame_ReturnsFalse()
     {
         var manager = CreateManager(protocolFactory: new ProtocolFactory());
@@ -174,6 +269,9 @@ public sealed class ConnectionManagerTests
     /// 응답 frame을 처리하면 세션의 pending 요청이 완료되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryHandleInboundFrame_ResponseFrame_CompletesPendingRequest 작업을 수행합니다.
+    /// </summary>
     public async Task TryHandleInboundFrame_ResponseFrame_CompletesPendingRequest()
     {
         var manager = CreateManager(
@@ -206,6 +304,9 @@ public sealed class ConnectionManagerTests
     /// transport 수신 경로를 타면 inbound 메시지를 복원해 반환하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceiveAsync_QueuedInboundFrame_ReturnsDecodedMessage 작업을 수행합니다.
+    /// </summary>
     public async Task ReceiveAsync_QueuedInboundFrame_ReturnsDecodedMessage()
     {
         var transportFactory = new FakeTransportFactory();
@@ -223,9 +324,86 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// bounded inbound queue가 가득 차면 transport 수신도 추가로 진행되지 않고 대기하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, transportFactory.Transport.ReceiveCount);
+
+        var first = await manager.ReceiveAsync(profile.DeviceId);
+        Assert.Equal((ushort)41, first.MessageId);
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount == 3);
+
+        var second = await manager.ReceiveAsync(profile.DeviceId);
+        var third = await manager.ReceiveAsync(profile.DeviceId);
+
+        Assert.Equal((ushort)42, second.MessageId);
+        Assert.Equal((ushort)43, third.MessageId);
+    }
+
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_EmitsBackpressureSignalOncePerPressureEpisode()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var eventSink = new RecordingConnectionEventSink();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            eventSink: eventSink,
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+
+        _ = await manager.ReceiveAsync(profile.DeviceId);
+
+        await WaitForAsync(
+            () => eventSink.Events.Count(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)) == 2);
+
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1",
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     /// transport 수신 응답 메시지는 pending 요청 완료까지 연결되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceivePump_ResponseMessage_CompletesPendingRequest 작업을 수행합니다.
+    /// </summary>
     public async Task ReceivePump_ResponseMessage_CompletesPendingRequest()
     {
         var transportFactory = new FakeTransportFactory();
@@ -253,6 +431,9 @@ public sealed class ConnectionManagerTests
     /// 연결되지 않은 장치 식별자로 송신하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_WithDefaultFactories_RequestMessageIncludesCorrelationPayload 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_WithDefaultFactories_RequestMessageIncludesCorrelationPayload()
     {
         var transportFactory = new FakeTransportFactory();
@@ -280,6 +461,9 @@ public sealed class ConnectionManagerTests
     /// body가 있는 메시지는 기본 serializer 조합에서 frame payload에 본문까지 포함하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_WithDefaultFactories_MessageBodyIncludesEncodedPayload 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_WithDefaultFactories_MessageBodyIncludesEncodedPayload()
     {
         var transportFactory = new FakeTransportFactory();
@@ -302,6 +486,9 @@ public sealed class ConnectionManagerTests
     /// 기본 protocol/serializer 조합으로 수신한 응답 frame이 pending 요청 완료까지 이어지는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceivePump_WithDefaultFactories_ResponseMessageCompletesPendingRequest 작업을 수행합니다.
+    /// </summary>
     public async Task ReceivePump_WithDefaultFactories_ResponseMessageCompletesPendingRequest()
     {
         var transportFactory = new FakeTransportFactory();
@@ -340,6 +527,9 @@ public sealed class ConnectionManagerTests
     /// background receive pump가 응답을 자동 처리해 명시적 수신 호출 없이도 pending 요청을 완료하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_BackgroundReceivePump_CompletesPendingRequestWithoutExplicitReceive 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_BackgroundReceivePump_CompletesPendingRequestWithoutExplicitReceive()
     {
         var transportFactory = new FakeTransportFactory();
@@ -378,6 +568,9 @@ public sealed class ConnectionManagerTests
     /// pending 요청과 매칭되지 않은 응답은 일반 inbound 메시지로 수신할 수 있는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceiveAsync_UnmatchedResponseMessage_ReturnsInboundResponse 작업을 수행합니다.
+    /// </summary>
     public async Task ReceiveAsync_UnmatchedResponseMessage_ReturnsInboundResponse()
     {
         var transportFactory = new FakeTransportFactory();
@@ -403,10 +596,96 @@ public sealed class ConnectionManagerTests
         Assert.False(message.IsSuccess);
     }
 
+    [Fact]
+    /// <summary>
+    /// ReceiveAsync_WhenBackgroundReceiveFails_ThrowsDeviceConnectionExceptionAndEmitsReceiveFailure 작업을 수행합니다.
+    /// </summary>
+    public async Task ReceiveAsync_WhenBackgroundReceiveFails_ThrowsDeviceConnectionExceptionAndEmitsReceiveFailure()
+    {
+        var failingTransport = new FakeTransport
+        {
+            ReceiveException = new InvalidOperationException("FakeTransport failed to receive.")
+        };
+        var eventSink = new RecordingConnectionEventSink();
+        var manager = CreateManager(
+            transportFactory: new SequencedTransportFactory(failingTransport),
+            eventSink: eventSink);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        var first = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ReceiveAsync(profile.DeviceId));
+        var second = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ReceiveAsync(profile.DeviceId));
+
+        Assert.Equal(profile.DeviceId, first.DeviceId);
+        Assert.Equal("receive", first.Operation);
+        Assert.Equal("FakeTransport failed to receive.", first.InnerException?.Message);
+        Assert.Equal(profile.DeviceId, second.DeviceId);
+        Assert.Equal("receive", second.Operation);
+        Assert.Contains(
+            "failure:device-1:receive:Device 'device-1' failed during receive. See inner exception for details.",
+            eventSink.Events);
+    }
+
+    [Fact]
+    /// <summary>
+    /// SendAsync_WhenBackgroundReceiveFails_ThrowsStoredReceiveFailureAndHidesSession 작업을 수행합니다.
+    /// </summary>
+    public async Task SendAsync_WhenBackgroundReceiveFails_ThrowsStoredReceiveFailureAndHidesSession()
+    {
+        var transport = new BlockingReceiveTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(transport));
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        transport.FailReceive(new InvalidOperationException("FakeTransport failed to receive."));
+        await WaitForAsync(() => manager.GetSession(profile.DeviceId) is null);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.SendAsync(profile.DeviceId, new FakeMessage(41)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("receive", exception.Operation);
+        Assert.Equal("FakeTransport failed to receive.", exception.InnerException?.Message);
+        Assert.Null(manager.GetSession(profile.DeviceId));
+    }
+
+    [Fact]
+    /// <summary>
+    /// ReceivePump_WhenBackgroundReceiveFails_FailsPendingRequestImmediately 작업을 수행합니다.
+    /// </summary>
+    public async Task ReceivePump_WhenBackgroundReceiveFails_FailsPendingRequestImmediately()
+    {
+        var transport = new BlockingReceiveTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(transport));
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var request = new FakeRequestMessage(77);
+        var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        await sendResult.SendCompletedTask;
+        session.TryDequeueOutbound(out _);
+        await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        transport.FailReceive(new InvalidOperationException("FakeTransport failed to receive."));
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await sendResult.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("receive", exception.Operation);
+        Assert.Equal("FakeTransport failed to receive.", exception.InnerException?.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
     /// <summary>
     /// ?곌껐?섏? ?딆? ?μ튂 ?앸퀎?먮줈 ?≪떊?섎㈃ ?덉쇅瑜?諛쒖깮?쒗궎?붿? ?뺤씤?⑸땲??
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_UnknownDevice_Throws 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_UnknownDevice_Throws()
     {
         var manager = CreateManager();
@@ -420,6 +699,9 @@ public sealed class ConnectionManagerTests
     /// 서로 다른 장치 프로필을 연결하면 각 장치별 세션이 독립적으로 유지되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_MultipleProfiles_RegistersEachSessionIndependently 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_MultipleProfiles_RegistersEachSessionIndependently()
     {
         var manager = CreateManager();
@@ -437,6 +719,9 @@ public sealed class ConnectionManagerTests
     /// 같은 장치를 다시 연결하면 새 세션으로 교체하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_SameDeviceConnectedTwice_ReplacesSession 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_SameDeviceConnectedTwice_ReplacesSession()
     {
         var transportFactory = new FreshTransportFactory();
@@ -456,10 +741,39 @@ public sealed class ConnectionManagerTests
         Assert.True(firstTransport.IsClosed);
     }
 
+    [Fact]
+    /// <summary>
+    /// ConnectAsync_SameDeviceConnectedTwice_FailsPendingRequestsFromReplacedSession 작업을 수행합니다.
+    /// </summary>
+    public async Task ConnectAsync_SameDeviceConnectedTwice_FailsPendingRequestsFromReplacedSession()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await manager.ConnectAsync(profile);
+        var firstSession = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var pending = firstSession.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(55));
+        await pending.SendCompletedTask;
+        firstSession.TryDequeueOutbound(out _);
+
+        await manager.ConnectAsync(profile);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await pending.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
+        Assert.Equal(0, firstSession.PendingRequestCount);
+    }
+
     /// <summary>
     /// 한 장치를 재연결해도 다른 장치 세션은 그대로 유지되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_ReconnectingOneDevice_DoesNotReplaceOtherDeviceSession 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_ReconnectingOneDevice_DoesNotReplaceOtherDeviceSession()
     {
         var manager = CreateManager();
@@ -481,6 +795,9 @@ public sealed class ConnectionManagerTests
     /// transport 생성이 실패하면 예외를 그대로 전달하고 세션을 남기지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_WhenTransportFactoryThrows_DoesNotRegisterSession 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_WhenTransportFactoryThrows_DoesNotRegisterSession()
     {
         var manager = CreateManager(transportFactory: new ThrowingTransportFactory());
@@ -498,6 +815,9 @@ public sealed class ConnectionManagerTests
     /// 재연결용 새 transport open이 실패하면 기존 세션을 유지하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_ReconnectOpenFails_KeepsExistingSession 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_ReconnectOpenFails_KeepsExistingSession()
     {
         var firstTransport = new FakeTransport();
@@ -521,6 +841,9 @@ public sealed class ConnectionManagerTests
     }
 
     [Fact]
+    /// <summary>
+    /// ConnectAsync_WithLinearReconnectPolicy_RetriesOpenAndEmitsEvents 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_WithLinearReconnectPolicy_RetriesOpenAndEmitsEvents()
     {
         var firstTransport = new FakeTransport { FailOnOpen = true };
@@ -562,6 +885,9 @@ public sealed class ConnectionManagerTests
     }
 
     [Fact]
+    /// <summary>
+    /// ConnectAsync_WithBackoffReconnectPolicy_UsesCappedRetryDelaysAndThrowsConnectException 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_WithBackoffReconnectPolicy_UsesCappedRetryDelaysAndThrowsConnectException()
     {
         var firstTransport = new FakeTransport { FailOnOpen = true };
@@ -607,6 +933,9 @@ public sealed class ConnectionManagerTests
     /// 존재하지 않는 장치 식별자를 조회하면 세션이 없음을 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// GetSession_UnknownDevice_ReturnsNull 작업을 수행합니다.
+    /// </summary>
     public void GetSession_UnknownDevice_ReturnsNull()
     {
         var manager = CreateManager();
@@ -620,6 +949,9 @@ public sealed class ConnectionManagerTests
     /// 여러 inbound 청크로 들어온 메시지도 누적 수신으로 복원되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceiveAsync_PartialInboundChunks_ReturnsDecodedMessage 작업을 수행합니다.
+    /// </summary>
     public async Task ReceiveAsync_PartialInboundChunks_ReturnsDecodedMessage()
     {
         var transportFactory = new FakeTransportFactory();
@@ -641,6 +973,9 @@ public sealed class ConnectionManagerTests
     /// 연결되지 않은 장치에서 수신을 시도하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ReceiveAsync_UnknownDevice_Throws 작업을 수행합니다.
+    /// </summary>
     public async Task ReceiveAsync_UnknownDevice_Throws()
     {
         var manager = CreateManager();
@@ -654,6 +989,9 @@ public sealed class ConnectionManagerTests
     /// 연결 해제를 수행하면 장치 세션이 제거되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_ConnectedDevice_RemovesSession 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_ConnectedDevice_RemovesSession()
     {
         var transportFactory = new FakeTransportFactory();
@@ -668,9 +1006,59 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// 서로 다른 디바이스를 순차 연결/해제해도 사용이 끝난 작업 게이트가 내부 맵에 남지 않는지 확인합니다.
+    /// </summary>
+    [Fact]
+    /// <summary>
+    /// DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates 작업을 수행합니다.
+    /// </summary>
+    public async Task DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates()
+    {
+        var manager = CreateManager();
+
+        for (var i = 0; i < 5; i++)
+        {
+            var profile = CreateTcpProfile($"device-{i}", 502 + i);
+            await manager.ConnectAsync(profile);
+            Assert.Equal(1, GetDeviceOperationGateCount(manager));
+
+            await manager.DisconnectAsync(profile.DeviceId);
+
+            Assert.Equal(0, GetDeviceOperationGateCount(manager));
+        }
+    }
+
+    [Fact]
+    /// <summary>
+    /// DisconnectAsync_WithPendingRequest_FailsPendingRequestImmediately 작업을 수행합니다.
+    /// </summary>
+    public async Task DisconnectAsync_WithPendingRequest_FailsPendingRequestImmediately()
+    {
+        var manager = CreateManager();
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var pending = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(66));
+        await pending.SendCompletedTask;
+        session.TryDequeueOutbound(out _);
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await pending.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
     /// 연결 해제 후에는 해당 장치로 송신할 수 없는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_ConnectedDevice_SendAfterDisconnectThrows 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_ConnectedDevice_SendAfterDisconnectThrows()
     {
         var manager = CreateManager();
@@ -687,6 +1075,9 @@ public sealed class ConnectionManagerTests
     /// 연결 해제 후에는 해당 장치로 수신할 수 없는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_ConnectedDevice_ReceiveAfterDisconnectThrows 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_ConnectedDevice_ReceiveAfterDisconnectThrows()
     {
         var manager = CreateManager();
@@ -703,6 +1094,9 @@ public sealed class ConnectionManagerTests
     /// 연결 해제한 장치를 다시 연결하면 새 세션으로 복구되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_ThenConnectAgain_RegistersFreshSession 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_ThenConnectAgain_RegistersFreshSession()
     {
         var manager = CreateManager();
@@ -723,6 +1117,9 @@ public sealed class ConnectionManagerTests
     /// 연결 해제 시 이전 연결의 queued inbound는 버려지고 재연결 후 새 연결로 넘어오지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_DropsQueuedInboundBeforeReconnect 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_DropsQueuedInboundBeforeReconnect()
     {
         var transportFactory = new FreshTransportFactory();
@@ -744,9 +1141,47 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// queue pressure로 writer가 막힌 상태에서도 disconnect가 receive pump를 정리하고 재연결을 허용하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        var firstTransport = transportFactory.Transports[0];
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(51));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(52));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(53));
+
+        await WaitForAsync(() => firstTransport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, firstTransport.ReceiveCount);
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        Assert.Null(manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsClosed);
+
+        await manager.ConnectAsync(profile);
+
+        Assert.NotNull(manager.GetSession(profile.DeviceId));
+        Assert.Equal(2, transportFactory.Transports.Count);
+    }
+
+    /// <summary>
     /// 연결되지 않은 장치를 해제하려 하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_UnknownDevice_Throws 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_UnknownDevice_Throws()
     {
         var manager = CreateManager();
@@ -760,6 +1195,9 @@ public sealed class ConnectionManagerTests
     /// manager를 dispose하면 활성 연결이 모두 정리되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisposeAsync_WithActiveConnections_ClosesAllTransportsAndRemovesSessions 작업을 수행합니다.
+    /// </summary>
     public async Task DisposeAsync_WithActiveConnections_ClosesAllTransportsAndRemovesSessions()
     {
         var transportFactory = new FreshTransportFactory();
@@ -781,6 +1219,9 @@ public sealed class ConnectionManagerTests
     /// manager dispose 후에는 기존 장치 송신이 차단되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisposeAsync_AfterDispose_SendThrowsForFormerDevice 작업을 수행합니다.
+    /// </summary>
     public async Task DisposeAsync_AfterDispose_SendThrowsForFormerDevice()
     {
         var manager = CreateManager();
@@ -798,6 +1239,9 @@ public sealed class ConnectionManagerTests
     /// disconnect 시 transport에 걸려 있던 대기 수신도 함께 종료되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_CancelsPendingTransportReceive 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_CancelsPendingTransportReceive()
     {
         var transportFactory = new FakeTransportFactory();
@@ -815,6 +1259,9 @@ public sealed class ConnectionManagerTests
     /// 연결 시 profile의 request/response 설정이 세션의 pending 제한과 기본 timeout에 반영되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_ProfileRequestResponseOptions_AreAppliedToSession 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_ProfileRequestResponseOptions_AreAppliedToSession()
     {
         var manager = CreateManager();
@@ -851,6 +1298,9 @@ public sealed class ConnectionManagerTests
     /// transport close가 실패하면 예외를 전파하고 기존 세션은 유지하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisconnectAsync_WhenTransportCloseThrows_PropagatesExceptionAndKeepsSession 작업을 수행합니다.
+    /// </summary>
     public async Task DisconnectAsync_WhenTransportCloseThrows_PropagatesExceptionAndKeepsSession()
     {
         var transport = new FakeTransport { FailOnClose = true };
@@ -874,6 +1324,9 @@ public sealed class ConnectionManagerTests
     /// 재연결 중 기존 transport close가 실패하면 새 transport만 정리하고 기존 세션은 유지하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// ConnectAsync_ReconnectCloseFails_KeepsExistingSessionAndClosesReplacementTransport 작업을 수행합니다.
+    /// </summary>
     public async Task ConnectAsync_ReconnectCloseFails_KeepsExistingSessionAndClosesReplacementTransport()
     {
         var firstTransport = new FakeTransport { FailOnClose = true };
@@ -899,6 +1352,9 @@ public sealed class ConnectionManagerTests
     /// dispose 중 일부 transport close가 실패해도 나머지 연결 정리는 계속 시도하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// DisposeAsync_WhenOneTransportCloseThrows_ContinuesClosingRemainingConnections 작업을 수행합니다.
+    /// </summary>
     public async Task DisposeAsync_WhenOneTransportCloseThrows_ContinuesClosingRemainingConnections()
     {
         var firstTransport = new FakeTransport { FailOnClose = true };
@@ -921,6 +1377,9 @@ public sealed class ConnectionManagerTests
     }
 
     [Fact]
+    /// <summary>
+    /// DisposeAsync_WhenMultipleTransportCloseOperationsFail_ReturnsAggregateWithDeviceContext 작업을 수행합니다.
+    /// </summary>
     public async Task DisposeAsync_WhenMultipleTransportCloseOperationsFail_ReturnsAggregateWithDeviceContext()
     {
         var firstTransport = new FakeTransport { FailOnClose = true };
@@ -955,21 +1414,41 @@ public sealed class ConnectionManagerTests
         Assert.NotNull(manager.GetSession(secondProfile.DeviceId));
     }
 
+    /// <summary>
+    /// CreateManager 작업을 수행합니다.
+    /// </summary>
     private static ConnectionManager CreateManager(
         ITransportFactory? transportFactory = null,
         IProtocolFactory? protocolFactory = null,
         ISerializerFactory? serializerFactory = null,
         IConnectionEventSink? eventSink = null,
-        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
+        int inboundQueueCapacity = 256)
     {
         return new ConnectionManager(
             transportFactory ?? new FakeTransportFactory(),
             protocolFactory ?? new FakeProtocolFactory(),
             serializerFactory ?? new FakeSerializerFactory(),
             eventSink,
-            delayAsync ?? ((_, _) => Task.CompletedTask));
+            delayAsync ?? ((_, _) => Task.CompletedTask),
+            inboundQueueCapacity);
     }
 
+    private static byte[] CreateInboundFrame(ushort messageId)
+    {
+        var payload = System.Text.Encoding.UTF8.GetBytes(messageId.ToString());
+        var frame = new byte[payload.Length + 4];
+        frame[0] = 0x00;
+        frame[1] = 0x00;
+        frame[2] = 0x00;
+        frame[3] = (byte)payload.Length;
+        payload.CopyTo(frame.AsSpan(4));
+        return frame;
+    }
+
+    /// <summary>
+    /// CreateTcpProfile 작업을 수행합니다.
+    /// </summary>
     private static DeviceProfile CreateTcpProfile(string deviceId = "device-1", int port = 502)
     {
         return new DeviceProfile
@@ -994,6 +1473,9 @@ public sealed class ConnectionManagerTests
         };
     }
 
+    /// <summary>
+    /// CreateProfileWithReconnect 작업을 수행합니다.
+    /// </summary>
     private static DeviceProfile CreateProfileWithReconnect(DeviceProfile profile, ReconnectOptions reconnect)
     {
         return new DeviceProfile
@@ -1009,25 +1491,58 @@ public sealed class ConnectionManagerTests
         };
     }
 
+    /// <summary>
+    /// FakeMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeMessage(ushort MessageId) : IMessage;
+    /// <summary>
+    /// FakeBodyMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeBodyMessage(ushort MessageId, string Body) : IMessage, IMessageBody;
+    /// <summary>
+    /// FakeRequestMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeRequestMessage(ushort MessageId) : IRequestMessage
     {
+        /// <summary>
+        /// CorrelationId 값을 가져오거나 설정합니다.
+        /// </summary>
         public Guid CorrelationId { get; init; } = Guid.NewGuid();
     }
 
+    /// <summary>
+    /// FakeResponseMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeResponseMessage(ushort MessageId) : IResponseMessage
     {
+        /// <summary>
+        /// CorrelationId 값을 가져오거나 설정합니다.
+        /// </summary>
         public Guid CorrelationId { get; init; } = Guid.NewGuid();
+        /// <summary>
+        /// IsSuccess 값을 가져오거나 설정합니다.
+        /// </summary>
         public bool IsSuccess { get; init; } = true;
     }
 
+    /// <summary>
+    /// ITransportFactory 값을 가져오거나 설정합니다.
+    /// </summary>
     private sealed class FakeTransportFactory : ITransportFactory
     {
+        /// <summary>
+        /// LastOptions 값을 가져오거나 설정합니다.
+        /// </summary>
         public TransportOptions? LastOptions { get; private set; }
 
+        /// <summary>
+        /// Transport 값을 가져오거나 설정합니다.
+        /// </summary>
         public FakeTransport Transport { get; private set; } = new();
 
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ITransport Create(TransportOptions options)
         {
             LastOptions = options;
@@ -1036,28 +1551,74 @@ public sealed class ConnectionManagerTests
         }
     }
 
-    private sealed class FakeTransport : ITransport
+    /// <summary>
+    /// ITransport 값을 가져옵니다.
+    /// </summary>
+    private class FakeTransport : ITransport
     {
+        /// <summary>
+        /// _inbound 값을 나타냅니다.
+        /// </summary>
         private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
+        /// <summary>
+        /// _closeTokenSource 값을 나타냅니다.
+        /// </summary>
         private readonly CancellationTokenSource _closeTokenSource = new();
 
+        /// <summary>
+        /// Name 값을 가져오거나 설정합니다.
+        /// </summary>
         public string Name => "FakeTransport";
 
+        /// <summary>
+        /// LastFrame 값을 가져오거나 설정합니다.
+        /// </summary>
         public byte[]? LastFrame { get; private set; }
 
+        /// <summary>
+        /// IsOpen 값을 가져오거나 설정합니다.
+        /// </summary>
         public bool IsOpen { get; private set; }
 
+        /// <summary>
+        /// OpenCount 값을 가져오거나 설정합니다.
+        /// </summary>
+        public int OpenCount { get; private set; }
+
+        /// <summary>
+        /// SendCount 값을 가져오거나 설정합니다.
+        /// </summary>
         public int SendCount { get; private set; }
 
+        /// <summary>
+        /// ReceiveCount 값을 가져오거나 설정합니다.
+        /// </summary>
         public int ReceiveCount { get; private set; }
 
+        /// <summary>
+        /// IsClosed 값을 가져오거나 설정합니다.
+        /// </summary>
         public bool IsClosed { get; private set; }
 
+        /// <summary>
+        /// FailOnOpen 값을 가져오거나 설정합니다.
+        /// </summary>
         public bool FailOnOpen { get; init; }
 
+        /// <summary>
+        /// FailOnClose 값을 가져오거나 설정합니다.
+        /// </summary>
         public bool FailOnClose { get; init; }
 
-        public Task OpenAsync(CancellationToken cancellationToken = default)
+        /// <summary>
+        /// ReceiveException 값을 가져오거나 설정합니다.
+        /// </summary>
+        public Exception? ReceiveException { get; init; }
+
+        /// <summary>
+        /// OpenAsync 작업을 수행합니다.
+        /// </summary>
+        public virtual Task OpenAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (IsClosed)
@@ -1070,10 +1631,14 @@ public sealed class ConnectionManagerTests
                 throw new InvalidOperationException("FakeTransport failed to open.");
             }
 
+            OpenCount++;
             IsOpen = true;
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// SendAsync 작업을 수행합니다.
+        /// </summary>
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1083,21 +1648,36 @@ public sealed class ConnectionManagerTests
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// EnqueueInboundFrame 작업을 수행합니다.
+        /// </summary>
         public void EnqueueInboundFrame(byte[] frame)
         {
             ThrowIfUnavailable();
             _inbound.Writer.TryWrite(frame);
         }
 
-        public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        /// <summary>
+        /// ReceiveAsync 작업을 수행합니다.
+        /// </summary>
+        public virtual async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfUnavailable();
+
+            if (ReceiveException is not null)
+            {
+                throw ReceiveException;
+            }
+
             using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
             var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
             ReceiveCount++;
             return frame;
         }
 
+        /// <summary>
+        /// CloseAsync 작업을 수행합니다.
+        /// </summary>
         public Task CloseAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1118,6 +1698,9 @@ public sealed class ConnectionManagerTests
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// ThrowIfUnavailable 작업을 수행합니다.
+        /// </summary>
         private void ThrowIfUnavailable()
         {
             if (IsClosed)
@@ -1132,10 +1715,99 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// FakeTransport 값을 가져옵니다.
+    /// </summary>
+    private sealed class BlockingOpenTransport : FakeTransport
+    {
+        /// <summary>
+        /// OpenStarted 값을 가져옵니다.
+        /// </summary>
+        public TaskCompletionSource OpenStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        /// OpenReleased 값을 가져옵니다.
+        /// </summary>
+        public TaskCompletionSource OpenReleased { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        /// OpenAsync 작업을 수행합니다.
+        /// </summary>
+        public override async Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OpenStarted.TrySetResult();
+            await OpenReleased.Task.WaitAsync(cancellationToken);
+            await base.OpenAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// ReleaseOpen 작업을 수행합니다.
+        /// </summary>
+        public void ReleaseOpen()
+        {
+            OpenReleased.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// FakeTransport 값을 가져옵니다.
+    /// </summary>
+    private sealed class BlockingReceiveTransport : FakeTransport
+    {
+        /// <summary>
+        /// ReceiveStarted 값을 가져옵니다.
+        /// </summary>
+        public TaskCompletionSource ReceiveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        /// _receiveFailure 값을 나타냅니다.
+        /// </summary>
+        private readonly TaskCompletionSource<Exception> _receiveFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>
+        /// ReceiveAsync 작업을 수행합니다.
+        /// </summary>
+        public override async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsClosed)
+            {
+                throw new InvalidOperationException("FakeTransport is closed.");
+            }
+
+            if (!IsOpen)
+            {
+                throw new InvalidOperationException("FakeTransport is not open.");
+            }
+
+            ReceiveStarted.TrySetResult();
+            var exception = await _receiveFailure.Task.WaitAsync(cancellationToken);
+            throw exception;
+        }
+
+        /// <summary>
+        /// FailReceive 작업을 수행합니다.
+        /// </summary>
+        public void FailReceive(Exception exception)
+        {
+            _receiveFailure.TrySetResult(exception);
+        }
+    }
+
+    /// <summary>
+    /// IProtocolFactory 값을 가져오거나 설정합니다.
+    /// </summary>
     private sealed class FakeProtocolFactory : IProtocolFactory
     {
+        /// <summary>
+        /// LastOptions 값을 가져오거나 설정합니다.
+        /// </summary>
         public ProtocolOptions? LastOptions { get; private set; }
 
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public IProtocol Create(ProtocolOptions options)
         {
             LastOptions = options;
@@ -1143,10 +1815,19 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// IProtocol 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeProtocol : IProtocol
     {
+        /// <summary>
+        /// Name 값을 가져옵니다.
+        /// </summary>
         public string Name => "FakeProtocol";
 
+        /// <summary>
+        /// Encode 작업을 수행합니다.
+        /// </summary>
         public byte[] Encode(ReadOnlySpan<byte> payload)
         {
             var frame = new byte[payload.Length + 4];
@@ -1155,6 +1836,9 @@ public sealed class ConnectionManagerTests
             return frame;
         }
 
+        /// <summary>
+        /// TryDecode 작업을 수행합니다.
+        /// </summary>
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
         {
             payload = Array.Empty<byte>();
@@ -1163,10 +1847,19 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// ISerializerFactory 값을 가져오거나 설정합니다.
+    /// </summary>
     private sealed class FakeSerializerFactory : ISerializerFactory
     {
+        /// <summary>
+        /// LastOptions 값을 가져오거나 설정합니다.
+        /// </summary>
         public SerializerOptions? LastOptions { get; private set; }
 
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ISerializer Create(SerializerOptions options)
         {
             LastOptions = options;
@@ -1174,21 +1867,36 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// ISerializerFactory 값을 가져옵니다.
+    /// </summary>
     private sealed class ResponseSerializerFactory : ISerializerFactory
     {
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ISerializer Create(SerializerOptions options)
         {
             return new ResponseSerializer();
         }
     }
 
+    /// <summary>
+    /// ISerializer 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeSerializer : ISerializer
     {
+        /// <summary>
+        /// Serialize 작업을 수행합니다.
+        /// </summary>
         public byte[] Serialize(IMessage message)
         {
             return System.Text.Encoding.UTF8.GetBytes(message.MessageId.ToString());
         }
 
+        /// <summary>
+        /// Deserialize 작업을 수행합니다.
+        /// </summary>
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
             var text = System.Text.Encoding.UTF8.GetString(payload);
@@ -1196,13 +1904,22 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// ISerializer 값을 가져옵니다.
+    /// </summary>
     private sealed class ResponseSerializer : ISerializer
     {
+        /// <summary>
+        /// Serialize 작업을 수행합니다.
+        /// </summary>
         public byte[] Serialize(IMessage message)
         {
             return System.Text.Encoding.UTF8.GetBytes(message.MessageId.ToString());
         }
 
+        /// <summary>
+        /// Deserialize 작업을 수행합니다.
+        /// </summary>
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
             var text = System.Text.Encoding.UTF8.GetString(payload);
@@ -1213,18 +1930,33 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// ITransportFactory 값을 가져옵니다.
+    /// </summary>
     private sealed class ThrowingTransportFactory : ITransportFactory
     {
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ITransport Create(TransportOptions options)
         {
             throw new InvalidOperationException("Transport creation failed.");
         }
     }
 
+    /// <summary>
+    /// ITransportFactory 값을 가져옵니다.
+    /// </summary>
     private sealed class FreshTransportFactory : ITransportFactory
     {
+        /// <summary>
+        /// Transports 값을 가져옵니다.
+        /// </summary>
         public List<FakeTransport> Transports { get; } = new();
 
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ITransport Create(TransportOptions options)
         {
             var transport = new FakeTransport();
@@ -1233,43 +1965,103 @@ public sealed class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// ITransportFactory 값을 가져옵니다.
+    /// </summary>
     private sealed class SequencedTransportFactory : ITransportFactory
     {
+        /// <summary>
+        /// _transports 값을 나타냅니다.
+        /// </summary>
         private readonly Queue<FakeTransport> _transports;
 
+        /// <summary>
+        /// <see cref="SequencedTransportFactory"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public SequencedTransportFactory(params FakeTransport[] transports)
         {
             _transports = new Queue<FakeTransport>(transports);
         }
 
+        /// <summary>
+        /// Create 작업을 수행합니다.
+        /// </summary>
         public ITransport Create(TransportOptions options)
         {
             return _transports.Dequeue();
         }
     }
 
+    /// <summary>
+    /// IConnectionEventSink 값을 가져옵니다.
+    /// </summary>
     private sealed class RecordingConnectionEventSink : IConnectionEventSink
     {
+        /// <summary>
+        /// Events 값을 가져옵니다.
+        /// </summary>
         public List<string> Events { get; } = new();
 
+        /// <summary>
+        /// OnConnectAttempt 작업을 수행합니다.
+        /// </summary>
         public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
         {
             Events.Add($"attempt:{deviceId}:{attemptNumber}/{totalAttempts}");
         }
 
+        /// <summary>
+        /// OnConnectRetryScheduled 작업을 수행합니다.
+        /// </summary>
         public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
         {
             Events.Add($"retry:{deviceId}:{attemptNumber}:{delay.TotalMilliseconds:0}:{exception.Message}");
         }
 
+        /// <summary>
+        /// OnConnectSucceeded 작업을 수행합니다.
+        /// </summary>
         public void OnConnectSucceeded(string deviceId, int attemptNumber)
         {
             Events.Add($"success:{deviceId}:{attemptNumber}");
         }
 
+        /// <summary>
+        /// OnOperationFailed 작업을 수행합니다.
+        /// </summary>
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
             Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
         }
+
+        public void OnInboundBackpressure(string deviceId, int queueCapacity)
+        {
+            Events.Add($"backpressure:{deviceId}:{queueCapacity}");
+        }
+    }
+
+    /// <summary>
+    /// WaitForAsync 작업을 수행합니다.
+    /// </summary>
+    private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 1000)
+    {
+        using var cts = new CancellationTokenSource(timeoutMs);
+        while (!condition())
+        {
+            cts.Token.ThrowIfCancellationRequested();
+            await Task.Delay(10, cts.Token);
+        }
+    }
+
+    /// <summary>
+    /// 테스트 검증을 위해 내부 디바이스 작업 게이트 수를 조회합니다.
+    /// </summary>
+    /// <param name="manager">내부 상태를 확인할 연결 관리자입니다.</param>
+    /// <returns>현재 등록된 디바이스 작업 게이트 수입니다.</returns>
+    private static int GetDeviceOperationGateCount(ConnectionManager manager)
+    {
+        var field = typeof(ConnectionManager).GetField("_deviceOperationGates", BindingFlags.Instance | BindingFlags.NonPublic);
+        var gates = Assert.IsAssignableFrom<IDictionary>(field?.GetValue(manager));
+        return gates.Count;
     }
 }

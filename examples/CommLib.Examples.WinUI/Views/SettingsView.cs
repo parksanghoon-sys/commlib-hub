@@ -1,4 +1,4 @@
-using CommLib.Examples.WinUI.Models;
+﻿using CommLib.Examples.WinUI.Models;
 using CommLib.Examples.WinUI.Converters;
 using CommLib.Examples.WinUI.Services;
 using CommLib.Examples.WinUI.Styles;
@@ -12,14 +12,32 @@ using Microsoft.UI.Xaml.Media;
 
 namespace CommLib.Examples.WinUI.Views;
 
+/// <summary>
+/// SettingsView 타입입니다.
+/// </summary>
 public sealed class SettingsView : Grid
 {
+    /// <summary>
+    /// VisibilityConverter 값을 나타냅니다.
+    /// </summary>
     private static readonly BooleanToVisibilityConverter VisibilityConverter = new();
+    /// <summary>
+    /// _localizer 값을 나타냅니다.
+    /// </summary>
     private readonly IAppLocalizer _localizer;
+    /// <summary>
+    /// _scrollViewer 값을 나타냅니다.
+    /// </summary>
     private readonly ScrollViewer _scrollViewer;
     // Settings도 코드 기반 뷰라서 언어가 바뀌면 다시 써야 하는 텍스트를 모아 둔다.
+    /// <summary>
+    /// _localizedTextUpdates 값을 나타냅니다.
+    /// </summary>
     private readonly List<Action> _localizedTextUpdates = [];
 
+    /// <summary>
+    /// <see cref="SettingsView"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public SettingsView(SettingsViewModel viewModel, IAppLocalizer localizer)
     {
         _localizer = localizer;
@@ -33,13 +51,22 @@ public sealed class SettingsView : Grid
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// ViewModel 값을 가져옵니다.
+    /// </summary>
     public SettingsViewModel ViewModel { get; }
 
+    /// <summary>
+    /// OnLanguageChanged 작업을 수행합니다.
+    /// </summary>
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// BuildContent 작업을 수행합니다.
+    /// </summary>
     private FrameworkElement BuildContent()
     {
         var root = new Grid
@@ -64,6 +91,9 @@ public sealed class SettingsView : Grid
         return root;
     }
 
+    /// <summary>
+    /// CreateHeroCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateHeroCard()
     {
         var card = CreateCard(GetThemeBrush(DeviceLabTheme.HeroPanelBrushKey));
@@ -106,6 +136,9 @@ public sealed class SettingsView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateGeneralCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateGeneralCard()
     {
         var card = CreateCard();
@@ -157,18 +190,38 @@ public sealed class SettingsView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateMessageCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateMessageCard()
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
         stack.Children.Add(CreateSectionTitle("settings.section.messageDefaults"));
+
+        var serializer = CreateComboBox("Settings.SerializerChoices", "Settings.SelectedSerializer");
+        serializer.DisplayMemberPath = "Label";
+
         stack.Children.Add(CreateTwoColumnRow(
             CreateLabeledField("field.messageId", CreateTextBox("Settings.OutboundMessageId")),
-            CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true))));
+            CreateLabeledField("field.serializer", serializer)));
+
+        var serializerHint = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+        Bind(serializerHint, TextBlock.TextProperty, "Settings.SelectedSerializerSubtitle");
+        stack.Children.Add(serializerHint);
+
+        stack.Children.Add(CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true)));
         card.Child = stack;
         return card;
     }
 
+    /// <summary>
+    /// CreateTransportCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateTransportCard()
     {
         var card = CreateCard();
@@ -213,6 +266,9 @@ public sealed class SettingsView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreatePersistenceCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreatePersistenceCard()
     {
         var card = CreateCard();
@@ -254,6 +310,9 @@ public sealed class SettingsView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateTransportPanel 작업을 수행합니다.
+    /// </summary>
     private Border CreateTransportPanel(TransportKind kind, IEnumerable<UIElement> children)
     {
         var border = new Border
@@ -283,6 +342,9 @@ public sealed class SettingsView : Grid
         return border;
     }
 
+    /// <summary>
+    /// CreateCard 작업을 수행합니다.
+    /// </summary>
     private Border CreateCard(Brush? background = null)
     {
         return new Border
@@ -293,6 +355,9 @@ public sealed class SettingsView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateSectionTitle 작업을 수행합니다.
+    /// </summary>
     private TextBlock CreateSectionTitle(string key)
     {
         var textBlock = new TextBlock
@@ -303,11 +368,17 @@ public sealed class SettingsView : Grid
         return textBlock;
     }
 
+    /// <summary>
+    /// CreateVerticalStack 작업을 수행합니다.
+    /// </summary>
     private StackPanel CreateVerticalStack(double spacing)
     {
         return new StackPanel { Spacing = spacing };
     }
 
+    /// <summary>
+    /// CreateLabeledField 작업을 수행합니다.
+    /// </summary>
     private FrameworkElement CreateLabeledField(string labelKey, FrameworkElement input)
     {
         var stack = CreateVerticalStack(6);
@@ -321,6 +392,9 @@ public sealed class SettingsView : Grid
         return stack;
     }
 
+    /// <summary>
+    /// CreateTwoColumnRow 작업을 수행합니다.
+    /// </summary>
     private Grid CreateTwoColumnRow(FrameworkElement left, FrameworkElement right)
     {
         var grid = new Grid { ColumnSpacing = 12 };
@@ -332,6 +406,9 @@ public sealed class SettingsView : Grid
         return grid;
     }
 
+    /// <summary>
+    /// CreateTextBox 작업을 수행합니다.
+    /// </summary>
     private TextBox CreateTextBox(string path, double height = 40, bool acceptsReturn = false)
     {
         var textBox = new TextBox
@@ -352,6 +429,9 @@ public sealed class SettingsView : Grid
         return textBox;
     }
 
+    /// <summary>
+    /// CreatePageScrollViewer 작업을 수행합니다.
+    /// </summary>
     private static ScrollViewer CreatePageScrollViewer()
     {
         return new ScrollViewer
@@ -360,6 +440,9 @@ public sealed class SettingsView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateComboBox 작업을 수행합니다.
+    /// </summary>
     private ComboBox CreateComboBox(string itemsSourcePath, string selectedPath)
     {
         var comboBox = new ComboBox
@@ -378,6 +461,9 @@ public sealed class SettingsView : Grid
         return comboBox;
     }
 
+    /// <summary>
+    /// GetTransportVisibilityPath 작업을 수행합니다.
+    /// </summary>
     private static string GetTransportVisibilityPath(TransportKind kind)
     {
         // visibility는 별도 UI 상태를 만들지 않고 현재 선택된 transport에서 직접 파생시킨다.
@@ -392,6 +478,9 @@ public sealed class SettingsView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateCheckBox 작업을 수행합니다.
+    /// </summary>
     private CheckBox CreateCheckBox(string contentKey, string path)
     {
         var checkBox = new CheckBox
@@ -405,6 +494,9 @@ public sealed class SettingsView : Grid
         return checkBox;
     }
 
+    /// <summary>
+    /// CreateCommandButton 작업을 수행합니다.
+    /// </summary>
     private Button CreateCommandButton(string labelKey, string commandPath, bool isPrimary = false)
     {
         var button = new Button
@@ -434,21 +526,33 @@ public sealed class SettingsView : Grid
         return DeviceLabTheme.Get<T>(this, key);
     }
 
+    /// <summary>
+    /// GetThemeBrush 작업을 수행합니다.
+    /// </summary>
     private Brush GetThemeBrush(string key)
     {
         return GetTheme<Brush>(key);
     }
 
+    /// <summary>
+    /// GetThemeStyle 작업을 수행합니다.
+    /// </summary>
     private Style GetThemeStyle(string key)
     {
         return GetTheme<Style>(key);
     }
 
+    /// <summary>
+    /// RegisterLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void RegisterLocalizedText(Action applyText)
     {
         _localizedTextUpdates.Add(applyText);
     }
 
+    /// <summary>
+    /// ApplyLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void ApplyLocalizedText()
     {
         foreach (var updateText in _localizedTextUpdates)
@@ -457,6 +561,9 @@ public sealed class SettingsView : Grid
         }
     }
 
+    /// <summary>
+    /// Bind 작업을 수행합니다.
+    /// </summary>
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)
     {
         element.SetBinding(property, new Binding
@@ -467,6 +574,9 @@ public sealed class SettingsView : Grid
         });
     }
 
+    /// <summary>
+    /// CreateSolid 작업을 수행합니다.
+    /// </summary>
     private static SolidColorBrush CreateSolid(string hex)
     {
         var value = hex.TrimStart('#');

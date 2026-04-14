@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using CommLib.Domain.Transport;
 
 namespace CommLib.Infrastructure.Transport;
@@ -8,7 +8,13 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public abstract class RecordingTransport : ITransport
 {
+    /// <summary>
+    /// _inbound 값을 나타냅니다.
+    /// </summary>
     private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
+    /// <summary>
+    /// _closeTokenSource 값을 나타냅니다.
+    /// </summary>
     private readonly CancellationTokenSource _closeTokenSource = new();
 
     /// <summary>
@@ -123,6 +129,9 @@ public abstract class RecordingTransport : ITransport
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// ThrowIfUnavailable 작업을 수행합니다.
+    /// </summary>
     private void ThrowIfUnavailable()
     {
         if (IsClosed)

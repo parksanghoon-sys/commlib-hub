@@ -1,4 +1,4 @@
-using CommLib.Application.Sessions;
+﻿using CommLib.Application.Sessions;
 using CommLib.Domain.Messaging;
 using Xunit;
 
@@ -13,6 +13,9 @@ public sealed class SendResultTests
     /// 비형식화된 송신 결과가 전달받은 완료 작업을 그대로 보관하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Constructor_StoresSendCompletedTask 작업을 수행합니다.
+    /// </summary>
     public void Constructor_StoresSendCompletedTask()
     {
         var sendTask = Task.CompletedTask;
@@ -26,6 +29,9 @@ public sealed class SendResultTests
     /// 형식화된 송신 결과가 전송 완료 작업과 응답 작업을 각각 그대로 보관하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// GenericConstructor_StoresSendAndResponseTasks 작업을 수행합니다.
+    /// </summary>
     public void GenericConstructor_StoresSendAndResponseTasks()
     {
         var sendTask = Task.CompletedTask;

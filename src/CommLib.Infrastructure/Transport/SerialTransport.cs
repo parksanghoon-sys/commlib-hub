@@ -1,4 +1,4 @@
-using System.IO.Ports;
+﻿using System.IO.Ports;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Transport;
 
@@ -9,10 +9,25 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class SerialTransport : ITransport
 {
+    /// <summary>
+    /// _options 값을 나타냅니다.
+    /// </summary>
     private readonly SerialTransportOptions _options;
+    /// <summary>
+    /// _serialPortFactory 값을 나타냅니다.
+    /// </summary>
     private readonly Func<SerialTransportOptions, ISerialPortAdapter> _serialPortFactory;
+    /// <summary>
+    /// _closeTokenSource 값을 나타냅니다.
+    /// </summary>
     private readonly CancellationTokenSource _closeTokenSource = new();
+    /// <summary>
+    /// _serialPort 값을 나타냅니다.
+    /// </summary>
     private ISerialPortAdapter? _serialPort;
+    /// <summary>
+    /// _stream 값을 나타냅니다.
+    /// </summary>
     private Stream? _stream;
 
     /// <summary>
@@ -153,12 +168,18 @@ public sealed class SerialTransport : ITransport
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// GetRequiredStream 작업을 수행합니다.
+    /// </summary>
     private Stream GetRequiredStream()
     {
         ThrowIfClosed();
         return _stream ?? throw new InvalidOperationException($"Transport '{Name}' is not open.");
     }
 
+    /// <summary>
+    /// ApplyTurnGapAsync 작업을 수행합니다.
+    /// </summary>
     private async Task ApplyTurnGapAsync(CancellationToken cancellationToken)
     {
         if (_options.HalfDuplex && _options.TurnGapMs > 0)
@@ -167,6 +188,9 @@ public sealed class SerialTransport : ITransport
         }
     }
 
+    /// <summary>
+    /// ThrowIfClosed 작업을 수행합니다.
+    /// </summary>
     private void ThrowIfClosed()
     {
         if (IsClosed)
@@ -175,6 +199,9 @@ public sealed class SerialTransport : ITransport
         }
     }
 
+    /// <summary>
+    /// IsCloseCancellation 작업을 수행합니다.
+    /// </summary>
     private bool IsCloseCancellation(Exception exception, CancellationToken cancellationToken)
     {
         return _closeTokenSource.IsCancellationRequested &&
@@ -182,11 +209,17 @@ public sealed class SerialTransport : ITransport
                exception is OperationCanceledException or ObjectDisposedException or IOException;
     }
 
+    /// <summary>
+    /// CreateClosedCancellationException 작업을 수행합니다.
+    /// </summary>
     private OperationCanceledException CreateClosedCancellationException()
     {
         return new OperationCanceledException($"Transport '{Name}' was closed.", innerException: null, _closeTokenSource.Token);
     }
 
+    /// <summary>
+    /// CreateSerialPort 작업을 수행합니다.
+    /// </summary>
     private static SerialPort CreateSerialPort(SerialTransportOptions options)
     {
         return new SerialPort(
@@ -203,6 +236,9 @@ public sealed class SerialTransport : ITransport
         };
     }
 
+    /// <summary>
+    /// ParseParity 작업을 수행합니다.
+    /// </summary>
     private static Parity ParseParity(string value)
     {
         if (!Enum.TryParse<Parity>(value, ignoreCase: true, out var parity))
@@ -213,6 +249,9 @@ public sealed class SerialTransport : ITransport
         return parity;
     }
 
+    /// <summary>
+    /// ParseStopBits 작업을 수행합니다.
+    /// </summary>
     private static StopBits ParseStopBits(string value)
     {
         if (!Enum.TryParse<StopBits>(value, ignoreCase: true, out var stopBits))
@@ -224,35 +263,71 @@ public sealed class SerialTransport : ITransport
     }
 }
 
+/// <summary>
+/// ISerialPortAdapter 계약을 정의하는 인터페이스입니다.
+/// </summary>
 internal interface ISerialPortAdapter : IDisposable
 {
+    /// <summary>
+    /// 포트가 열린 상태인지 여부를 가져옵니다.
+    /// </summary>
     bool IsOpen { get; }
 
+    /// <summary>
+    /// 직렬 포트의 기본 스트림을 가져옵니다.
+    /// </summary>
     Stream Stream { get; }
 
+    /// <summary>
+    /// 직렬 포트를 엽니다.
+    /// </summary>
     void Open();
 
+    /// <summary>
+    /// 직렬 포트를 닫습니다.
+    /// </summary>
     void Close();
 }
 
+/// <summary>
+/// SystemSerialPortAdapter 타입입니다.
+/// </summary>
 internal sealed class SystemSerialPortAdapter : ISerialPortAdapter
 {
+    /// <summary>
+    /// _serialPort 값을 나타냅니다.
+    /// </summary>
     private readonly SerialPort _serialPort;
 
+    /// <summary>
+    /// <see cref="SystemSerialPortAdapter"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public SystemSerialPortAdapter(SerialPort serialPort)
     {
         _serialPort = serialPort;
     }
 
+    /// <summary>
+    /// IsOpen 값을 가져옵니다.
+    /// </summary>
     public bool IsOpen => _serialPort.IsOpen;
 
+    /// <summary>
+    /// Stream 값을 가져옵니다.
+    /// </summary>
     public Stream Stream => _serialPort.BaseStream;
 
+    /// <summary>
+    /// Open 작업을 수행합니다.
+    /// </summary>
     public void Open()
     {
         _serialPort.Open();
     }
 
+    /// <summary>
+    /// Close 작업을 수행합니다.
+    /// </summary>
     public void Close()
     {
         if (_serialPort.IsOpen)
@@ -261,6 +336,9 @@ internal sealed class SystemSerialPortAdapter : ISerialPortAdapter
         }
     }
 
+    /// <summary>
+    /// Dispose 작업을 수행합니다.
+    /// </summary>
     public void Dispose()
     {
         _serialPort.Dispose();

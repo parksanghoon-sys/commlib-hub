@@ -1,4 +1,4 @@
-namespace CommLib.Application.Pipeline;
+﻿namespace CommLib.Application.Pipeline;
 
 /// <summary>
 /// 응답을 기다리는 요청의 상관관계 식별자를 추적합니다.

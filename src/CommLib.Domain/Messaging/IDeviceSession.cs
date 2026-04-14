@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 단일 장치에 대한 논리적 메시지 세션을 정의합니다.
@@ -37,6 +37,12 @@ public interface IDeviceSession
     /// <param name="response">완료 처리할 응답 메시지입니다.</param>
     /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
     bool TryCompleteResponse(IResponseMessage response);
+
+    /// <summary>
+    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
+    /// </summary>
+    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
+    void FailPendingResponses(Exception exception);
 
     /// <summary>
     /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.

@@ -1,5 +1,73 @@
 # CHANGELOG_AGENT
 
+## 2026-04-06
+- Rotated the ongoing raw-hex work off `feat/winui-localization-foundation` and onto the dedicated branch `feat/rawhex-compose-flow` after the feature scope clearly diverged from the already-merged WinUI localization line.
+- Reconciled the new user request with the current repo state and chose the smallest TDD-backed raw-hex implementation slice instead of widening immediately into WinUI UI work or future bitfield schema mapping.
+- Added failing tests first for:
+  - `MessagePayloadFormatter`
+  - `RawHexSerializer`
+  - `SerializerFactory` support for `RawHex`
+- Introduced the reusable binary payload groundwork in `CommLib.Domain`:
+  - added `IBinaryMessagePayload`
+  - added `BinaryMessageModel`, `BinaryRequestMessageModel`, and `BinaryResponseMessageModel`
+  - added `MessagePayloadFormatter` so logs/UI code can render binary messages as uppercase space-delimited hex
+- Added `RawHexSerializer` in `CommLib.Infrastructure.Protocol`:
+  - preserves the existing message/request/response metadata header shape
+  - appends raw payload bytes after the header
+  - accepts either direct binary payload messages or whitespace-tolerant outbound hex text bodies
+  - deserializes inbound payloads into binary-capable message models
+- Extended `SerializerFactory` so `SerializerOptions.Type = "RawHex"` resolves to the new serializer.
+- Updated the console example and WinUI session receive logging to use `MessagePayloadFormatter` instead of assuming `IMessageBody` is always present.
+- Verified the slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Continued the next WinUI-facing raw-hex slice in TDD:
+  - added `SerializerTypes`, `HexPayloadParser`, and `OutboundMessageComposer`
+  - added unit tests for serializer-driven outbound message composition
+  - persisted serializer selection in WinUI `MessageComposerAppSettings`
+  - added shared serializer choice state to `DeviceLabSettingsViewModel`
+  - added serializer selectors plus serializer-mode hint text to both `Device Lab` and `Settings`
+  - changed `IDeviceLabSessionService.SendAsync` to accept a composed `IMessage`
+  - changed outbound session logging to use `MessagePayloadFormatter`
+  - localized the WinUI raw-hex validation failure path
+  - updated the WinUI README/appsettings defaults for the new serializer selection
+- Verified the WinUI-facing slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Added a focused raw-hex TCP roundtrip validation slice in infrastructure tests:
+  - added `RawHexConnectionManagerRoundtripTests`
+  - exercised the real `ConnectionManager` + `TcpTransport` + `LengthPrefixedProtocol` + `RawHexSerializer` path instead of only unit-level serializer coverage
+  - covered both direct binary payload messages and the existing hex-text bridge path
+  - asserted that the echoed inbound payload still formats as uppercase spaced hex through `MessagePayloadFormatter`
+- Verified the transport/session roundtrip slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexConnectionManagerRoundtripTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- Ran a live `win-x64` WinUI raw-hex TCP validation pass through the in-app mock endpoint:
+  - temporarily pinned the runtime `appsettings.json` to English, TCP loopback, `RawHex`, message id `321`, and body `DE AD BE EF`
+  - launched the app, invoked `Start Mock`, `Connect`, and `Send` through UI Automation
+  - confirmed matching outbound and inbound `DE AD BE EF` log entries in the live log
+- Found and fixed a WinUI command-state regression during that live pass:
+  - after connect succeeded, `Send` stayed disabled because `MainViewModel` async command handlers resumed off the UI context after `ConfigureAwait(false)`
+  - the same UI-layer pattern existed in `SettingsViewModel` save/reload commands
+  - removed `ConfigureAwait(false)` from those WinUI async command handlers so observable state and command enablement resume on the UI context
+- Re-verified the fix with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - a repeated `win-x64` UI Automation raw-hex TCP roundtrip that reached outbound and inbound `DE AD BE EF`
+- Started the first bit-level foundation slice in TDD instead of jumping straight into serializer-setting or WinUI schema editing:
+  - added `BitFieldDefinition` as the named bit-range contract
+  - added `BitFieldCodec` for unsigned reads, signed reads, and unsigned in-place writes
+  - fixed the initial convention as `payload[0]` LSB = bit `0`
+  - covered single-bit reads, cross-byte reads, signed sign-extension, in-place writes, and bounds/value validation in `BitFieldCodecTests`
+- Verified the bitfield foundation slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~BitFieldCodecTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+
 ## 2026-04-03
 - Reconciled `PROGRESS.md`, `AGENT.md`, `docs/current-plan.md`, recent commits, branch state, and the current WinUI example code.
 - Confirmed that the worktree was clean, the active branch name no longer matched the latest example-focused work, and no canonical root state files existed yet.
@@ -109,3 +177,55 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
   - Cobertura XML outputs generated under each test project's `TestResults/.../coverage.cobertura.xml`
+- Published the WinUI follow-up branch and captured the delivery state:
+  - split the local work into `1601dbc` (`build(repo): centralize package versions and coverage tooling`), `f21d5dd` (`feat(examples): localize and streamline winui device lab`), and `bad9ee7` (`docs(agent): record winui follow-up state`)
+  - pushed `feat/winui-localization-foundation` to `commlib-hub`
+  - the GitHub connector could not open the PR directly because pull-request creation returned `403 Resource not accessible by integration`
+  - used `gh` CLI as fallback to open PR `#3` (`[codex] localize and streamline the WinUI device lab`)
+  - later confirmed via `gh pr view 3` that the PR is now merged into `main`
+- Reviewed the repo's current support for raw hex and bitfield-shaped payloads:
+  - confirmed that the live path stops at frame boundaries plus the text-oriented `AutoBinary` serializer, with no existing bit-mask/bit-shift payload decoder in `src/`
+  - designed the minimum safe direction as serializer/payload-codec work plus a small WinUI composer-mode addition rather than a transport/protocol rewrite
+  - recorded the implementation as deferred backlog, with raw-hex roundtrip support as the first slice and declarative bitfield schema mapping as a follow-up
+- Re-reviewed that design for longer-term extensibility:
+  - found that `SerializerOptions` / `ProtocolOptions` are currently flatter and more closed than `TransportOptions`, which would make future schema-specific settings awkward
+  - found that the real reuse seam is not only a new serializer, but also a binary payload representation plus display/formatting support so WinUI and logs stop assuming text-only bodies
+  - refined the backlog/decision notes toward a reusable binary-capable serializer/configuration path instead of a one-off `RawHex` bolt-on
+- Added the first schema-backed bitfield layer above the low-level raw-payload codec:
+  - introduced `BitFieldPayloadSchema`, `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldFieldAssignment`, and `BitFieldFieldValue`
+  - added `BitFieldPayloadSchemaValidator` for payload-length, overlap, duplicate-name, and scalar-kind checks
+  - added `BitFieldPayloadSchemaCodec` to compose raw payload bytes from named field values and inspect raw payload bytes back into named field values
+  - chose `decimal` as the first schema API value type so the layer can represent signed and unsigned 64-bit scalar values without adding a heavier numeric abstraction yet
+- Added the first serializer-adjacent settings seam for that schema layer:
+  - `SerializerOptions` now carries an optional `BitFieldSchema`
+  - `DeviceProfileValidator` now rejects invalid schema definitions and rejects schema usage unless the serializer type is currently `RawHex`
+  - `OutboundMessageComposer` now has a schema-based binary payload overload that stays above the transport/protocol layer
+- Added focused unit coverage for the new schema slice:
+  - `BitFieldPayloadSchemaValidatorTests`
+  - `BitFieldPayloadSchemaCodecTests`
+  - updated `OutboundMessageComposerTests`, `DeviceProfileMapperTests`, and `DeviceProfileValidatorTests`
+- Verified the schema-backed slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+
+## 2026-04-14
+
+- Rebuilt the delivery line as one temporary integration branch rooted in `commlib-hub/main`:
+  - created `integration/main-refresh-20260414`
+  - merged `feat/bitfield-endianness`
+  - merged `feat/bitfield-schema-log-enrichment`
+  - merged `feat/runtime-hardening-clean-base`
+- Replayed the two local 2026-04-14 work-unit commits on top of that clean integration line:
+  - `fix(runtime): reclaim disconnected device operation gates`
+  - `docs(repo): add Korean XML documentation`
+- Resolved the integration/cherry-pick conflicts conservatively:
+  - kept the clean runtime line as the code baseline where conflicts were code-bearing
+  - re-applied the reference-counted device-operation gate cleanup on top of the bounded-queue/backpressure runtime version of `ConnectionManager`
+  - kept the integration line's current code on the handful of documentation-only cherry-pick conflicts where replaying the older comment version would have risked dropping newer runtime changes
+- Revalidated the integrated line sequentially to avoid the repo's earlier `dotnet` output-lock pattern:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Reset the continuity files so post-merge work now treats refreshed `main` as the baseline and promotes `DeviceSession` timeout-cancellation cleanup as the next isolated branch.

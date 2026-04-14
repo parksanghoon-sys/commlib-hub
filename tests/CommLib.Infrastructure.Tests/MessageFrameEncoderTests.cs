@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
@@ -14,6 +14,9 @@ public sealed class MessageFrameEncoderTests
     /// 메시지를 인코드하면 serializer 결과를 protocol 입력으로 전달하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Encode_Message_ComposesSerializerAndProtocol 작업을 수행합니다.
+    /// </summary>
     public void Encode_Message_ComposesSerializerAndProtocol()
     {
         var serializer = new FakeSerializer(new byte[] { 0x10, 0x20, 0x30 });
@@ -32,6 +35,9 @@ public sealed class MessageFrameEncoderTests
     /// NoOpSerializer와 LengthPrefixedProtocol을 함께 사용하면 실제 프레임을 생성하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Encode_WithDefaultComponents_ReturnsLengthPrefixedMessageIdPayload 작업을 수행합니다.
+    /// </summary>
     public void Encode_WithDefaultComponents_ReturnsLengthPrefixedMessageIdPayload()
     {
         var encoder = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol());
@@ -47,50 +53,92 @@ public sealed class MessageFrameEncoderTests
             frame);
     }
 
+    /// <summary>
+    /// FakeMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
+    /// <summary>
+    /// ISerializer 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeSerializer : ISerializer
     {
+        /// <summary>
+        /// _payload 값을 나타냅니다.
+        /// </summary>
         private readonly byte[] _payload;
 
+        /// <summary>
+        /// <see cref="FakeSerializer"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeSerializer(byte[] payload)
         {
             _payload = payload;
         }
 
+        /// <summary>
+        /// LastMessage 값을 가져오거나 설정합니다.
+        /// </summary>
         public IMessage? LastMessage { get; private set; }
 
+        /// <summary>
+        /// Serialize 작업을 수행합니다.
+        /// </summary>
         public byte[] Serialize(IMessage message)
         {
             LastMessage = message;
             return _payload;
         }
 
+        /// <summary>
+        /// Deserialize 작업을 수행합니다.
+        /// </summary>
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
             throw new NotSupportedException();
         }
     }
 
+    /// <summary>
+    /// IProtocol 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeProtocol : IProtocol
     {
+        /// <summary>
+        /// _frame 값을 나타냅니다.
+        /// </summary>
         private readonly byte[] _frame;
 
+        /// <summary>
+        /// <see cref="FakeProtocol"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeProtocol(byte[] frame)
         {
             _frame = frame;
         }
 
+        /// <summary>
+        /// Name 값을 가져오거나 설정합니다.
+        /// </summary>
         public string Name => "Fake";
 
+        /// <summary>
+        /// LastPayload 값을 가져오거나 설정합니다.
+        /// </summary>
         public byte[]? LastPayload { get; private set; }
 
+        /// <summary>
+        /// Encode 작업을 수행합니다.
+        /// </summary>
         public byte[] Encode(ReadOnlySpan<byte> payload)
         {
             LastPayload = payload.ToArray();
             return _frame;
         }
 
+        /// <summary>
+        /// TryDecode 작업을 수행합니다.
+        /// </summary>
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
         {
             payload = Array.Empty<byte>();

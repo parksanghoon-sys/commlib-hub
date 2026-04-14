@@ -1,4 +1,4 @@
-using CommLib.Examples.WinUI.Models;
+﻿using CommLib.Examples.WinUI.Models;
 using CommLib.Examples.WinUI.Converters;
 using CommLib.Examples.WinUI.Services;
 using CommLib.Examples.WinUI.Styles;
@@ -12,16 +12,37 @@ using Microsoft.UI.Xaml.Media;
 
 namespace CommLib.Examples.WinUI.Views;
 
+/// <summary>
+/// DeviceLabView 타입입니다.
+/// </summary>
 public sealed class DeviceLabView : Grid
 {
+    /// <summary>
+    /// VisibilityConverter 값을 나타냅니다.
+    /// </summary>
     private static readonly BooleanToVisibilityConverter VisibilityConverter = new();
+    /// <summary>
+    /// _localizer 값을 나타냅니다.
+    /// </summary>
     private readonly IAppLocalizer _localizer;
+    /// <summary>
+    /// _scrollViewer 값을 나타냅니다.
+    /// </summary>
     private readonly ScrollViewer _scrollViewer;
     // 이 뷰는 XAML 대신 코드로 화면을 조합하므로,
     // 언어 변경 시 다시 써야 하는 텍스트 setter를 별도로 모아 두고 일괄 재적용한다.
+    /// <summary>
+    /// _localizedTextUpdates 값을 나타냅니다.
+    /// </summary>
     private readonly List<Action> _localizedTextUpdates = [];
+    /// <summary>
+    /// _liveLogScrollViewer 값을 나타냅니다.
+    /// </summary>
     private ScrollViewer? _liveLogScrollViewer;
 
+    /// <summary>
+    /// <see cref="DeviceLabView"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public DeviceLabView(MainViewModel viewModel, IAppLocalizer localizer)
     {
         _localizer = localizer;
@@ -35,13 +56,22 @@ public sealed class DeviceLabView : Grid
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// ViewModel 값을 가져옵니다.
+    /// </summary>
     public MainViewModel ViewModel { get; }
 
+    /// <summary>
+    /// OnLanguageChanged 작업을 수행합니다.
+    /// </summary>
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// BuildContent 작업을 수행합니다.
+    /// </summary>
     private FrameworkElement BuildContent()
     {
         // Device Lab은 "세션 설정 -> transport 설정 -> mock peer -> 전송 -> 로그" 순서로 읽히게 구성해
@@ -69,6 +99,9 @@ public sealed class DeviceLabView : Grid
         return root;
     }
 
+    /// <summary>
+    /// CreateHeroCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateHeroCard()
     {
         var card = CreateCard(GetThemeBrush(DeviceLabTheme.HeroPanelBrushKey));
@@ -111,6 +144,9 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateSessionCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateSessionCard()
     {
         var card = CreateCard();
@@ -145,6 +181,9 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateTransportCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateTransportCard()
     {
         var card = CreateCard();
@@ -189,15 +228,31 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateComposerCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateComposerCard()
     {
         var card = CreateCard();
         var stack = CreateVerticalStack(12);
         stack.Children.Add(CreateSectionTitle("deviceLab.section.messageComposer"));
 
+        var serializer = CreateComboBox("Settings.SerializerChoices", "Settings.SelectedSerializer");
+        serializer.DisplayMemberPath = "Label";
+
         stack.Children.Add(CreateTwoColumnRow(
             CreateLabeledField("field.messageId", CreateTextBox("Settings.OutboundMessageId")),
-            CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true))));
+            CreateLabeledField("field.serializer", serializer)));
+
+        var serializerHint = new TextBlock
+        {
+            Style = GetThemeStyle(DeviceLabTheme.BodyCaptionStyleKey),
+            TextWrapping = TextWrapping.WrapWholeWords
+        };
+        Bind(serializerHint, TextBlock.TextProperty, "Settings.SelectedSerializerSubtitle");
+        stack.Children.Add(serializerHint);
+
+        stack.Children.Add(CreateLabeledField("field.body", CreateTextBox("Settings.OutboundBody", 120, true)));
 
         var buttons = new StackPanel
         {
@@ -215,6 +270,9 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateMockEndpointCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateMockEndpointCard()
     {
         var card = CreateCard();
@@ -258,6 +316,9 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateLogCard 작업을 수행합니다.
+    /// </summary>
     private UIElement CreateLogCard()
     {
         var card = CreateCard();
@@ -272,6 +333,9 @@ public sealed class DeviceLabView : Grid
         return card;
     }
 
+    /// <summary>
+    /// CreateTransportPanel 작업을 수행합니다.
+    /// </summary>
     private Border CreateTransportPanel(TransportKind kind, IEnumerable<UIElement> children)
     {
         var border = new Border
@@ -301,6 +365,9 @@ public sealed class DeviceLabView : Grid
         return border;
     }
 
+    /// <summary>
+    /// CreateCard 작업을 수행합니다.
+    /// </summary>
     private Border CreateCard(Brush? background = null)
     {
         return new Border
@@ -311,6 +378,9 @@ public sealed class DeviceLabView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateSectionTitle 작업을 수행합니다.
+    /// </summary>
     private TextBlock CreateSectionTitle(string key)
     {
         var textBlock = new TextBlock
@@ -321,11 +391,17 @@ public sealed class DeviceLabView : Grid
         return textBlock;
     }
 
+    /// <summary>
+    /// CreateVerticalStack 작업을 수행합니다.
+    /// </summary>
     private StackPanel CreateVerticalStack(double spacing)
     {
         return new StackPanel { Spacing = spacing };
     }
 
+    /// <summary>
+    /// CreateLabeledField 작업을 수행합니다.
+    /// </summary>
     private FrameworkElement CreateLabeledField(string labelKey, FrameworkElement input)
     {
         var stack = CreateVerticalStack(6);
@@ -339,6 +415,9 @@ public sealed class DeviceLabView : Grid
         return stack;
     }
 
+    /// <summary>
+    /// CreateTwoColumnRow 작업을 수행합니다.
+    /// </summary>
     private Grid CreateTwoColumnRow(FrameworkElement left, FrameworkElement right)
     {
         var grid = new Grid { ColumnSpacing = 12 };
@@ -350,6 +429,9 @@ public sealed class DeviceLabView : Grid
         return grid;
     }
 
+    /// <summary>
+    /// CreateTextBox 작업을 수행합니다.
+    /// </summary>
     private TextBox CreateTextBox(string path, double height = 40, bool acceptsReturn = false)
     {
         var textBox = new TextBox
@@ -370,6 +452,9 @@ public sealed class DeviceLabView : Grid
         return textBox;
     }
 
+    /// <summary>
+    /// CreateLiveLogBox 작업을 수행합니다.
+    /// </summary>
     private TextBox CreateLiveLogBox()
     {
         var logBox = new TextBox
@@ -395,12 +480,18 @@ public sealed class DeviceLabView : Grid
         return logBox;
     }
 
+    /// <summary>
+    /// CacheLiveLogScrollViewer 작업을 수행합니다.
+    /// </summary>
     private void CacheLiveLogScrollViewer(TextBox logBox)
     {
         _liveLogScrollViewer = FindDescendant<ScrollViewer>(logBox);
         ScrollLiveLogToLatest(logBox);
     }
 
+    /// <summary>
+    /// ScrollLiveLogToLatest 작업을 수행합니다.
+    /// </summary>
     private void ScrollLiveLogToLatest(TextBox logBox)
     {
         if (string.IsNullOrEmpty(logBox.Text))
@@ -418,6 +509,9 @@ public sealed class DeviceLabView : Grid
         });
     }
 
+    /// <summary>
+    /// CreatePageScrollViewer 작업을 수행합니다.
+    /// </summary>
     private static ScrollViewer CreatePageScrollViewer()
     {
         return new ScrollViewer
@@ -426,6 +520,9 @@ public sealed class DeviceLabView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateComboBox 작업을 수행합니다.
+    /// </summary>
     private ComboBox CreateComboBox(string itemsSourcePath, string selectedPath)
     {
         var comboBox = new ComboBox
@@ -444,6 +541,9 @@ public sealed class DeviceLabView : Grid
         return comboBox;
     }
 
+    /// <summary>
+    /// GetTransportVisibilityPath 작업을 수행합니다.
+    /// </summary>
     private static string GetTransportVisibilityPath(TransportKind kind)
     {
         return kind switch
@@ -456,6 +556,9 @@ public sealed class DeviceLabView : Grid
         };
     }
 
+    /// <summary>
+    /// CreateCheckBox 작업을 수행합니다.
+    /// </summary>
     private CheckBox CreateCheckBox(string contentKey, string path)
     {
         var checkBox = new CheckBox
@@ -469,6 +572,9 @@ public sealed class DeviceLabView : Grid
         return checkBox;
     }
 
+    /// <summary>
+    /// CreateCommandButton 작업을 수행합니다.
+    /// </summary>
     private Button CreateCommandButton(string labelKey, string commandPath, bool isPrimary = false)
     {
         var button = new Button
@@ -498,21 +604,33 @@ public sealed class DeviceLabView : Grid
         return DeviceLabTheme.Get<T>(this, key);
     }
 
+    /// <summary>
+    /// GetThemeBrush 작업을 수행합니다.
+    /// </summary>
     private Brush GetThemeBrush(string key)
     {
         return GetTheme<Brush>(key);
     }
 
+    /// <summary>
+    /// GetThemeStyle 작업을 수행합니다.
+    /// </summary>
     private Style GetThemeStyle(string key)
     {
         return GetTheme<Style>(key);
     }
 
+    /// <summary>
+    /// RegisterLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void RegisterLocalizedText(Action applyText)
     {
         _localizedTextUpdates.Add(applyText);
     }
 
+    /// <summary>
+    /// ApplyLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void ApplyLocalizedText()
     {
         foreach (var updateText in _localizedTextUpdates)
@@ -521,6 +639,9 @@ public sealed class DeviceLabView : Grid
         }
     }
 
+    /// <summary>
+    /// Bind 작업을 수행합니다.
+    /// </summary>
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)
     {
         element.SetBinding(property, new Binding
@@ -531,6 +652,9 @@ public sealed class DeviceLabView : Grid
         });
     }
 
+    /// <summary>
+    /// CreateSolid 작업을 수행합니다.
+    /// </summary>
     private static SolidColorBrush CreateSolid(string hex)
     {
         var value = hex.TrimStart('#');

@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 모든 전송 형식이 공통으로 따르는 설정 계약을 나타냅니다.

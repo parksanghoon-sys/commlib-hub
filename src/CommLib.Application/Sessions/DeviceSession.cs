@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using CommLib.Application.Pipeline;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -10,11 +10,29 @@ namespace CommLib.Application.Sessions;
 /// </summary>
 public sealed class DeviceSession : IDeviceSession
 {
+    /// <summary>
+    /// _outbound 값을 나타냅니다.
+    /// </summary>
     private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
+    /// <summary>
+    /// _pendingRequestStore 값을 나타냅니다.
+    /// </summary>
     private readonly PendingRequestStore _pendingRequestStore = new();
+    /// <summary>
+    /// _pendingResponses 값을 나타냅니다.
+    /// </summary>
     private readonly Dictionary<Guid, object> _pendingResponses = new();
+    /// <summary>
+    /// _syncRoot 값을 나타냅니다.
+    /// </summary>
     private readonly object _syncRoot = new();
+    /// <summary>
+    /// _maxPendingRequests 값을 나타냅니다.
+    /// </summary>
     private readonly int _maxPendingRequests;
+    /// <summary>
+    /// _defaultResponseTimeout 값을 나타냅니다.
+    /// </summary>
     private readonly TimeSpan? _defaultResponseTimeout;
 
     /// <summary>
@@ -155,6 +173,40 @@ public sealed class DeviceSession : IDeviceSession
         }
     }
 
+    /// <summary>
+    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
+    /// </summary>
+    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
+    public void FailPendingResponses(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        object[] pendingResponses;
+        Guid[] correlationIds;
+
+        lock (_syncRoot)
+        {
+            if (_pendingResponses.Count == 0)
+            {
+                return;
+            }
+
+            pendingResponses = _pendingResponses.Values.ToArray();
+            correlationIds = _pendingResponses.Keys.ToArray();
+            _pendingResponses.Clear();
+
+            foreach (var correlationId in correlationIds)
+            {
+                _pendingRequestStore.Complete(correlationId);
+            }
+        }
+
+        foreach (var pending in pendingResponses)
+        {
+            TrySetPendingException(pending, exception);
+        }
+    }
+
     private Task SendRequest<TRequest, TResponse>(
         TRequest request,
         TaskCompletionSource<TResponse> responseTcs,
@@ -212,6 +264,9 @@ public sealed class DeviceSession : IDeviceSession
         responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
     }
 
+    /// <summary>
+    /// TrySetResponseResult 작업을 수행합니다.
+    /// </summary>
     private static bool TrySetResponseResult(object pending, IResponseMessage response)
     {
         var pendingType = pending.GetType();
@@ -228,5 +283,20 @@ public sealed class DeviceSession : IDeviceSession
 
         var trySetResult = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetResult));
         return trySetResult is not null && (bool)(trySetResult.Invoke(pending, new object[] { response }) ?? false);
+    }
+
+    /// <summary>
+    /// TrySetPendingException 작업을 수행합니다.
+    /// </summary>
+    private static bool TrySetPendingException(object pending, Exception exception)
+    {
+        var pendingType = pending.GetType();
+        if (!pendingType.IsGenericType || pendingType.GetGenericTypeDefinition() != typeof(TaskCompletionSource<>))
+        {
+            return false;
+        }
+
+        var trySetException = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetException), new[] { typeof(Exception) });
+        return trySetException is not null && (bool)(trySetException.Invoke(pending, new object[] { exception }) ?? false);
     }
 }

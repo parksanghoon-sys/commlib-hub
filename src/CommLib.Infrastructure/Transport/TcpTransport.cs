@@ -1,4 +1,4 @@
-using System.Net.Sockets;
+﻿using System.Net.Sockets;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Transport;
 
@@ -9,9 +9,21 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class TcpTransport : ITransport
 {
+    /// <summary>
+    /// _options 값을 나타냅니다.
+    /// </summary>
     private readonly TcpClientTransportOptions _options;
+    /// <summary>
+    /// _closeTokenSource 값을 나타냅니다.
+    /// </summary>
     private readonly CancellationTokenSource _closeTokenSource = new();
+    /// <summary>
+    /// _client 값을 나타냅니다.
+    /// </summary>
     private TcpClient? _client;
+    /// <summary>
+    /// _stream 값을 나타냅니다.
+    /// </summary>
     private NetworkStream? _stream;
 
     /// <summary>
@@ -145,12 +157,18 @@ public sealed class TcpTransport : ITransport
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// GetRequiredStream 작업을 수행합니다.
+    /// </summary>
     private NetworkStream GetRequiredStream()
     {
         ThrowIfClosed();
         return _stream ?? throw new InvalidOperationException($"Transport '{Name}' is not open.");
     }
 
+    /// <summary>
+    /// ThrowIfClosed 작업을 수행합니다.
+    /// </summary>
     private void ThrowIfClosed()
     {
         if (IsClosed)
@@ -159,6 +177,9 @@ public sealed class TcpTransport : ITransport
         }
     }
 
+    /// <summary>
+    /// IsCloseCancellation 작업을 수행합니다.
+    /// </summary>
     private bool IsCloseCancellation(Exception exception, CancellationToken cancellationToken)
     {
         return _closeTokenSource.IsCancellationRequested &&
@@ -166,6 +187,9 @@ public sealed class TcpTransport : ITransport
                exception is OperationCanceledException or ObjectDisposedException or IOException;
     }
 
+    /// <summary>
+    /// CreateClosedCancellationException 작업을 수행합니다.
+    /// </summary>
     private OperationCanceledException CreateClosedCancellationException()
     {
         return new OperationCanceledException($"Transport '{Name}' was closed.", innerException: null, _closeTokenSource.Token);

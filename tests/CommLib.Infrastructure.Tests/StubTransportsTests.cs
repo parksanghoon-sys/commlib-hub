@@ -1,4 +1,4 @@
-using CommLib.Infrastructure.Transport;
+﻿using CommLib.Infrastructure.Transport;
 using Xunit;
 
 namespace CommLib.Infrastructure.Tests;
@@ -12,6 +12,9 @@ public sealed class StubTransportsTests
     /// TCP 전송이 마지막 프레임과 전송 횟수를 기록하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// UdpTransport_OpenAsync_SendAsync_StoresLastFrame 작업을 수행합니다.
+    /// </summary>
     public async Task UdpTransport_OpenAsync_SendAsync_StoresLastFrame()
     {
         var transport = new StubUdpTransport();
@@ -28,6 +31,9 @@ public sealed class StubTransportsTests
     /// UDP 전송이 취소 토큰을 존중하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// UdpTransport_SendAsync_CanceledToken_ThrowsOperationCanceledException 작업을 수행합니다.
+    /// </summary>
     public async Task UdpTransport_SendAsync_CanceledToken_ThrowsOperationCanceledException()
     {
         var transport = new StubUdpTransport();
@@ -44,6 +50,9 @@ public sealed class StubTransportsTests
     /// 서로 다른 전송 인스턴스가 각자 독립적으로 프레임을 기록하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// MultipleTransports_SendAsync_RecordFramesIndependently 작업을 수행합니다.
+    /// </summary>
     public async Task MultipleTransports_SendAsync_RecordFramesIndependently()
     {
         var serial = new StubSerialTransport();
@@ -64,6 +73,9 @@ public sealed class StubTransportsTests
     /// inbound 큐에 적재한 프레임을 ReceiveAsync로 다시 꺼낼 수 있는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SerialTransport_OpenAsync_ReceiveAsync_ReturnsQueuedInboundFrame 작업을 수행합니다.
+    /// </summary>
     public async Task SerialTransport_OpenAsync_ReceiveAsync_ReturnsQueuedInboundFrame()
     {
         var transport = new StubSerialTransport();
@@ -80,6 +92,9 @@ public sealed class StubTransportsTests
     /// transport를 닫으면 이후 송신이 차단되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_AfterClose_SendAsyncThrows 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_AfterClose_SendAsyncThrows()
     {
         var transport = new StubUdpTransport();
@@ -95,6 +110,9 @@ public sealed class StubTransportsTests
     /// transport를 닫으면 닫힘 상태가 기록되고 중복 호출도 허용되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_CanBeCalledMultipleTimes 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_CanBeCalledMultipleTimes()
     {
         var transport = new StubUdpTransport();
@@ -110,6 +128,9 @@ public sealed class StubTransportsTests
     /// 대기 중인 수신은 transport close 시 취소되어 빠져나오는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_PendingReceive_IsCanceled 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
         var transport = new StubMulticastTransport();

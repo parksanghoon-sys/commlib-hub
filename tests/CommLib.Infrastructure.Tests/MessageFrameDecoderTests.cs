@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
@@ -14,6 +14,9 @@ public sealed class MessageFrameDecoderTests
     /// 완전한 프레임을 디코드하면 serializer를 통해 메시지를 복원하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryDecode_CompleteFrame_ReturnsMessage 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_CompleteFrame_ReturnsMessage()
     {
         var decoder = new MessageFrameDecoder(
@@ -32,6 +35,9 @@ public sealed class MessageFrameDecoderTests
     /// 완전한 프레임이 아니면 메시지를 복원하지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryDecode_IncompleteFrame_ReturnsFalse 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_IncompleteFrame_ReturnsFalse()
     {
         var decoder = new MessageFrameDecoder(
@@ -49,6 +55,9 @@ public sealed class MessageFrameDecoderTests
     /// 기본 serializer와 protocol을 함께 사용해 실제 메시지를 복원하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryDecode_WithDefaultComponents_ReturnsMessage 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_WithDefaultComponents_ReturnsMessage()
     {
         var decoder = new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer());
@@ -68,14 +77,32 @@ public sealed class MessageFrameDecoderTests
         Assert.Equal(15, bytesConsumed);
     }
 
+    /// <summary>
+    /// FakeMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
+    /// <summary>
+    /// IProtocol 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeProtocol : IProtocol
     {
+        /// <summary>
+        /// _payload 값을 나타냅니다.
+        /// </summary>
         private readonly byte[] _payload;
+        /// <summary>
+        /// _bytesConsumed 값을 나타냅니다.
+        /// </summary>
         private readonly int _bytesConsumed;
+        /// <summary>
+        /// _shouldDecode 값을 나타냅니다.
+        /// </summary>
         private readonly bool _shouldDecode;
 
+        /// <summary>
+        /// <see cref="FakeProtocol"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeProtocol(byte[] payload, int bytesConsumed, bool shouldDecode)
         {
             _payload = payload;
@@ -83,13 +110,22 @@ public sealed class MessageFrameDecoderTests
             _shouldDecode = shouldDecode;
         }
 
+        /// <summary>
+        /// Name 값을 가져옵니다.
+        /// </summary>
         public string Name => "Fake";
 
+        /// <summary>
+        /// Encode 작업을 수행합니다.
+        /// </summary>
         public byte[] Encode(ReadOnlySpan<byte> payload)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// TryDecode 작업을 수행합니다.
+        /// </summary>
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
         {
             payload = _payload;
@@ -98,20 +134,35 @@ public sealed class MessageFrameDecoderTests
         }
     }
 
+    /// <summary>
+    /// ISerializer 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeSerializer : ISerializer
     {
+        /// <summary>
+        /// _message 값을 나타냅니다.
+        /// </summary>
         private readonly IMessage _message;
 
+        /// <summary>
+        /// <see cref="FakeSerializer"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeSerializer(IMessage message)
         {
             _message = message;
         }
 
+        /// <summary>
+        /// Serialize 작업을 수행합니다.
+        /// </summary>
         public byte[] Serialize(IMessage message)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// Deserialize 작업을 수행합니다.
+        /// </summary>
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
             return _message;
