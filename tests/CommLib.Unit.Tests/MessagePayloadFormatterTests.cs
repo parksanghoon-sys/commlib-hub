@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -9,6 +9,9 @@ namespace CommLib.Unit.Tests;
 public sealed class MessagePayloadFormatterTests
 {
     [Fact]
+    /// <summary>
+    /// FormatBody_TextMessage_ReturnsTextBody 작업을 수행합니다.
+    /// </summary>
     public void FormatBody_TextMessage_ReturnsTextBody()
     {
         var body = MessagePayloadFormatter.FormatBody(new MessageModel(10, "hello"));
@@ -17,6 +20,9 @@ public sealed class MessagePayloadFormatterTests
     }
 
     [Fact]
+    /// <summary>
+    /// FormatBody_BinaryMessage_ReturnsUppercaseHex 작업을 수행합니다.
+    /// </summary>
     public void FormatBody_BinaryMessage_ReturnsUppercaseHex()
     {
         var body = MessagePayloadFormatter.FormatBody(new BinaryMessageModel(10, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }));
@@ -25,6 +31,9 @@ public sealed class MessagePayloadFormatterTests
     }
 
     [Fact]
+    /// <summary>
+    /// FormatBody_MessageWithoutPayload_ReturnsEmptyString 작업을 수행합니다.
+    /// </summary>
     public void FormatBody_MessageWithoutPayload_ReturnsEmptyString()
     {
         var body = MessagePayloadFormatter.FormatBody(new NoPayloadMessage(10));
@@ -33,6 +42,9 @@ public sealed class MessagePayloadFormatterTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryFormatBitFieldSummary_BigEndianSchemaAtOffset_ReturnsFieldSummary 작업을 수행합니다.
+    /// </summary>
     public void TryFormatBitFieldSummary_BigEndianSchemaAtOffset_ReturnsFieldSummary()
     {
         var message = new BinaryMessageModel(10, new byte[] { 0xAA, 0x12, 0x34, 0x7F });
@@ -61,6 +73,9 @@ public sealed class MessagePayloadFormatterTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryFormatBitFieldSummary_PayloadLengthMismatch_ReturnsErrorWithoutThrowing 작업을 수행합니다.
+    /// </summary>
     public void TryFormatBitFieldSummary_PayloadLengthMismatch_ReturnsErrorWithoutThrowing()
     {
         var message = new BinaryMessageModel(10, new byte[] { 0x12 });
@@ -80,5 +95,8 @@ public sealed class MessagePayloadFormatterTests
         Assert.Contains("does not match", error);
     }
 
+    /// <summary>
+    /// NoPayloadMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record NoPayloadMessage(ushort MessageId) : IMessage;
 }

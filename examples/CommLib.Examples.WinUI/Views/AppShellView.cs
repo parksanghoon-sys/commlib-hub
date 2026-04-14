@@ -1,4 +1,4 @@
-using CommLib.Examples.WinUI.Models;
+﻿using CommLib.Examples.WinUI.Models;
 using CommLib.Examples.WinUI.Services;
 using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
@@ -12,18 +12,45 @@ using Microsoft.UI.Xaml.Media.Animation;
 
 namespace CommLib.Examples.WinUI.Views;
 
+/// <summary>
+/// AppShellView 타입입니다.
+/// </summary>
 public sealed class AppShellView : Grid
 {
+    /// <summary>
+    /// _localizer 값을 나타냅니다.
+    /// </summary>
     private readonly IAppLocalizer _localizer;
+    /// <summary>
+    /// _localizedTextUpdates 값을 나타냅니다.
+    /// </summary>
     private readonly List<Action> _localizedTextUpdates = [];
     // 두 페이지를 계속 살아 있게 두는 dual-host 구조를 유지하면
     // 과거 WinUI blank-screen 성격의 리스크를 줄이면서도 가벼운 전환 애니메이션을 얹을 수 있다.
+    /// <summary>
+    /// _deviceLabHost 값을 나타냅니다.
+    /// </summary>
     private Grid _deviceLabHost = null!;
+    /// <summary>
+    /// _settingsHost 값을 나타냅니다.
+    /// </summary>
     private Grid _settingsHost = null!;
+    /// <summary>
+    /// _activePageKind 값을 나타냅니다.
+    /// </summary>
     private ShellPageKind _activePageKind;
+    /// <summary>
+    /// _pendingPageKind 값을 나타냅니다.
+    /// </summary>
     private ShellPageKind? _pendingPageKind;
+    /// <summary>
+    /// _isTransitionRunning 값을 나타냅니다.
+    /// </summary>
     private bool _isTransitionRunning;
 
+    /// <summary>
+    /// <see cref="AppShellView"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public AppShellView(
         ShellViewModel viewModel,
         DeviceLabView deviceLabView,
@@ -46,17 +73,32 @@ public sealed class AppShellView : Grid
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// ViewModel 값을 가져옵니다.
+    /// </summary>
     public ShellViewModel ViewModel { get; }
 
+    /// <summary>
+    /// DeviceLabView 값을 가져옵니다.
+    /// </summary>
     public DeviceLabView DeviceLabView { get; }
 
+    /// <summary>
+    /// SettingsView 값을 가져옵니다.
+    /// </summary>
     public SettingsView SettingsView { get; }
 
+    /// <summary>
+    /// OnLanguageChanged 작업을 수행합니다.
+    /// </summary>
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         ApplyLocalizedText();
     }
 
+    /// <summary>
+    /// OnViewModelPropertyChanged 작업을 수행합니다.
+    /// </summary>
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(ShellViewModel.SelectedPage))
@@ -65,6 +107,9 @@ public sealed class AppShellView : Grid
         }
     }
 
+    /// <summary>
+    /// BuildContent 작업을 수행합니다.
+    /// </summary>
     private FrameworkElement BuildContent()
     {
         var root = new Grid
@@ -144,6 +189,9 @@ public sealed class AppShellView : Grid
         return root;
     }
 
+    /// <summary>
+    /// QueuePageTransition 작업을 수행합니다.
+    /// </summary>
     private void QueuePageTransition(ShellPageKind targetPageKind)
     {
         // 전환 도중에 탭을 연속으로 눌러도 마지막 요청만 반영되게 해서
@@ -157,6 +205,9 @@ public sealed class AppShellView : Grid
         _ = ProcessQueuedTransitionsAsync();
     }
 
+    /// <summary>
+    /// ProcessQueuedTransitionsAsync 작업을 수행합니다.
+    /// </summary>
     private async Task ProcessQueuedTransitionsAsync()
     {
         _isTransitionRunning = true;
@@ -180,6 +231,9 @@ public sealed class AppShellView : Grid
         }
     }
 
+    /// <summary>
+    /// TransitionToPageAsync 작업을 수행합니다.
+    /// </summary>
     private async Task TransitionToPageAsync(ShellPageKind nextPageKind)
     {
         var outgoingHost = GetPageHost(_activePageKind);
@@ -200,12 +254,18 @@ public sealed class AppShellView : Grid
         _activePageKind = nextPageKind;
     }
 
+    /// <summary>
+    /// ApplyActivePageState 작업을 수행합니다.
+    /// </summary>
     private void ApplyActivePageState(ShellPageKind activePageKind)
     {
         ApplyHostState(_deviceLabHost, activePageKind == ShellPageKind.DeviceLab);
         ApplyHostState(_settingsHost, activePageKind == ShellPageKind.Settings);
     }
 
+    /// <summary>
+    /// ApplyHostState 작업을 수행합니다.
+    /// </summary>
     private static void ApplyHostState(Grid host, bool isVisible)
     {
         host.Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
@@ -214,6 +274,9 @@ public sealed class AppShellView : Grid
         SetHostZIndex(host, isVisible ? 1 : 0);
     }
 
+    /// <summary>
+    /// CreatePageHost 작업을 수행합니다.
+    /// </summary>
     private static Grid CreatePageHost(FrameworkElement content)
     {
         // View를 매번 다시 만들지 않고 host 안에 유지해야
@@ -228,6 +291,9 @@ public sealed class AppShellView : Grid
         return host;
     }
 
+    /// <summary>
+    /// GetPageHost 작업을 수행합니다.
+    /// </summary>
     private Grid GetPageHost(ShellPageKind pageKind)
     {
         return pageKind switch
@@ -238,6 +304,9 @@ public sealed class AppShellView : Grid
         };
     }
 
+    /// <summary>
+    /// PrepareOutgoingHost 작업을 수행합니다.
+    /// </summary>
     private static void PrepareOutgoingHost(Grid host)
     {
         host.Visibility = Visibility.Visible;
@@ -245,6 +314,9 @@ public sealed class AppShellView : Grid
         GetPageTransform(host).X = 0;
     }
 
+    /// <summary>
+    /// PrepareIncomingHost 작업을 수행합니다.
+    /// </summary>
     private static void PrepareIncomingHost(Grid host, int direction)
     {
         host.Visibility = Visibility.Visible;
@@ -252,6 +324,9 @@ public sealed class AppShellView : Grid
         GetPageTransform(host).X = 32 * direction;
     }
 
+    /// <summary>
+    /// CompleteTransition 작업을 수행합니다.
+    /// </summary>
     private static void CompleteTransition(Grid outgoingHost, Grid incomingHost)
     {
         outgoingHost.Visibility = Visibility.Collapsed;
@@ -263,6 +338,9 @@ public sealed class AppShellView : Grid
         GetPageTransform(incomingHost).X = 0;
     }
 
+    /// <summary>
+    /// RunTransitionAsync 작업을 수행합니다.
+    /// </summary>
     private static Task RunTransitionAsync(Grid outgoingHost, Grid incomingHost, int direction)
     {
         var storyboard = new Storyboard();
@@ -281,6 +359,9 @@ public sealed class AppShellView : Grid
         return completion.Task;
     }
 
+    /// <summary>
+    /// CreateOpacityAnimation 작업을 수행합니다.
+    /// </summary>
     private static DoubleAnimation CreateOpacityAnimation(UIElement target, double from, double to, EasingFunctionBase easing)
     {
         var animation = new DoubleAnimation
@@ -295,6 +376,9 @@ public sealed class AppShellView : Grid
         return animation;
     }
 
+    /// <summary>
+    /// CreateTranslateAnimation 작업을 수행합니다.
+    /// </summary>
     private static DoubleAnimation CreateTranslateAnimation(TranslateTransform transform, double from, double to, EasingFunctionBase easing)
     {
         var animation = new DoubleAnimation
@@ -310,16 +394,25 @@ public sealed class AppShellView : Grid
         return animation;
     }
 
+    /// <summary>
+    /// GetPageTransform 작업을 수행합니다.
+    /// </summary>
     private static TranslateTransform GetPageTransform(Grid host)
     {
         return (TranslateTransform)host.RenderTransform;
     }
 
+    /// <summary>
+    /// SetHostZIndex 작업을 수행합니다.
+    /// </summary>
     private static void SetHostZIndex(Grid host, int zIndex)
     {
         host.SetValue(Canvas.ZIndexProperty, zIndex);
     }
 
+    /// <summary>
+    /// CreateHeaderButton 작업을 수행합니다.
+    /// </summary>
     private Button CreateHeaderButton(string labelKey, string commandPath)
     {
         var button = new Button
@@ -343,16 +436,25 @@ public sealed class AppShellView : Grid
         return DeviceLabTheme.Get<T>(this, key);
     }
 
+    /// <summary>
+    /// GetThemeBrush 작업을 수행합니다.
+    /// </summary>
     private Brush GetThemeBrush(string key)
     {
         return GetTheme<Brush>(key);
     }
 
+    /// <summary>
+    /// RegisterLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void RegisterLocalizedText(Action applyText)
     {
         _localizedTextUpdates.Add(applyText);
     }
 
+    /// <summary>
+    /// ApplyLocalizedText 작업을 수행합니다.
+    /// </summary>
     private void ApplyLocalizedText()
     {
         foreach (var updateText in _localizedTextUpdates)
@@ -361,6 +463,9 @@ public sealed class AppShellView : Grid
         }
     }
 
+    /// <summary>
+    /// Bind 작업을 수행합니다.
+    /// </summary>
     private void Bind(FrameworkElement element, DependencyProperty property, string path, BindingMode mode = BindingMode.OneWay, IValueConverter? converter = null)
     {
         element.SetBinding(property, new Binding
@@ -371,6 +476,9 @@ public sealed class AppShellView : Grid
         });
     }
 
+    /// <summary>
+    /// CreateSolid 작업을 수행합니다.
+    /// </summary>
     private static SolidColorBrush CreateSolid(string hex)
     {
         var value = hex.TrimStart('#');

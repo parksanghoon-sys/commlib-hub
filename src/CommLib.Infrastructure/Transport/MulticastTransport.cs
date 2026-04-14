@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Transport;
@@ -10,10 +10,25 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class MulticastTransport : ITransport
 {
+    /// <summary>
+    /// _options 값을 나타냅니다.
+    /// </summary>
     private readonly MulticastTransportOptions _options;
+    /// <summary>
+    /// _closeTokenSource 값을 나타냅니다.
+    /// </summary>
     private readonly CancellationTokenSource _closeTokenSource = new();
+    /// <summary>
+    /// _groupAddress 값을 나타냅니다.
+    /// </summary>
     private readonly IPAddress _groupAddress;
+    /// <summary>
+    /// _groupEndpoint 값을 나타냅니다.
+    /// </summary>
     private readonly IPEndPoint _groupEndpoint;
+    /// <summary>
+    /// _client 값을 나타냅니다.
+    /// </summary>
     private UdpClient? _client;
 
     /// <summary>
@@ -162,12 +177,18 @@ public sealed class MulticastTransport : ITransport
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// GetRequiredClient 작업을 수행합니다.
+    /// </summary>
     private UdpClient GetRequiredClient()
     {
         ThrowIfClosed();
         return _client ?? throw new InvalidOperationException($"Transport '{Name}' is not open.");
     }
 
+    /// <summary>
+    /// TryGetLocalInterface 작업을 수행합니다.
+    /// </summary>
     private bool TryGetLocalInterface(out IPAddress localInterface)
     {
         if (!string.IsNullOrWhiteSpace(_options.LocalInterface))
@@ -180,6 +201,9 @@ public sealed class MulticastTransport : ITransport
         return false;
     }
 
+    /// <summary>
+    /// ThrowIfClosed 작업을 수행합니다.
+    /// </summary>
     private void ThrowIfClosed()
     {
         if (IsClosed)
@@ -188,6 +212,9 @@ public sealed class MulticastTransport : ITransport
         }
     }
 
+    /// <summary>
+    /// IsCloseCancellation 작업을 수행합니다.
+    /// </summary>
     private bool IsCloseCancellation(Exception exception, CancellationToken cancellationToken)
     {
         return _closeTokenSource.IsCancellationRequested &&
@@ -195,6 +222,9 @@ public sealed class MulticastTransport : ITransport
                exception is OperationCanceledException or ObjectDisposedException or SocketException;
     }
 
+    /// <summary>
+    /// CreateClosedCancellationException 작업을 수행합니다.
+    /// </summary>
     private OperationCanceledException CreateClosedCancellationException()
     {
         return new OperationCanceledException($"Transport '{Name}' was closed.", innerException: null, _closeTokenSource.Token);

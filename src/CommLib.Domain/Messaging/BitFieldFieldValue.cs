@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// schema 기반 inspect 결과로 읽어낸 field 값 한 건입니다.

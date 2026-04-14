@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 이전 요청과 상관관계를 가지는 응답 메시지를 나타냅니다.

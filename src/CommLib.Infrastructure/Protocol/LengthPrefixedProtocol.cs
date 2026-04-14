@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using CommLib.Domain.Protocol;
 
 namespace CommLib.Infrastructure.Protocol;
@@ -8,7 +8,13 @@ namespace CommLib.Infrastructure.Protocol;
 /// </summary>
 public sealed class LengthPrefixedProtocol : IProtocol
 {
+    /// <summary>
+    /// HeaderSize 상수입니다.
+    /// </summary>
     private const int HeaderSize = 4;
+    /// <summary>
+    /// _maxFrameLength 값을 나타냅니다.
+    /// </summary>
     private readonly int _maxFrameLength;
 
     /// <summary>

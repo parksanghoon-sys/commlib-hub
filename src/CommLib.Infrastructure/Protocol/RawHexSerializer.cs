@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
@@ -10,7 +10,13 @@ namespace CommLib.Infrastructure.Protocol;
 /// </summary>
 public sealed class RawHexSerializer : ISerializer
 {
+    /// <summary>
+    /// Separator 상수입니다.
+    /// </summary>
     private const char Separator = '|';
+    /// <summary>
+    /// SeparatorByte 상수입니다.
+    /// </summary>
     private const byte SeparatorByte = (byte)Separator;
 
     /// <summary>
@@ -52,6 +58,9 @@ public sealed class RawHexSerializer : ISerializer
         };
     }
 
+    /// <summary>
+    /// CreateHeader 작업을 수행합니다.
+    /// </summary>
     private static byte[] CreateHeader(IMessage message)
     {
         var header = message switch
@@ -70,6 +79,9 @@ public sealed class RawHexSerializer : ISerializer
         return Encoding.ASCII.GetBytes(header);
     }
 
+    /// <summary>
+    /// ExtractPayload 작업을 수행합니다.
+    /// </summary>
     private static byte[] ExtractPayload(IMessage message)
     {
         if (message is IBinaryMessagePayload binaryPayload)
@@ -92,6 +104,9 @@ public sealed class RawHexSerializer : ISerializer
         return [];
     }
 
+    /// <summary>
+    /// DeserializeRequest 작업을 수행합니다.
+    /// </summary>
     private static IMessage DeserializeRequest(ReadOnlySpan<byte> payload, int index, ushort messageId)
     {
         var correlationToken = ReadToken(payload, ref index, "correlation id");
@@ -103,6 +118,9 @@ public sealed class RawHexSerializer : ISerializer
         return new BinaryRequestMessageModel(messageId, correlationId, payload[index..].ToArray());
     }
 
+    /// <summary>
+    /// DeserializeResponse 작업을 수행합니다.
+    /// </summary>
     private static IMessage DeserializeResponse(ReadOnlySpan<byte> payload, int index, ushort messageId)
     {
         var correlationToken = ReadToken(payload, ref index, "correlation id");
@@ -122,6 +140,9 @@ public sealed class RawHexSerializer : ISerializer
         return new BinaryResponseMessageModel(messageId, correlationId, isSuccess, payload[index..].ToArray());
     }
 
+    /// <summary>
+    /// ReadToken 작업을 수행합니다.
+    /// </summary>
     private static string ReadToken(ReadOnlySpan<byte> payload, ref int index, string fieldName)
     {
         var remaining = payload[index..];

@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 요청/응답 타이밍과 용량 설정을 나타냅니다.

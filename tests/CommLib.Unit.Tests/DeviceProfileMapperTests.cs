@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -15,6 +15,9 @@ public sealed class DeviceProfileMapperTests
     /// TCP 클라이언트 전송 JSON이 구체적인 TCP 전송 옵션 형식으로 매핑되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Map_TcpClientTransport_ReturnsConcreteTransport 작업을 수행합니다.
+    /// </summary>
     public void Map_TcpClientTransport_ReturnsConcreteTransport()
     {
         var json = "{ \"Type\": \"TcpClient\", \"Host\": \"127.0.0.1\", \"Port\": 9000 }";
@@ -35,6 +38,9 @@ public sealed class DeviceProfileMapperTests
     /// 알 수 없는 전송 구분자 값은 거부되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Map_UnknownTransport_Throws 작업을 수행합니다.
+    /// </summary>
     public void Map_UnknownTransport_Throws()
     {
         var json = "{ \"Type\": \"UnknownX\" }";
@@ -53,6 +59,9 @@ public sealed class DeviceProfileMapperTests
     /// 전송 외 공통 설정이 매핑 결과에 그대로 유지되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Map_PreservesCommonOptions 작업을 수행합니다.
+    /// </summary>
     public void Map_PreservesCommonOptions()
     {
         var json = "{ \"Type\": \"TcpClient\", \"Host\": \"127.0.0.1\", \"Port\": 9000 }";

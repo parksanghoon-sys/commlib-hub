@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 

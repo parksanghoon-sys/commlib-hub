@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 
 namespace CommLib.Domain.Messaging;
@@ -96,6 +96,9 @@ public static class MessagePayloadFormatter
         return builder.ToString();
     }
 
+    /// <summary>
+    /// FormatBitFieldValues 작업을 수행합니다.
+    /// </summary>
     private static string FormatBitFieldValues(IReadOnlyList<BitFieldFieldValue> values)
     {
         var builder = new StringBuilder();

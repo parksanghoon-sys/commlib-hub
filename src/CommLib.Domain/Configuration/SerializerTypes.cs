@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 저장소와 예제 앱 전반에서 공용으로 사용하는 serializer 식별자 모음입니다.

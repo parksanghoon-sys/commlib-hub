@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -9,6 +9,9 @@ namespace CommLib.Unit.Tests;
 public sealed class BitFieldCodecTests
 {
     [Fact]
+    /// <summary>
+    /// ReadUnsigned_SingleBitField_ReturnsExpectedValue 작업을 수행합니다.
+    /// </summary>
     public void ReadUnsigned_SingleBitField_ReturnsExpectedValue()
     {
         var field = new BitFieldDefinition("ready", 4, 1);
@@ -19,6 +22,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadUnsigned_FieldAcrossByteBoundary_ReturnsExpectedValue 작업을 수행합니다.
+    /// </summary>
     public void ReadUnsigned_FieldAcrossByteBoundary_ReturnsExpectedValue()
     {
         var field = new BitFieldDefinition("temperatureRaw", 0, 12);
@@ -29,6 +35,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadSigned_NegativeField_SignExtendsValue 작업을 수행합니다.
+    /// </summary>
     public void ReadSigned_NegativeField_SignExtendsValue()
     {
         var field = new BitFieldDefinition("delta", 0, 12);
@@ -39,6 +48,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadUnsigned_BigEndianWholeByteField_ReturnsExpectedValue 작업을 수행합니다.
+    /// </summary>
     public void ReadUnsigned_BigEndianWholeByteField_ReturnsExpectedValue()
     {
         var field = new BitFieldDefinition("register", 0, 16, BitFieldEndianness.BigEndian);
@@ -49,6 +61,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadUnsigned_BigEndianWholeByteFieldAtOffset_ReturnsExpectedValue 작업을 수행합니다.
+    /// </summary>
     public void ReadUnsigned_BigEndianWholeByteFieldAtOffset_ReturnsExpectedValue()
     {
         var field = new BitFieldDefinition("register", 8, 16, BitFieldEndianness.BigEndian);
@@ -59,6 +74,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadSigned_BigEndianWholeByteField_SignExtendsValue 작업을 수행합니다.
+    /// </summary>
     public void ReadSigned_BigEndianWholeByteField_SignExtendsValue()
     {
         var field = new BitFieldDefinition("delta", 0, 16, BitFieldEndianness.BigEndian);
@@ -69,6 +87,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// WriteUnsigned_FieldAcrossByteBoundary_WritesExpectedBitsOnly 작업을 수행합니다.
+    /// </summary>
     public void WriteUnsigned_FieldAcrossByteBoundary_WritesExpectedBitsOnly()
     {
         var field = new BitFieldDefinition("temperatureRaw", 4, 12);
@@ -80,6 +101,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// WriteUnsigned_BigEndianWholeByteField_WritesMostSignificantByteFirst 작업을 수행합니다.
+    /// </summary>
     public void WriteUnsigned_BigEndianWholeByteField_WritesMostSignificantByteFirst()
     {
         var field = new BitFieldDefinition("register", 0, 16, BitFieldEndianness.BigEndian);
@@ -91,6 +115,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// WriteUnsigned_BigEndianWholeByteFieldAtOffset_PreservesSurroundingBytes 작업을 수행합니다.
+    /// </summary>
     public void WriteUnsigned_BigEndianWholeByteFieldAtOffset_PreservesSurroundingBytes()
     {
         var field = new BitFieldDefinition("register", 8, 16, BitFieldEndianness.BigEndian);
@@ -102,6 +129,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// WriteUnsigned_ValueTooLarge_Throws 작업을 수행합니다.
+    /// </summary>
     public void WriteUnsigned_ValueTooLarge_Throws()
     {
         var field = new BitFieldDefinition("mode", 0, 3);
@@ -113,6 +143,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// ReadUnsigned_FieldOutsidePayload_Throws 작업을 수행합니다.
+    /// </summary>
     public void ReadUnsigned_FieldOutsidePayload_Throws()
     {
         var field = new BitFieldDefinition("status", 12, 8);
@@ -123,6 +156,9 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Ctor_BigEndianMultiByteFieldWithoutWholeBytes_Throws 작업을 수행합니다.
+    /// </summary>
     public void Ctor_BigEndianMultiByteFieldWithoutWholeBytes_Throws()
     {
         var exception = Assert.Throws<ArgumentException>(() => new BitFieldDefinition("bad", 4, 12, BitFieldEndianness.BigEndian));

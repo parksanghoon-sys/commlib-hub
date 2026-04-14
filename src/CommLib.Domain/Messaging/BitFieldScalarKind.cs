@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// bitfield scalar 값을 schema에서 어떤 방식으로 해석할지 지정합니다.

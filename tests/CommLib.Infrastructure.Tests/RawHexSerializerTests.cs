@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using CommLib.Domain.Messaging;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
@@ -11,6 +11,9 @@ namespace CommLib.Infrastructure.Tests;
 public sealed class RawHexSerializerTests
 {
     [Fact]
+    /// <summary>
+    /// Serialize_BinaryMessage_AppendsRawPayloadAfterHeader 작업을 수행합니다.
+    /// </summary>
     public void Serialize_BinaryMessage_AppendsRawPayloadAfterHeader()
     {
         var serializer = new RawHexSerializer();
@@ -24,6 +27,9 @@ public sealed class RawHexSerializerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Serialize_TextBodyHex_ParsesHexAndAppendsRawPayload 작업을 수행합니다.
+    /// </summary>
     public void Serialize_TextBodyHex_ParsesHexAndAppendsRawPayload()
     {
         var serializer = new RawHexSerializer();
@@ -36,6 +42,9 @@ public sealed class RawHexSerializerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Deserialize_MessagePayload_ReturnsBinaryMessage 작업을 수행합니다.
+    /// </summary>
     public void Deserialize_MessagePayload_ReturnsBinaryMessage()
     {
         var serializer = new RawHexSerializer();
@@ -48,6 +57,9 @@ public sealed class RawHexSerializerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Deserialize_ResponsePayload_ReturnsBinaryResponseMessage 작업을 수행합니다.
+    /// </summary>
     public void Deserialize_ResponsePayload_ReturnsBinaryResponseMessage()
     {
         var serializer = new RawHexSerializer();
@@ -66,6 +78,9 @@ public sealed class RawHexSerializerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Serialize_InvalidHexBody_Throws 작업을 수행합니다.
+    /// </summary>
     public void Serialize_InvalidHexBody_Throws()
     {
         var serializer = new RawHexSerializer();

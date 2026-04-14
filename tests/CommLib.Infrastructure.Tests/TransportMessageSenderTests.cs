@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;
 using CommLib.Infrastructure.Protocol;
@@ -16,6 +16,9 @@ public sealed class TransportMessageSenderTests
     /// 메시지를 보내면 인코드된 프레임이 transport로 전달되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_Message_SendsEncodedFrameToTransport 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_Message_SendsEncodedFrameToTransport()
     {
         var transport = new FakeTransport();
@@ -33,6 +36,9 @@ public sealed class TransportMessageSenderTests
     /// 취소 토큰을 전달하면 transport 전송에도 그대로 전달되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_WithCancellationToken_PassesTokenToTransport 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_WithCancellationToken_PassesTokenToTransport()
     {
         var transport = new FakeTransport();
@@ -46,38 +52,74 @@ public sealed class TransportMessageSenderTests
         Assert.Equal(cts.Token, transport.LastCancellationToken);
     }
 
+    /// <summary>
+    /// FakeMessage 작업을 수행합니다.
+    /// </summary>
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
+    /// <summary>
+    /// ISerializer 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeSerializer : ISerializer
     {
+        /// <summary>
+        /// _payload 값을 나타냅니다.
+        /// </summary>
         private readonly byte[] _payload;
 
+        /// <summary>
+        /// <see cref="FakeSerializer"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeSerializer(byte[] payload)
         {
             _payload = payload;
         }
 
+        /// <summary>
+        /// Serialize 작업을 수행합니다.
+        /// </summary>
         public byte[] Serialize(IMessage message) => _payload;
 
+        /// <summary>
+        /// Deserialize 작업을 수행합니다.
+        /// </summary>
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
             throw new NotSupportedException();
         }
     }
 
+    /// <summary>
+    /// IProtocol 값을 가져옵니다.
+    /// </summary>
     private sealed class FakeProtocol : IProtocol
     {
+        /// <summary>
+        /// _frame 값을 나타냅니다.
+        /// </summary>
         private readonly byte[] _frame;
 
+        /// <summary>
+        /// <see cref="FakeProtocol"/>의 새 인스턴스를 초기화합니다.
+        /// </summary>
         public FakeProtocol(byte[] frame)
         {
             _frame = frame;
         }
 
+        /// <summary>
+        /// Name 값을 가져옵니다.
+        /// </summary>
         public string Name => "Fake";
 
+        /// <summary>
+        /// Encode 작업을 수행합니다.
+        /// </summary>
         public byte[] Encode(ReadOnlySpan<byte> payload) => _frame;
 
+        /// <summary>
+        /// TryDecode 작업을 수행합니다.
+        /// </summary>
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
         {
             payload = Array.Empty<byte>();
@@ -86,22 +128,43 @@ public sealed class TransportMessageSenderTests
         }
     }
 
+    /// <summary>
+    /// ITransport 값을 가져오거나 설정합니다.
+    /// </summary>
     private sealed class FakeTransport : ITransport
     {
+        /// <summary>
+        /// Name 값을 가져오거나 설정합니다.
+        /// </summary>
         public string Name => "FakeTransport";
 
+        /// <summary>
+        /// LastFrame 값을 가져오거나 설정합니다.
+        /// </summary>
         public byte[]? LastFrame { get; private set; }
 
+        /// <summary>
+        /// SendCount 값을 가져오거나 설정합니다.
+        /// </summary>
         public int SendCount { get; private set; }
 
+        /// <summary>
+        /// LastCancellationToken 값을 가져오거나 설정합니다.
+        /// </summary>
         public CancellationToken LastCancellationToken { get; private set; }
 
+        /// <summary>
+        /// OpenAsync 작업을 수행합니다.
+        /// </summary>
         public Task OpenAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// SendAsync 작업을 수행합니다.
+        /// </summary>
         public Task SendAsync(ReadOnlyMemory<byte> frame, CancellationToken cancellationToken = default)
         {
             LastFrame = frame.ToArray();
@@ -110,11 +173,17 @@ public sealed class TransportMessageSenderTests
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// ReceiveAsync 작업을 수행합니다.
+        /// </summary>
         public Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// CloseAsync 작업을 수행합니다.
+        /// </summary>
         public Task CloseAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();

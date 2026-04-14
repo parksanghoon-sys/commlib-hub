@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// Reads and writes scalar values against bitfield definitions in a raw payload.
@@ -75,6 +75,9 @@ public static class BitFieldCodec
         }
     }
 
+    /// <summary>
+    /// ReadUnsignedLittleEndian 작업을 수행합니다.
+    /// </summary>
     private static ulong ReadUnsignedLittleEndian(ReadOnlySpan<byte> payload, BitFieldDefinition field)
     {
         ulong value = 0;
@@ -90,6 +93,9 @@ public static class BitFieldCodec
         return value;
     }
 
+    /// <summary>
+    /// ReadUnsignedBigEndian 작업을 수행합니다.
+    /// </summary>
     private static ulong ReadUnsignedBigEndian(ReadOnlySpan<byte> payload, BitFieldDefinition field)
     {
         if (field.BitLength <= 8)
@@ -109,6 +115,9 @@ public static class BitFieldCodec
         return value;
     }
 
+    /// <summary>
+    /// WriteUnsignedLittleEndian 작업을 수행합니다.
+    /// </summary>
     private static void WriteUnsignedLittleEndian(Span<byte> payload, BitFieldDefinition field, ulong value)
     {
         for (var bitIndex = 0; bitIndex < field.BitLength; bitIndex++)
@@ -130,6 +139,9 @@ public static class BitFieldCodec
         }
     }
 
+    /// <summary>
+    /// WriteUnsignedBigEndian 작업을 수행합니다.
+    /// </summary>
     private static void WriteUnsignedBigEndian(Span<byte> payload, BitFieldDefinition field, ulong value)
     {
         if (field.BitLength <= 8)
@@ -148,6 +160,9 @@ public static class BitFieldCodec
         }
     }
 
+    /// <summary>
+    /// EnsureFieldFits 작업을 수행합니다.
+    /// </summary>
     private static void EnsureFieldFits(int payloadLength, BitFieldDefinition field)
     {
         var payloadBitLength = checked(payloadLength * 8);
@@ -160,6 +175,9 @@ public static class BitFieldCodec
         }
     }
 
+    /// <summary>
+    /// EnsureValueFits 작업을 수행합니다.
+    /// </summary>
     private static void EnsureValueFits(BitFieldDefinition field, ulong value)
     {
         if (field.BitLength == 64)

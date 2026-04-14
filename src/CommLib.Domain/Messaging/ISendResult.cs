@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 메시지 큐잉 또는 전송의 비동기 결과를 나타냅니다.

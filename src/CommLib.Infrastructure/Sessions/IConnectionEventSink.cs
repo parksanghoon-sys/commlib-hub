@@ -1,4 +1,4 @@
-namespace CommLib.Infrastructure.Sessions;
+﻿namespace CommLib.Infrastructure.Sessions;
 
 /// <summary>
 /// 연결 수명주기 이벤트를 관찰해 로깅이나 메트릭 수집에 연결할 수 있게 합니다.
@@ -48,22 +48,40 @@ public interface IConnectionEventSink
     }
 }
 
+/// <summary>
+/// NullConnectionEventSink 타입입니다.
+/// </summary>
 internal sealed class NullConnectionEventSink : IConnectionEventSink
 {
+    /// <summary>
+    /// Instance 값을 가져옵니다.
+    /// </summary>
     public static NullConnectionEventSink Instance { get; } = new();
 
+    /// <summary>
+    /// OnConnectAttempt 작업을 수행합니다.
+    /// </summary>
     public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
     {
     }
 
+    /// <summary>
+    /// OnConnectRetryScheduled 작업을 수행합니다.
+    /// </summary>
     public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
     {
     }
 
+    /// <summary>
+    /// OnConnectSucceeded 작업을 수행합니다.
+    /// </summary>
     public void OnConnectSucceeded(string deviceId, int attemptNumber)
     {
     }
 
+    /// <summary>
+    /// OnOperationFailed 작업을 수행합니다.
+    /// </summary>
     public void OnOperationFailed(string deviceId, string operation, Exception exception)
     {
     }

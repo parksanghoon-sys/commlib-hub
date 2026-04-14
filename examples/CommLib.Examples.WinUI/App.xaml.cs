@@ -1,4 +1,4 @@
-using CommLib.Examples.WinUI.Services;
+﻿using CommLib.Examples.WinUI.Services;
 using CommLib.Examples.WinUI.Styles;
 using CommLib.Examples.WinUI.ViewModels;
 using CommLib.Examples.WinUI.Views;
@@ -9,16 +9,31 @@ using Microsoft.UI.Xaml;
 
 namespace CommLib.Examples.WinUI;
 
+/// <summary>
+/// App 타입입니다.
+/// </summary>
 public sealed partial class App : Microsoft.UI.Xaml.Application
 {
+    /// <summary>
+    /// _serviceProvider 값을 나타냅니다.
+    /// </summary>
     private ServiceProvider? _serviceProvider;
+    /// <summary>
+    /// _window 값을 나타냅니다.
+    /// </summary>
     private Window? _window;
 
+    /// <summary>
+    /// <see cref="App"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public App()
     {
         InitializeComponent();
     }
 
+    /// <summary>
+    /// OnLaunched 작업을 수행합니다.
+    /// </summary>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         // 이 예제는 App에서만 DI 그래프를 만들고, 이후 화면/서비스는 모두 컨테이너에서 꺼내 쓰는 단순한 구조를 유지한다.
@@ -53,6 +68,9 @@ public sealed partial class App : Microsoft.UI.Xaml.Application
         _window.Activate();
     }
 
+    /// <summary>
+    /// InitializeSettings 작업을 수행합니다.
+    /// </summary>
     private static void InitializeSettings(IServiceProvider serviceProvider)
     {
         var settings = serviceProvider.GetRequiredService<DeviceLabSettingsViewModel>();

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommLib.Application.Messaging;
 using CommLib.Domain.Configuration;
@@ -10,8 +10,14 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace CommLib.Examples.WinUI.ViewModels;
 
+/// <summary>
+/// MainViewModel 타입입니다.
+/// </summary>
 public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 {
+    /// <summary>
+    /// StatusOwner 값을 가져옵니다.
+    /// </summary>
     private enum StatusOwner
     {
         // 화면이 직접 만든 임시 상태(예: Connecting, Sending)와
@@ -20,32 +26,110 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         Service
     }
 
+    /// <summary>
+    /// _localizer 값을 나타냅니다.
+    /// </summary>
     private readonly IAppLocalizer _localizer;
+    /// <summary>
+    /// _mockEndpointService 값을 나타냅니다.
+    /// </summary>
     private readonly ILocalMockEndpointService _mockEndpointService;
+    /// <summary>
+    /// _sessionService 값을 나타냅니다.
+    /// </summary>
     private readonly IDeviceLabSessionService _sessionService;
+    /// <summary>
+    /// _uiDispatcher 값을 나타냅니다.
+    /// </summary>
     private readonly IUiDispatcher _uiDispatcher;
+    /// <summary>
+    /// _statusText 값을 나타냅니다.
+    /// </summary>
     private string _statusText = string.Empty;
+    /// <summary>
+    /// _statusDetail 값을 나타냅니다.
+    /// </summary>
     private string _statusDetail = string.Empty;
+    /// <summary>
+    /// _statusTextKey 값을 나타냅니다.
+    /// </summary>
     private string _statusTextKey = "main.status.disconnected";
+    /// <summary>
+    /// _statusDetailKey 값을 나타냅니다.
+    /// </summary>
     private string _statusDetailKey = "main.detail.readyFirstSession";
+    /// <summary>
+    /// _statusTextArgs 값을 나타냅니다.
+    /// </summary>
     private object[] _statusTextArgs = [];
+    /// <summary>
+    /// _statusDetailArgs 값을 나타냅니다.
+    /// </summary>
     private object[] _statusDetailArgs = [];
+    /// <summary>
+    /// _statusOwner 값을 나타냅니다.
+    /// </summary>
     private StatusOwner _statusOwner;
+    /// <summary>
+    /// _isBusy 값을 나타냅니다.
+    /// </summary>
     private bool _isBusy;
+    /// <summary>
+    /// _isConnected 값을 나타냅니다.
+    /// </summary>
     private bool _isConnected;
+    /// <summary>
+    /// _isMockEndpointBusy 값을 나타냅니다.
+    /// </summary>
     private bool _isMockEndpointBusy;
+    /// <summary>
+    /// _isMockEndpointRunning 값을 나타냅니다.
+    /// </summary>
     private bool _isMockEndpointRunning;
+    /// <summary>
+    /// _mockEndpointStatusTitle 값을 나타냅니다.
+    /// </summary>
     private string _mockEndpointStatusTitle = string.Empty;
+    /// <summary>
+    /// _mockEndpointStatusDetail 값을 나타냅니다.
+    /// </summary>
     private string _mockEndpointStatusDetail = string.Empty;
+    /// <summary>
+    /// _mockEndpointStatusTitleKey 값을 나타냅니다.
+    /// </summary>
     private string _mockEndpointStatusTitleKey = "mockEndpoint.status.idle.title";
+    /// <summary>
+    /// _mockEndpointStatusDetailKey 값을 나타냅니다.
+    /// </summary>
     private string _mockEndpointStatusDetailKey = "mockEndpoint.status.idle.detail";
+    /// <summary>
+    /// _mockEndpointStatusTitleArgs 값을 나타냅니다.
+    /// </summary>
     private object[] _mockEndpointStatusTitleArgs = [];
+    /// <summary>
+    /// _mockEndpointStatusDetailArgs 값을 나타냅니다.
+    /// </summary>
     private object[] _mockEndpointStatusDetailArgs = [];
+    /// <summary>
+    /// _usesRawMockEndpointDetail 값을 나타냅니다.
+    /// </summary>
     private bool _usesRawMockEndpointDetail;
+    /// <summary>
+    /// _rawMockEndpointDetail 값을 나타냅니다.
+    /// </summary>
     private string _rawMockEndpointDetail = string.Empty;
+    /// <summary>
+    /// _activeSerializerType 값을 나타냅니다.
+    /// </summary>
     private string? _activeSerializerType;
+    /// <summary>
+    /// _activeMockEndpoint 값을 나타냅니다.
+    /// </summary>
     private LocalMockEndpointBinding? _activeMockEndpoint;
 
+    /// <summary>
+    /// <see cref="MainViewModel"/>의 새 인스턴스를 초기화합니다.
+    /// </summary>
     public MainViewModel(
         ILocalMockEndpointService mockEndpointService,
         IDeviceLabSessionService sessionService,
@@ -82,34 +166,67 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             _localizer.Get("main.log.ready.message")));
     }
 
+    /// <summary>
+    /// Logs 값을 가져옵니다.
+    /// </summary>
     public ObservableCollection<LogEntry> Logs { get; } = [];
 
+    /// <summary>
+    /// Settings 값을 가져옵니다.
+    /// </summary>
     public DeviceLabSettingsViewModel Settings { get; }
 
+    /// <summary>
+    /// ConnectCommand 값을 가져옵니다.
+    /// </summary>
     public AsyncRelayCommand ConnectCommand { get; }
 
+    /// <summary>
+    /// DisconnectCommand 값을 가져옵니다.
+    /// </summary>
     public AsyncRelayCommand DisconnectCommand { get; }
 
+    /// <summary>
+    /// SendCommand 값을 가져옵니다.
+    /// </summary>
     public AsyncRelayCommand SendCommand { get; }
 
+    /// <summary>
+    /// ClearLogCommand 값을 가져옵니다.
+    /// </summary>
     public RelayCommand ClearLogCommand { get; }
 
+    /// <summary>
+    /// StartMockEndpointCommand 값을 가져옵니다.
+    /// </summary>
     public AsyncRelayCommand StartMockEndpointCommand { get; }
 
+    /// <summary>
+    /// StopMockEndpointCommand 값을 가져옵니다.
+    /// </summary>
     public AsyncRelayCommand StopMockEndpointCommand { get; }
 
+    /// <summary>
+    /// StatusText 값을 가져옵니다.
+    /// </summary>
     public string StatusText
     {
         get => _statusText;
         set => SetProperty(ref _statusText, value);
     }
 
+    /// <summary>
+    /// StatusDetail 값을 가져옵니다.
+    /// </summary>
     public string StatusDetail
     {
         get => _statusDetail;
         set => SetProperty(ref _statusDetail, value);
     }
 
+    /// <summary>
+    /// IsBusy 값을 가져옵니다.
+    /// </summary>
     public bool IsBusy
     {
         get => _isBusy;
@@ -122,6 +239,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// IsConnected 값을 가져옵니다.
+    /// </summary>
     public bool IsConnected
     {
         get => _isConnected;
@@ -134,18 +254,27 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// MockEndpointStatusTitle 값을 가져옵니다.
+    /// </summary>
     public string MockEndpointStatusTitle
     {
         get => _mockEndpointStatusTitle;
         set => SetProperty(ref _mockEndpointStatusTitle, value);
     }
 
+    /// <summary>
+    /// MockEndpointStatusDetail 값을 가져옵니다.
+    /// </summary>
     public string MockEndpointStatusDetail
     {
         get => _mockEndpointStatusDetail;
         set => SetProperty(ref _mockEndpointStatusDetail, value);
     }
 
+    /// <summary>
+    /// IsMockEndpointBusy 값을 가져옵니다.
+    /// </summary>
     public bool IsMockEndpointBusy
     {
         get => _isMockEndpointBusy;
@@ -158,6 +287,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// IsMockEndpointRunning 값을 가져옵니다.
+    /// </summary>
     public bool IsMockEndpointRunning
     {
         get => _isMockEndpointRunning;
@@ -170,16 +302,31 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// ProtocolBadgeText 값을 가져옵니다.
+    /// </summary>
     public string ProtocolBadgeText => "LengthPrefixed";
 
+    /// <summary>
+    /// SerializerBadgeText 값을 가져옵니다.
+    /// </summary>
     public string SerializerBadgeText => _activeSerializerType is null
         ? Settings.SelectedSerializerTitle
         : _localizer.GetSerializerLabel(_activeSerializerType);
 
+    /// <summary>
+    /// RuntimePolicyText 값을 가져옵니다.
+    /// </summary>
     public string RuntimePolicyText => "Strict MVVM + DI + JSON";
 
+    /// <summary>
+    /// LogText 값을 가져옵니다.
+    /// </summary>
     public string LogText => string.Join(Environment.NewLine, Logs.Select(log => log.ToString()));
 
+    /// <summary>
+    /// DisposeAsync 작업을 수행합니다.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         Settings.PropertyChanged -= OnSettingsPropertyChanged;
@@ -190,21 +337,33 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         await _sessionService.DisposeAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// CanConnect 작업을 수행합니다.
+    /// </summary>
     private bool CanConnect()
     {
         return !IsBusy && !IsConnected;
     }
 
+    /// <summary>
+    /// CanDisconnect 작업을 수행합니다.
+    /// </summary>
     private bool CanDisconnect()
     {
         return !IsBusy && IsConnected;
     }
 
+    /// <summary>
+    /// CanSend 작업을 수행합니다.
+    /// </summary>
     private bool CanSend()
     {
         return !IsBusy && IsConnected;
     }
 
+    /// <summary>
+    /// CanStartMockEndpoint 작업을 수행합니다.
+    /// </summary>
     private bool CanStartMockEndpoint()
     {
         return !IsBusy &&
@@ -214,11 +373,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                Settings.SelectedTransport.Kind != TransportKind.Serial;
     }
 
+    /// <summary>
+    /// CanStopMockEndpoint 작업을 수행합니다.
+    /// </summary>
     private bool CanStopMockEndpoint()
     {
         return !IsMockEndpointBusy && IsMockEndpointRunning;
     }
 
+    /// <summary>
+    /// ConnectAsync 작업을 수행합니다.
+    /// </summary>
     private async Task ConnectAsync()
     {
         IsBusy = true;
@@ -246,6 +411,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// DisconnectAsync 작업을 수행합니다.
+    /// </summary>
     private async Task DisconnectAsync()
     {
         IsBusy = true;
@@ -272,6 +440,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// SendAsync 작업을 수행합니다.
+    /// </summary>
     private async Task SendAsync()
     {
         IsBusy = true;
@@ -299,6 +470,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// StartMockEndpointAsync 작업을 수행합니다.
+    /// </summary>
     private async Task StartMockEndpointAsync()
     {
         IsMockEndpointBusy = true;
@@ -335,6 +509,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// StopMockEndpointAsync 작업을 수행합니다.
+    /// </summary>
     private async Task StopMockEndpointAsync()
     {
         IsMockEndpointBusy = true;
@@ -373,6 +550,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// ClearLogs 작업을 수행합니다.
+    /// </summary>
     private void ClearLogs()
     {
         Logs.Clear();
@@ -384,6 +564,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         OnPropertyChanged(nameof(LogText));
     }
 
+    /// <summary>
+    /// BuildProfile 작업을 수행합니다.
+    /// </summary>
     private DeviceProfile BuildProfile()
     {
         var trimmedDeviceId = Settings.DeviceId.Trim();
@@ -418,6 +601,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// BuildMockEndpointRequest 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointRequest BuildMockEndpointRequest()
     {
         // transport별로 mock peer가 기대하는 최소 입력 형식이 조금씩 다르다.
@@ -433,6 +619,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// BuildTransportOptions 작업을 수행합니다.
+    /// </summary>
     private TransportOptions BuildTransportOptions()
     {
         return Settings.SelectedTransport.Kind switch
@@ -445,6 +634,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// ParseMessageId 작업을 수행합니다.
+    /// </summary>
     private ushort ParseMessageId()
     {
         if (!ushort.TryParse(Settings.OutboundMessageId.Trim(), out var messageId))
@@ -455,6 +647,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         return messageId;
     }
 
+    /// <summary>
+    /// BuildOutboundMessage 작업을 수행합니다.
+    /// </summary>
     private IMessage BuildOutboundMessage()
     {
         var serializerType = _activeSerializerType ?? Settings.SelectedSerializer.Type;
@@ -469,6 +664,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// NotifyCommandStateChanged 작업을 수행합니다.
+    /// </summary>
     private void NotifyCommandStateChanged()
     {
         ConnectCommand.NotifyCanExecuteChanged();
@@ -478,6 +676,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         StopMockEndpointCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// ParsePositiveInt 작업을 수행합니다.
+    /// </summary>
     private static int ParsePositiveInt(string value, string fieldName)
     {
         if (!int.TryParse(value.Trim(), out var parsed))
@@ -493,11 +694,17 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         return parsed;
     }
 
+    /// <summary>
+    /// OnLogEmitted 작업을 수행합니다.
+    /// </summary>
     private void OnLogEmitted(object? sender, LogEntry entry)
     {
         AppendLog(entry);
     }
 
+    /// <summary>
+    /// OnConnectionStateChanged 작업을 수행합니다.
+    /// </summary>
     private void OnConnectionStateChanged(object? sender, ConnectionStateSnapshot snapshot)
     {
         // 세션 서비스 콜백은 background thread에서 들어올 수 있으므로
@@ -517,6 +724,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// AppendLog 작업을 수행합니다.
+    /// </summary>
     private void AppendLog(LogEntry entry)
     {
         _uiDispatcher.Enqueue(() =>
@@ -528,6 +738,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         });
     }
 
+    /// <summary>
+    /// OnLanguageChanged 작업을 수행합니다.
+    /// </summary>
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         if (_statusOwner == StatusOwner.ViewModel)
@@ -538,6 +751,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         RefreshMockEndpointStatus();
     }
 
+    /// <summary>
+    /// OnSettingsPropertyChanged 작업을 수행합니다.
+    /// </summary>
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(DeviceLabSettingsViewModel.SelectedSerializer))
@@ -559,6 +775,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// ApplyViewStatus 작업을 수행합니다.
+    /// </summary>
     private void ApplyViewStatus(
         string statusTextKey,
         string statusDetailKey,
@@ -573,12 +792,18 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         RefreshViewStatus();
     }
 
+    /// <summary>
+    /// RefreshViewStatus 작업을 수행합니다.
+    /// </summary>
     private void RefreshViewStatus()
     {
         StatusText = _localizer.Format(_statusTextKey, _statusTextArgs);
         StatusDetail = _localizer.Format(_statusDetailKey, _statusDetailArgs);
     }
 
+    /// <summary>
+    /// BuildTcpMockEndpointRequest 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointRequest BuildTcpMockEndpointRequest()
     {
         Settings.TcpSettings.Host = "127.0.0.1";
@@ -587,6 +812,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             ParsePositiveInt(Settings.TcpSettings.Port, "TCP Port"));
     }
 
+    /// <summary>
+    /// BuildUdpMockEndpointRequest 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointRequest BuildUdpMockEndpointRequest()
     {
         Settings.UdpSettings.RemoteHost = "127.0.0.1";
@@ -602,6 +830,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         return new LocalMockEndpointRequest(TransportKind.Udp, remotePort);
     }
 
+    /// <summary>
+    /// BuildMulticastMockEndpointRequest 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointRequest BuildMulticastMockEndpointRequest()
     {
         Settings.MulticastSettings.Loopback = true;
@@ -614,6 +845,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
                 : Settings.MulticastSettings.LocalInterface.Trim());
     }
 
+    /// <summary>
+    /// RefreshMockEndpointStatus 작업을 수행합니다.
+    /// </summary>
     private void RefreshMockEndpointStatus()
     {
         if (_activeMockEndpoint is not null && IsMockEndpointRunning)
@@ -638,6 +872,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             detailArgs: [_localizer.GetTransportLabel(Settings.SelectedTransport.Kind)]);
     }
 
+    /// <summary>
+    /// ApplyRunningMockEndpointStatus 작업을 수행합니다.
+    /// </summary>
     private void ApplyRunningMockEndpointStatus(LocalMockEndpointBinding binding)
     {
         var detailKey = binding.TransportKind switch
@@ -655,6 +892,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             detailArgs: [binding.Address, binding.Port]);
     }
 
+    /// <summary>
+    /// SetLocalizedMockEndpointStatus 작업을 수행합니다.
+    /// </summary>
     private void SetLocalizedMockEndpointStatus(
         string titleKey,
         string detailKey,
@@ -670,6 +910,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         ApplyMockEndpointStatus();
     }
 
+    /// <summary>
+    /// SetMockEndpointStatusWithRawDetail 작업을 수행합니다.
+    /// </summary>
     private void SetMockEndpointStatusWithRawDetail(string titleKey, string rawDetail, object[]? titleArgs = null)
     {
         _mockEndpointStatusTitleKey = titleKey;
@@ -679,6 +922,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         ApplyMockEndpointStatus();
     }
 
+    /// <summary>
+    /// ApplyMockEndpointStatus 작업을 수행합니다.
+    /// </summary>
     private void ApplyMockEndpointStatus()
     {
         MockEndpointStatusTitle = _localizer.Format(_mockEndpointStatusTitleKey, _mockEndpointStatusTitleArgs);
@@ -687,6 +933,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             : _localizer.Format(_mockEndpointStatusDetailKey, _mockEndpointStatusDetailArgs);
     }
 
+    /// <summary>
+    /// BuildMockEndpointStartedMessage 작업을 수행합니다.
+    /// </summary>
     private string BuildMockEndpointStartedMessage(LocalMockEndpointBinding binding)
     {
         var detailKey = binding.TransportKind switch

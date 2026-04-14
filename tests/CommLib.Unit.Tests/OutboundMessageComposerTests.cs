@@ -1,4 +1,4 @@
-using CommLib.Application.Messaging;
+﻿using CommLib.Application.Messaging;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using Xunit;
@@ -11,6 +11,9 @@ namespace CommLib.Unit.Tests;
 public sealed class OutboundMessageComposerTests
 {
     [Fact]
+    /// <summary>
+    /// Compose_AutoBinary_ReturnsTextMessageModel 작업을 수행합니다.
+    /// </summary>
     public void Compose_AutoBinary_ReturnsTextMessageModel()
     {
         var message = OutboundMessageComposer.Compose(SerializerTypes.AutoBinary, 10, "hello");
@@ -21,6 +24,9 @@ public sealed class OutboundMessageComposerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_RawHex_ReturnsBinaryMessageModel 작업을 수행합니다.
+    /// </summary>
     public void Compose_RawHex_ReturnsBinaryMessageModel()
     {
         var message = OutboundMessageComposer.Compose(SerializerTypes.RawHex, 11, "DE AD be ef");
@@ -31,6 +37,9 @@ public sealed class OutboundMessageComposerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_RawHexWithEmptyBody_ReturnsEmptyBinaryMessageModel 작업을 수행합니다.
+    /// </summary>
     public void Compose_RawHexWithEmptyBody_ReturnsEmptyBinaryMessageModel()
     {
         var message = OutboundMessageComposer.Compose(SerializerTypes.RawHex, 12, "   ");
@@ -41,12 +50,18 @@ public sealed class OutboundMessageComposerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_RawHexWithInvalidBody_ThrowsFormatException 작업을 수행합니다.
+    /// </summary>
     public void Compose_RawHexWithInvalidBody_ThrowsFormatException()
     {
         Assert.Throws<FormatException>(() => OutboundMessageComposer.Compose(SerializerTypes.RawHex, 13, "GG"));
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_BitFieldSchema_ReturnsBinaryMessageModel 작업을 수행합니다.
+    /// </summary>
     public void Compose_BitFieldSchema_ReturnsBinaryMessageModel()
     {
         var schema = new BitFieldPayloadSchema
@@ -74,6 +89,9 @@ public sealed class OutboundMessageComposerTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_UnsupportedSerializer_ThrowsNotSupportedException 작업을 수행합니다.
+    /// </summary>
     public void Compose_UnsupportedSerializer_ThrowsNotSupportedException()
     {
         Assert.Throws<NotSupportedException>(() => OutboundMessageComposer.Compose("Custom", 15, "hello"));

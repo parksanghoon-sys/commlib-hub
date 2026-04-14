@@ -1,4 +1,4 @@
-using CommLib.Domain.Configuration;
+﻿using CommLib.Domain.Configuration;
 using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 

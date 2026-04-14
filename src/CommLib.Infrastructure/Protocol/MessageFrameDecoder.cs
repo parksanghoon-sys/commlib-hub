@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 
 namespace CommLib.Infrastructure.Protocol;
@@ -8,7 +8,13 @@ namespace CommLib.Infrastructure.Protocol;
 /// </summary>
 public sealed class MessageFrameDecoder
 {
+    /// <summary>
+    /// _protocol 값을 나타냅니다.
+    /// </summary>
     private readonly IProtocol _protocol;
+    /// <summary>
+    /// _serializer 값을 나타냅니다.
+    /// </summary>
     private readonly ISerializer _serializer;
 
     /// <summary>

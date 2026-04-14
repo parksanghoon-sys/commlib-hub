@@ -1,13 +1,19 @@
-using System.Globalization;
+﻿using System.Globalization;
 using CommLib.Domain.Configuration;
 using CommLib.Examples.WinUI.Models;
 
 namespace CommLib.Examples.WinUI.Services;
 
+/// <summary>
+/// AppLocalizer 타입입니다.
+/// </summary>
 public sealed class AppLocalizer : IAppLocalizer
 {
     // WinUI 화면이 대부분 코드로 구성되어 있어서 XAML resource보다 key-value 사전을 직접 들고 가는 편이 단순하다.
     // 키는 View / ViewModel / Service 어디에서 써도 같게 유지하고, 실제 언어 문자열만 여기에서 바꾼다.
+    /// <summary>
+    /// EnglishStrings 값을 나타냅니다.
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, string> EnglishStrings = new Dictionary<string, string>
     {
         ["window.title"] = "CommLib Device Lab",
@@ -145,6 +151,9 @@ public sealed class AppLocalizer : IAppLocalizer
         ["transport.detail.generic"] = "Transport {0}"
     };
 
+    /// <summary>
+    /// KoreanStrings 값을 나타냅니다.
+    /// </summary>
     private static readonly IReadOnlyDictionary<string, string> KoreanStrings = new Dictionary<string, string>
     {
         ["window.title"] = "CommLib 디바이스 랩",
@@ -282,10 +291,19 @@ public sealed class AppLocalizer : IAppLocalizer
         ["session.payload.schemaErrorSuffix"] = "\uC2A4\uD0A4\uB9C8 \uD574\uC11D \uC2E4\uD328: {0}"
     };
 
+    /// <summary>
+    /// _currentLanguage 값을 나타냅니다.
+    /// </summary>
     private AppLanguageMode _currentLanguage;
 
+    /// <summary>
+    /// LanguageChanged 이벤트입니다.
+    /// </summary>
     public event EventHandler? LanguageChanged;
 
+    /// <summary>
+    /// CurrentLanguage 값을 가져옵니다.
+    /// </summary>
     public AppLanguageMode CurrentLanguage
     {
         get => _currentLanguage;
@@ -303,16 +321,25 @@ public sealed class AppLocalizer : IAppLocalizer
         }
     }
 
+    /// <summary>
+    /// Get 작업을 수행합니다.
+    /// </summary>
     public string Get(string key)
     {
         return GetStrings().TryGetValue(key, out var value) ? value : key;
     }
 
+    /// <summary>
+    /// Format 작업을 수행합니다.
+    /// </summary>
     public string Format(string key, params object?[] args)
     {
         return string.Format(CultureInfo.CurrentCulture, Get(key), args);
     }
 
+    /// <summary>
+    /// GetShellPageLabel 작업을 수행합니다.
+    /// </summary>
     public string GetShellPageLabel(ShellPageKind kind)
     {
         // 자주 쓰는 shell/transport/language 라벨은 별도 key 조회보다 switch helper가 더 읽기 쉬워서
@@ -327,6 +354,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetShellPageSubtitle 작업을 수행합니다.
+    /// </summary>
     public string GetShellPageSubtitle(ShellPageKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -339,6 +369,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetTransportLabel 작업을 수행합니다.
+    /// </summary>
     public string GetTransportLabel(TransportKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -355,6 +388,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetTransportSubtitle 작업을 수행합니다.
+    /// </summary>
     public string GetTransportSubtitle(TransportKind kind)
     {
         return (CurrentLanguage, kind) switch
@@ -371,6 +407,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetSerializerLabel 작업을 수행합니다.
+    /// </summary>
     public string GetSerializerLabel(string serializerType)
     {
         return (CurrentLanguage, serializerType) switch
@@ -383,6 +422,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetSerializerSubtitle 작업을 수행합니다.
+    /// </summary>
     public string GetSerializerSubtitle(string serializerType)
     {
         return (CurrentLanguage, serializerType) switch
@@ -395,6 +437,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetLanguageLabel 작업을 수행합니다.
+    /// </summary>
     public string GetLanguageLabel(AppLanguageMode mode)
     {
         return (CurrentLanguage, mode) switch
@@ -407,6 +452,9 @@ public sealed class AppLocalizer : IAppLocalizer
         };
     }
 
+    /// <summary>
+    /// GetStrings 작업을 수행합니다.
+    /// </summary>
     private IReadOnlyDictionary<string, string> GetStrings()
     {
         return CurrentLanguage == AppLanguageMode.Korean ? KoreanStrings : EnglishStrings;

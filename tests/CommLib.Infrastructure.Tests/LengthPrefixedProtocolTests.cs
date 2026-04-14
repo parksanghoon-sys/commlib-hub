@@ -1,4 +1,4 @@
-using CommLib.Infrastructure.Protocol;
+﻿using CommLib.Infrastructure.Protocol;
 using Xunit;
 
 namespace CommLib.Infrastructure.Tests;
@@ -9,12 +9,18 @@ namespace CommLib.Infrastructure.Tests;
 public sealed class LengthPrefixedProtocolTests
 {
     [Fact]
+    /// <summary>
+    /// Constructor_MaxFrameLengthSmallerThanHeader_Throws 작업을 수행합니다.
+    /// </summary>
     public void Constructor_MaxFrameLengthSmallerThanHeader_Throws()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new LengthPrefixedProtocol(3));
     }
 
     [Fact]
+    /// <summary>
+    /// Encode_Payload_ReturnsBigEndianLengthPrefixedFrame 작업을 수행합니다.
+    /// </summary>
     public void Encode_Payload_ReturnsBigEndianLengthPrefixedFrame()
     {
         var protocol = new LengthPrefixedProtocol();
@@ -26,6 +32,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// Encode_FrameLongerThanConfiguredMaximum_Throws 작업을 수행합니다.
+    /// </summary>
     public void Encode_FrameLongerThanConfiguredMaximum_Throws()
     {
         var protocol = new LengthPrefixedProtocol(6);
@@ -37,6 +46,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryDecode_CompleteFrame_ReturnsPayloadAndConsumedLength 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_CompleteFrame_ReturnsPayloadAndConsumedLength()
     {
         var protocol = new LengthPrefixedProtocol();
@@ -50,6 +62,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryDecode_FrameWithTrailingBytes_ConsumesOnlySingleFrame 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_FrameWithTrailingBytes_ConsumesOnlySingleFrame()
     {
         var protocol = new LengthPrefixedProtocol();
@@ -63,6 +78,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryDecode_IncompleteFrame_ReturnsFalse 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_IncompleteFrame_ReturnsFalse()
     {
         var protocol = new LengthPrefixedProtocol();
@@ -76,6 +94,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryDecode_NegativeLength_Throws 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_NegativeLength_Throws()
     {
         var protocol = new LengthPrefixedProtocol();
@@ -85,6 +106,9 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    /// <summary>
+    /// TryDecode_FrameLongerThanConfiguredMaximum_Throws 작업을 수행합니다.
+    /// </summary>
     public void TryDecode_FrameLongerThanConfiguredMaximum_Throws()
     {
         var protocol = new LengthPrefixedProtocol(6);

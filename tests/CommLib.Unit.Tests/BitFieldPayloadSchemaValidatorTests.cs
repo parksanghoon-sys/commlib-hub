@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -9,6 +9,9 @@ namespace CommLib.Unit.Tests;
 public sealed class BitFieldPayloadSchemaValidatorTests
 {
     [Fact]
+    /// <summary>
+    /// ValidateAndThrow_FieldOutsidePayload_Throws 작업을 수행합니다.
+    /// </summary>
     public void ValidateAndThrow_FieldOutsidePayload_Throws()
     {
         var schema = new BitFieldPayloadSchema
@@ -26,6 +29,9 @@ public sealed class BitFieldPayloadSchemaValidatorTests
     }
 
     [Fact]
+    /// <summary>
+    /// ValidateAndThrow_DuplicateFieldName_Throws 작업을 수행합니다.
+    /// </summary>
     public void ValidateAndThrow_DuplicateFieldName_Throws()
     {
         var schema = new BitFieldPayloadSchema
@@ -44,6 +50,9 @@ public sealed class BitFieldPayloadSchemaValidatorTests
     }
 
     [Fact]
+    /// <summary>
+    /// ValidateAndThrow_OverlappingFields_Throws 작업을 수행합니다.
+    /// </summary>
     public void ValidateAndThrow_OverlappingFields_Throws()
     {
         var schema = new BitFieldPayloadSchema
@@ -62,6 +71,9 @@ public sealed class BitFieldPayloadSchemaValidatorTests
     }
 
     [Fact]
+    /// <summary>
+    /// ValidateAndThrow_BigEndianNonByteAlignedField_Throws 작업을 수행합니다.
+    /// </summary>
     public void ValidateAndThrow_BigEndianNonByteAlignedField_Throws()
     {
         var schema = new BitFieldPayloadSchema

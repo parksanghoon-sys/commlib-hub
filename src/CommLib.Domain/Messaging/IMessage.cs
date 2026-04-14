@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 모든 메시지가 공통으로 따르는 최소 계약을 나타냅니다.

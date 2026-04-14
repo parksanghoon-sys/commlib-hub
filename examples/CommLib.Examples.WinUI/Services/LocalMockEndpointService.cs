@@ -1,20 +1,47 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using CommLib.Examples.WinUI.Models;
 
 namespace CommLib.Examples.WinUI.Services;
 
+/// <summary>
+/// LocalMockEndpointService 타입입니다.
+/// </summary>
 public sealed class LocalMockEndpointService : ILocalMockEndpointService
 {
     // mock peer는 "동시에 하나만" 살아 있게 두면 UI 상태와 실제 바인딩 포트가 가장 단순해진다.
+    /// <summary>
+    /// _gate 값을 나타냅니다.
+    /// </summary>
     private readonly SemaphoreSlim _gate = new(1, 1);
+    /// <summary>
+    /// _runtimeCts 값을 나타냅니다.
+    /// </summary>
     private CancellationTokenSource? _runtimeCts;
+    /// <summary>
+    /// _runtimeTask 값을 나타냅니다.
+    /// </summary>
     private Task? _runtimeTask;
+    /// <summary>
+    /// _tcpListener 값을 나타냅니다.
+    /// </summary>
     private TcpListener? _tcpListener;
+    /// <summary>
+    /// _udpServer 값을 나타냅니다.
+    /// </summary>
     private UdpClient? _udpServer;
+    /// <summary>
+    /// _multicastReceiver 값을 나타냅니다.
+    /// </summary>
     private UdpClient? _multicastReceiver;
+    /// <summary>
+    /// _multicastReplySender 값을 나타냅니다.
+    /// </summary>
     private UdpClient? _multicastReplySender;
 
+    /// <summary>
+    /// StartAsync 작업을 수행합니다.
+    /// </summary>
     public async Task<LocalMockEndpointBinding> StartAsync(
         LocalMockEndpointRequest request,
         CancellationToken cancellationToken = default)
@@ -43,6 +70,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// StopAsync 작업을 수행합니다.
+    /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -57,12 +87,18 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// DisposeAsync 작업을 수행합니다.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
         _gate.Dispose();
     }
 
+    /// <summary>
+    /// StartTcp 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointBinding StartTcp(int port)
     {
         var listener = new TcpListener(IPAddress.Loopback, port);
@@ -77,6 +113,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         return new LocalMockEndpointBinding(TransportKind.Tcp, IPAddress.Loopback.ToString(), endpoint.Port);
     }
 
+    /// <summary>
+    /// StartUdp 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointBinding StartUdp(int port)
     {
         var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
@@ -90,6 +129,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         return new LocalMockEndpointBinding(TransportKind.Udp, IPAddress.Loopback.ToString(), endpoint.Port);
     }
 
+    /// <summary>
+    /// StartMulticast 작업을 수행합니다.
+    /// </summary>
     private LocalMockEndpointBinding StartMulticast(LocalMockEndpointRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Address))
@@ -137,6 +179,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// StopCoreAsync 작업을 수행합니다.
+    /// </summary>
     private async Task StopCoreAsync()
     {
         // 필드를 먼저 지역 변수로 옮겨 놓고 null 처리하면
@@ -185,6 +230,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         runtimeCts?.Dispose();
     }
 
+    /// <summary>
+    /// RunTcpEchoLoopAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunTcpEchoLoopAsync(TcpListener listener, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -210,6 +258,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// HandleTcpClientAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task HandleTcpClientAsync(TcpClient client, CancellationToken cancellationToken)
     {
         using (client)
@@ -240,6 +291,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// RunUdpEchoLoopAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunUdpEchoLoopAsync(UdpClient server, CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -259,6 +313,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// RunMulticastEchoLoopAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunMulticastEchoLoopAsync(
         UdpClient receiver,
         UdpClient replySender,
@@ -290,6 +347,9 @@ public sealed class LocalMockEndpointService : ILocalMockEndpointService
         }
     }
 
+    /// <summary>
+    /// TryGetLocalInterface 작업을 수행합니다.
+    /// </summary>
     private static bool TryGetLocalInterface(string? value, out IPAddress localInterface)
     {
         if (!string.IsNullOrWhiteSpace(value))

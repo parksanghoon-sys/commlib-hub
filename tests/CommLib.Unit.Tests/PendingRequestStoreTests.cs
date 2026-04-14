@@ -1,4 +1,4 @@
-using CommLib.Application.Pipeline;
+﻿using CommLib.Application.Pipeline;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -12,6 +12,9 @@ public sealed class PendingRequestStoreTests
     /// 등록한 상관관계 식별자는 존재하는 것으로 조회되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Register_RegisteredCorrelationId_ExistsReturnsTrue 작업을 수행합니다.
+    /// </summary>
     public void Register_RegisteredCorrelationId_ExistsReturnsTrue()
     {
         var store = new PendingRequestStore();
@@ -26,6 +29,9 @@ public sealed class PendingRequestStoreTests
     /// 완료 처리한 상관관계 식별자는 더 이상 존재하지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Complete_RegisteredCorrelationId_RemovesPendingEntry 작업을 수행합니다.
+    /// </summary>
     public void Complete_RegisteredCorrelationId_RemovesPendingEntry()
     {
         var store = new PendingRequestStore();
@@ -41,6 +47,9 @@ public sealed class PendingRequestStoreTests
     /// 등록되지 않은 상관관계 식별자를 완료 처리해도 예외 없이 동작하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Complete_UnregisteredCorrelationId_DoesNotThrow 작업을 수행합니다.
+    /// </summary>
     public void Complete_UnregisteredCorrelationId_DoesNotThrow()
     {
         var store = new PendingRequestStore();
@@ -54,6 +63,9 @@ public sealed class PendingRequestStoreTests
     /// 한 번도 등록하지 않은 상관관계 식별자는 존재하지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Exists_UnregisteredCorrelationId_ReturnsFalse 작업을 수행합니다.
+    /// </summary>
     public void Exists_UnregisteredCorrelationId_ReturnsFalse()
     {
         var store = new PendingRequestStore();

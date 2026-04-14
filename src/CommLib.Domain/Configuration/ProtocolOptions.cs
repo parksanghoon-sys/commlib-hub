@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 메시지 프레이밍에 사용하는 프로토콜 설정을 나타냅니다.

@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 메시지 payload를 raw binary 형태로 직접 전달하는 메시지 계약입니다.

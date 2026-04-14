@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace CommLib.Domain.Messaging;
 
@@ -83,6 +83,9 @@ public static class BitFieldPayloadSchemaValidator
         }
     }
 
+    /// <summary>
+    /// Overlaps 작업을 수행합니다.
+    /// </summary>
     private static bool Overlaps(BitFieldDefinition left, BitFieldDefinition right)
     {
         var leftEnd = checked(left.BitOffset + left.BitLength);

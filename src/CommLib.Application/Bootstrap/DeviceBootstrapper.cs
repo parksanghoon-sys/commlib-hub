@@ -1,4 +1,4 @@
-using CommLib.Domain.Configuration;
+﻿using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
 namespace CommLib.Application.Bootstrap;

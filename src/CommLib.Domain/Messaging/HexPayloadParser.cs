@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 
 namespace CommLib.Domain.Messaging;
 
@@ -23,6 +23,9 @@ public static class HexPayloadParser
         return Convert.FromHexString(trimmed);
     }
 
+    /// <summary>
+    /// RemoveWhitespace 작업을 수행합니다.
+    /// </summary>
     private static string RemoveWhitespace(string text)
     {
         if (string.IsNullOrWhiteSpace(text))

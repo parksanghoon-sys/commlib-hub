@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using CommLib.Domain.Configuration;
@@ -15,6 +15,9 @@ namespace CommLib.Infrastructure.Tests;
 public sealed class RawHexConnectionManagerRoundtripTests
 {
     [Fact]
+    /// <summary>
+    /// SendAndReceiveAsync_WithBinaryMessage_RoundTripsRawPayloadThroughTcpEcho 작업을 수행합니다.
+    /// </summary>
     public async Task SendAndReceiveAsync_WithBinaryMessage_RoundTripsRawPayloadThroughTcpEcho()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -38,6 +41,9 @@ public sealed class RawHexConnectionManagerRoundtripTests
     }
 
     [Fact]
+    /// <summary>
+    /// SendAndReceiveAsync_WithHexTextBody_BridgesToBinaryMessageThroughTcpEcho 작업을 수행합니다.
+    /// </summary>
     public async Task SendAndReceiveAsync_WithHexTextBody_BridgesToBinaryMessageThroughTcpEcho()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -59,6 +65,9 @@ public sealed class RawHexConnectionManagerRoundtripTests
         await echoTask.WaitAsync(TimeSpan.FromSeconds(1));
     }
 
+    /// <summary>
+    /// EchoSingleLengthPrefixedFrameAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task EchoSingleLengthPrefixedFrameAsync(TcpListener listener)
     {
         using var client = await listener.AcceptTcpClientAsync().ConfigureAwait(false);
@@ -73,6 +82,9 @@ public sealed class RawHexConnectionManagerRoundtripTests
         await stream.WriteAsync(payload).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// CreateManager 작업을 수행합니다.
+    /// </summary>
     private static ConnectionManager CreateManager()
     {
         return new ConnectionManager(
@@ -81,6 +93,9 @@ public sealed class RawHexConnectionManagerRoundtripTests
             new SerializerFactory());
     }
 
+    /// <summary>
+    /// CreateRawHexTcpProfile 작업을 수행합니다.
+    /// </summary>
     private static DeviceProfile CreateRawHexTcpProfile(int port)
     {
         return new DeviceProfile

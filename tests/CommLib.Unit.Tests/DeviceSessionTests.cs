@@ -1,4 +1,4 @@
-using CommLib.Application.Sessions;
+﻿using CommLib.Application.Sessions;
 using CommLib.Domain.Messaging;
 using Xunit;
 
@@ -13,6 +13,9 @@ public sealed class DeviceSessionTests
     /// 생성 시 전달한 장치 식별자를 그대로 노출하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Constructor_SetsDeviceId 작업을 수행합니다.
+    /// </summary>
     public void Constructor_SetsDeviceId()
     {
         var session = new DeviceSession("device-1");
@@ -21,6 +24,9 @@ public sealed class DeviceSessionTests
     }
 
     [Fact]
+    /// <summary>
+    /// FailPendingResponses_PendingRequestsFailImmediatelyAndClearPendingEntries 작업을 수행합니다.
+    /// </summary>
     public async Task FailPendingResponses_PendingRequestsFailImmediatelyAndClearPendingEntries()
     {
         var session = new DeviceSession("device-1");
@@ -43,6 +49,9 @@ public sealed class DeviceSessionTests
     /// 일반 메시지를 송신하면 송신 완료 작업이 성공 상태로 끝나는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_MessageWithinQueueCapacity_CompletesSuccessfully 작업을 수행합니다.
+    /// </summary>
     public async Task Send_MessageWithinQueueCapacity_CompletesSuccessfully()
     {
         var session = new DeviceSession("device-1");
@@ -57,6 +66,9 @@ public sealed class DeviceSessionTests
     /// 일반 메시지를 송신하면 outbound 큐에서 같은 메시지를 꺼낼 수 있는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_MessageWithinQueueCapacity_EnqueuesOutboundMessage 작업을 수행합니다.
+    /// </summary>
     public async Task Send_MessageWithinQueueCapacity_EnqueuesOutboundMessage()
     {
         var session = new DeviceSession("device-1");
@@ -75,6 +87,9 @@ public sealed class DeviceSessionTests
     /// 요청 메시지를 송신하면 응답 작업이 대기 상태로 시작되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_RequestMessage_ReturnsPendingResponseTask 작업을 수행합니다.
+    /// </summary>
     public async Task Send_RequestMessage_ReturnsPendingResponseTask()
     {
         var session = new DeviceSession("device-1");
@@ -96,6 +111,9 @@ public sealed class DeviceSessionTests
     /// 응답을 완료 처리하면 대기 중이던 요청이 제거되고 응답 작업이 완료되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryCompleteResponse_MatchingResponse_CompletesTaskAndRemovesPendingEntry 작업을 수행합니다.
+    /// </summary>
     public async Task TryCompleteResponse_MatchingResponse_CompletesTaskAndRemovesPendingEntry()
     {
         var session = new DeviceSession("device-1");
@@ -115,6 +133,9 @@ public sealed class DeviceSessionTests
     /// 비제네릭 응답 완료 경로도 대기 중인 요청을 완료 처리하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryCompleteResponse_NonGenericOverload_CompletesTaskAndRemovesPendingEntry 작업을 수행합니다.
+    /// </summary>
     public async Task TryCompleteResponse_NonGenericOverload_CompletesTaskAndRemovesPendingEntry()
     {
         var session = new DeviceSession("device-1");
@@ -134,6 +155,9 @@ public sealed class DeviceSessionTests
     /// 알 수 없는 상관관계 응답은 완료 처리하지 않고 무시하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// TryCompleteResponse_UnknownCorrelationId_ReturnsFalse 작업을 수행합니다.
+    /// </summary>
     public void TryCompleteResponse_UnknownCorrelationId_ReturnsFalse()
     {
         var session = new DeviceSession("device-1");
@@ -148,6 +172,9 @@ public sealed class DeviceSessionTests
     /// 응답 대기 시간이 지나면 응답 작업이 시간 초과로 끝나고 pending 엔트리가 정리되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_RequestWithTimeout_FailsResponseTaskAndRemovesPendingEntry 작업을 수행합니다.
+    /// </summary>
     public async Task Send_RequestWithTimeout_FailsResponseTaskAndRemovesPendingEntry()
     {
         var session = new DeviceSession("device-1");
@@ -165,6 +192,9 @@ public sealed class DeviceSessionTests
     /// 기본 응답 제한 시간이 구성되면 명시적 timeout 없이도 응답 task가 시간 초과되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_RequestWithoutExplicitTimeout_UsesConfiguredDefaultTimeout 작업을 수행합니다.
+    /// </summary>
     public async Task Send_RequestWithoutExplicitTimeout_UsesConfiguredDefaultTimeout()
     {
         var session = new DeviceSession(
@@ -186,6 +216,9 @@ public sealed class DeviceSessionTests
     /// pending 요청 수가 설정 상한에 도달하면 후속 요청을 거부하고 추가 추적을 남기지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_RequestWhenPendingLimitReached_FailsWithoutRegisteringAdditionalPending 작업을 수행합니다.
+    /// </summary>
     public async Task Send_RequestWhenPendingLimitReached_FailsWithoutRegisteringAdditionalPending()
     {
         var session = new DeviceSession(
@@ -217,6 +250,9 @@ public sealed class DeviceSessionTests
     /// 송신 큐가 가득 차면 일반 메시지 송신 완료 작업이 실패하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_WhenQueueIsFull_FailsSendCompletedTask 작업을 수행합니다.
+    /// </summary>
     public async Task Send_WhenQueueIsFull_FailsSendCompletedTask()
     {
         var session = new DeviceSession("device-1");
@@ -236,6 +272,9 @@ public sealed class DeviceSessionTests
     /// 요청 큐가 가득 차면 응답 작업도 함께 실패하고 pending 엔트리가 남지 않는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Send_RequestWhenQueueIsFull_FailsResponseTaskAndDoesNotTrackPending 작업을 수행합니다.
+    /// </summary>
     public async Task Send_RequestWhenQueueIsFull_FailsResponseTaskAndDoesNotTrackPending()
     {
         var session = new DeviceSession("device-1");
@@ -288,6 +327,9 @@ public sealed class DeviceSessionTests
         public bool IsSuccess { get; init; } = true;
     }
 
+    /// <summary>
+    /// GetDequeuedMessage 작업을 수행합니다.
+    /// </summary>
     private static IMessage GetDequeuedMessage(DeviceSession session)
     {
         Assert.True(session.TryDequeueOutbound(out var message));

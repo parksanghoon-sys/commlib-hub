@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Messaging;
+﻿namespace CommLib.Domain.Messaging;
 
 /// <summary>
 /// 기본 메시지 식별자와 선택적 본문을 담는 공용 메시지 모델입니다.

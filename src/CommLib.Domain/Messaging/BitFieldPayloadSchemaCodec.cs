@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace CommLib.Domain.Messaging;
 
@@ -83,6 +83,9 @@ public static class BitFieldPayloadSchemaCodec
         return values;
     }
 
+    /// <summary>
+    /// BuildFieldMap 작업을 수행합니다.
+    /// </summary>
     private static Dictionary<string, BitFieldPayloadField> BuildFieldMap(BitFieldPayloadSchema schema)
     {
         var fieldsByName = new Dictionary<string, BitFieldPayloadField>(StringComparer.OrdinalIgnoreCase);
@@ -94,6 +97,9 @@ public static class BitFieldPayloadSchemaCodec
         return fieldsByName;
     }
 
+    /// <summary>
+    /// NormalizeValue 작업을 수행합니다.
+    /// </summary>
     private static ulong NormalizeValue(BitFieldPayloadField field, decimal value)
     {
         EnsureIntegralValue(field, value);
@@ -107,6 +113,9 @@ public static class BitFieldPayloadSchemaCodec
         };
     }
 
+    /// <summary>
+    /// EnsureIntegralValue 작업을 수행합니다.
+    /// </summary>
     private static void EnsureIntegralValue(BitFieldPayloadField field, decimal value)
     {
         if (decimal.Truncate(value) != value)
@@ -115,6 +124,9 @@ public static class BitFieldPayloadSchemaCodec
         }
     }
 
+    /// <summary>
+    /// NormalizeUnsignedValue 작업을 수행합니다.
+    /// </summary>
     private static ulong NormalizeUnsignedValue(BitFieldDefinition field, decimal value)
     {
         if (value < 0)
@@ -132,6 +144,9 @@ public static class BitFieldPayloadSchemaCodec
         return checked((ulong)value);
     }
 
+    /// <summary>
+    /// NormalizeSignedValue 작업을 수행합니다.
+    /// </summary>
     private static ulong NormalizeSignedValue(BitFieldDefinition field, decimal value)
     {
         var minValue = GetSignedMinValue(field.BitLength);
@@ -157,6 +172,9 @@ public static class BitFieldPayloadSchemaCodec
         return checked((ulong)(twoToBitLength + value));
     }
 
+    /// <summary>
+    /// GetUnsignedMaxValue 작업을 수행합니다.
+    /// </summary>
     private static decimal GetUnsignedMaxValue(int bitLength)
     {
         return bitLength == 64
@@ -164,6 +182,9 @@ public static class BitFieldPayloadSchemaCodec
             : (decimal)((1UL << bitLength) - 1);
     }
 
+    /// <summary>
+    /// GetSignedMinValue 작업을 수행합니다.
+    /// </summary>
     private static decimal GetSignedMinValue(int bitLength)
     {
         return bitLength == 64
@@ -171,6 +192,9 @@ public static class BitFieldPayloadSchemaCodec
             : -(decimal)(1L << (bitLength - 1));
     }
 
+    /// <summary>
+    /// GetSignedMaxValue 작업을 수행합니다.
+    /// </summary>
     private static decimal GetSignedMaxValue(int bitLength)
     {
         return bitLength == 64

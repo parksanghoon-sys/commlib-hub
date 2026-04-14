@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using CommLib.Domain.Configuration;
 using CommLib.Infrastructure.Transport;
@@ -15,6 +15,9 @@ public sealed class UdpTransportTests
     /// 기본 원격 endpoint가 구성된 경우 datagram을 원격 UDP 소켓으로 전송하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_SendAsync_WritesBytesToRemoteEndpoint 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_SendAsync_WritesBytesToRemoteEndpoint()
     {
         using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
@@ -37,6 +40,9 @@ public sealed class UdpTransportTests
     /// 수신한 datagram 바이트를 transport 수신 결과로 그대로 반환하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_ReceiveAsync_ReturnsBytesFromRemoteEndpoint 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_ReceiveAsync_ReturnsBytesFromRemoteEndpoint()
     {
         var localPort = GetFreeUdpPort();
@@ -58,6 +64,9 @@ public sealed class UdpTransportTests
     /// 기본 원격 endpoint가 없으면 send를 수행할 수 없는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// SendAsync_WithoutConfiguredRemoteEndpoint_Throws 작업을 수행합니다.
+    /// </summary>
     public async Task SendAsync_WithoutConfiguredRemoteEndpoint_Throws()
     {
         var transport = new UdpTransport(new UdpTransportOptions
@@ -76,6 +85,9 @@ public sealed class UdpTransportTests
     /// 대기 중인 UDP 수신이 close와 함께 취소되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_PendingReceive_IsCanceled 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
         var transport = new UdpTransport(new UdpTransportOptions
@@ -92,6 +104,9 @@ public sealed class UdpTransportTests
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
     }
 
+    /// <summary>
+    /// GetFreeUdpPort 작업을 수행합니다.
+    /// </summary>
     private static int GetFreeUdpPort()
     {
         using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));

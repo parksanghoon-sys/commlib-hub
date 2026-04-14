@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 장치 재연결 시 사용하는 재시도 정책을 나타냅니다.

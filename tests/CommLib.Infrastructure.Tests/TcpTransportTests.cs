@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using CommLib.Domain.Configuration;
 using CommLib.Infrastructure.Transport;
@@ -15,6 +15,9 @@ public sealed class TcpTransportTests
     /// open 이후 송신한 바이트가 서버 측으로 전달되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_SendAsync_WritesBytesToServer 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_SendAsync_WritesBytesToServer()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -36,6 +39,9 @@ public sealed class TcpTransportTests
     /// 서버가 보낸 바이트 청크를 transport 수신으로 그대로 읽는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_ReceiveAsync_ReturnsBytesFromServer 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_ReceiveAsync_ReturnsBytesFromServer()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -56,6 +62,9 @@ public sealed class TcpTransportTests
     /// 대기 중인 TCP 수신은 close 시 취소되어 빠져나오는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_PendingReceive_IsCanceled 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -72,6 +81,9 @@ public sealed class TcpTransportTests
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
     }
 
+    /// <summary>
+    /// CreateTransport 작업을 수행합니다.
+    /// </summary>
     private static TcpTransport CreateTransport(TcpListener listener)
     {
         return new TcpTransport(new TcpClientTransportOptions

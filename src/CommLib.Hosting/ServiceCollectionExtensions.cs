@@ -1,4 +1,4 @@
-using CommLib.Application.Bootstrap;
+﻿using CommLib.Application.Bootstrap;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
 using CommLib.Domain.Transport;

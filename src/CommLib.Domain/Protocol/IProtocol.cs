@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Protocol;
+﻿namespace CommLib.Domain.Protocol;
 
 /// <summary>
 /// 장치 메시지 프레임 인코드/디코드 동작을 정의합니다.

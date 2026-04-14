@@ -1,4 +1,4 @@
-using CommLib.Domain.Configuration;
+﻿using CommLib.Domain.Configuration;
 using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
@@ -11,6 +11,9 @@ namespace CommLib.Infrastructure.Tests;
 public sealed class ProtocolFactoryTests
 {
     [Fact]
+    /// <summary>
+    /// Create_LengthPrefixedOptions_ReturnsLengthPrefixedProtocol 작업을 수행합니다.
+    /// </summary>
     public void Create_LengthPrefixedOptions_ReturnsLengthPrefixedProtocol()
     {
         var factory = new ProtocolFactory();
@@ -26,6 +29,9 @@ public sealed class ProtocolFactoryTests
     }
 
     [Fact]
+    /// <summary>
+    /// Create_LowercaseLengthPrefixedType_ReturnsLengthPrefixedProtocol 작업을 수행합니다.
+    /// </summary>
     public void Create_LowercaseLengthPrefixedType_ReturnsLengthPrefixedProtocol()
     {
         var factory = new ProtocolFactory();
@@ -36,6 +42,9 @@ public sealed class ProtocolFactoryTests
     }
 
     [Fact]
+    /// <summary>
+    /// Create_UnsupportedProtocol_ThrowsNotSupportedException 작업을 수행합니다.
+    /// </summary>
     public void Create_UnsupportedProtocol_ThrowsNotSupportedException()
     {
         var factory = new ProtocolFactory();

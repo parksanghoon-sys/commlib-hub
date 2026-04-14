@@ -1,4 +1,4 @@
-using CommLib.Domain.Configuration;
+﻿using CommLib.Domain.Configuration;
 using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
@@ -14,6 +14,9 @@ public sealed class SerializerFactoryTests
     /// AutoBinary 설정이면 기본 serializer 구현을 생성하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Create_AutoBinaryOptions_ReturnsNoOpSerializer 작업을 수행합니다.
+    /// </summary>
     public void Create_AutoBinaryOptions_ReturnsNoOpSerializer()
     {
         var factory = new SerializerFactory();
@@ -27,6 +30,9 @@ public sealed class SerializerFactoryTests
     /// RawHex 설정이면 raw-hex serializer 구현을 생성하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Create_RawHexOptions_ReturnsRawHexSerializer 작업을 수행합니다.
+    /// </summary>
     public void Create_RawHexOptions_ReturnsRawHexSerializer()
     {
         var factory = new SerializerFactory();
@@ -40,6 +46,9 @@ public sealed class SerializerFactoryTests
     /// 지원하지 않는 serializer 형식이면 예외를 던지는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// Create_UnsupportedSerializer_ThrowsNotSupportedException 작업을 수행합니다.
+    /// </summary>
     public void Create_UnsupportedSerializer_ThrowsNotSupportedException()
     {
         var factory = new SerializerFactory();

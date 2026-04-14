@@ -1,4 +1,4 @@
-using CommLib.Domain.Messaging;
+﻿using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -9,6 +9,9 @@ namespace CommLib.Unit.Tests;
 public sealed class BitFieldPayloadSchemaCodecTests
 {
     [Fact]
+    /// <summary>
+    /// Compose_SignedAndUnsignedFields_ReturnsExpectedPayload 작업을 수행합니다.
+    /// </summary>
     public void Compose_SignedAndUnsignedFields_ReturnsExpectedPayload()
     {
         var payload = BitFieldPayloadSchemaCodec.Compose(
@@ -24,6 +27,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Inspect_SignedAndUnsignedFields_ReturnsExpectedValues 작업을 수행합니다.
+    /// </summary>
     public void Inspect_SignedAndUnsignedFields_ReturnsExpectedValues()
     {
         var values = BitFieldPayloadSchemaCodec.Inspect(CreateLittleEndianSchema(), new byte[] { 0xCD, 0xF9 });
@@ -51,6 +57,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_BigEndianWholeByteField_ReturnsExpectedPayload 작업을 수행합니다.
+    /// </summary>
     public void Compose_BigEndianWholeByteField_ReturnsExpectedPayload()
     {
         var payload = BitFieldPayloadSchemaCodec.Compose(
@@ -65,6 +74,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Inspect_BigEndianWholeByteField_ReturnsExpectedValues 작업을 수행합니다.
+    /// </summary>
     public void Inspect_BigEndianWholeByteField_ReturnsExpectedValues()
     {
         var values = BitFieldPayloadSchemaCodec.Inspect(CreateBigEndianSchema(), new byte[] { 0x12, 0x34, 0xAB });
@@ -86,6 +98,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_MixedEndianSchemaWithOffsetAndSignedField_ReturnsExpectedPayload 작업을 수행합니다.
+    /// </summary>
     public void Compose_MixedEndianSchemaWithOffsetAndSignedField_ReturnsExpectedPayload()
     {
         var payload = BitFieldPayloadSchemaCodec.Compose(
@@ -101,6 +116,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Inspect_MixedEndianSchemaWithOffsetAndSignedField_ReturnsExpectedValues 작업을 수행합니다.
+    /// </summary>
     public void Inspect_MixedEndianSchemaWithOffsetAndSignedField_ReturnsExpectedValues()
     {
         var values = BitFieldPayloadSchemaCodec.Inspect(
@@ -130,6 +148,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_UnknownField_Throws 작업을 수행합니다.
+    /// </summary>
     public void Compose_UnknownField_Throws()
     {
         var exception = Assert.Throws<InvalidOperationException>(
@@ -141,6 +162,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Compose_FractionalValue_Throws 작업을 수행합니다.
+    /// </summary>
     public void Compose_FractionalValue_Throws()
     {
         var exception = Assert.Throws<InvalidOperationException>(
@@ -152,6 +176,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
     }
 
     [Fact]
+    /// <summary>
+    /// Inspect_PayloadLengthMismatch_Throws 작업을 수행합니다.
+    /// </summary>
     public void Inspect_PayloadLengthMismatch_Throws()
     {
         var exception = Assert.Throws<InvalidOperationException>(
@@ -160,6 +187,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
         Assert.Contains("does not match", exception.Message);
     }
 
+    /// <summary>
+    /// CreateLittleEndianSchema 작업을 수행합니다.
+    /// </summary>
     private static BitFieldPayloadSchema CreateLittleEndianSchema()
     {
         return new BitFieldPayloadSchema
@@ -174,6 +204,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
         };
     }
 
+    /// <summary>
+    /// CreateBigEndianSchema 작업을 수행합니다.
+    /// </summary>
     private static BitFieldPayloadSchema CreateBigEndianSchema()
     {
         return new BitFieldPayloadSchema
@@ -198,6 +231,9 @@ public sealed class BitFieldPayloadSchemaCodecTests
         };
     }
 
+    /// <summary>
+    /// CreateMixedEndianSchema 작업을 수행합니다.
+    /// </summary>
     private static BitFieldPayloadSchema CreateMixedEndianSchema()
     {
         return new BitFieldPayloadSchema

@@ -1,4 +1,4 @@
-using CommLib.Examples.WinUI.Models;
+﻿using CommLib.Examples.WinUI.Models;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media;
@@ -6,8 +6,14 @@ using Windows.UI;
 
 namespace CommLib.Examples.WinUI.Converters;
 
+/// <summary>
+/// LogSeverityToBrushConverter 타입입니다.
+/// </summary>
 public sealed class LogSeverityToBrushConverter : IValueConverter
 {
+    /// <summary>
+    /// Convert 작업을 수행합니다.
+    /// </summary>
     public object Convert(object value, Type targetType, object parameter, string language)
     {
         if (value is not LogSeverity severity)
@@ -25,6 +31,9 @@ public sealed class LogSeverityToBrushConverter : IValueConverter
         };
     }
 
+    /// <summary>
+    /// ConvertBack 작업을 수행합니다.
+    /// </summary>
     public object ConvertBack(object value, Type targetType, object parameter, string language)
     {
         throw new NotSupportedException();

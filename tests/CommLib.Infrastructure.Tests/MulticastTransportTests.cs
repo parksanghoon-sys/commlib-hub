@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using CommLib.Domain.Configuration;
 using CommLib.Infrastructure.Transport;
@@ -15,6 +15,9 @@ public sealed class MulticastTransportTests
     /// 전송한 datagram이 같은 그룹에 참여한 수신 소켓으로 전달되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_SendAsync_WritesBytesToMulticastGroup 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_SendAsync_WritesBytesToMulticastGroup()
     {
         var groupAddress = IPAddress.Parse("239.0.0.241");
@@ -34,6 +37,9 @@ public sealed class MulticastTransportTests
     /// 그룹으로 유입된 datagram 바이트를 transport 수신 결과로 그대로 반환하는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// OpenAsync_ReceiveAsync_ReturnsBytesFromMulticastGroup 작업을 수행합니다.
+    /// </summary>
     public async Task OpenAsync_ReceiveAsync_ReturnsBytesFromMulticastGroup()
     {
         var groupAddress = IPAddress.Parse("239.0.0.242");
@@ -54,6 +60,9 @@ public sealed class MulticastTransportTests
     /// 대기 중인 멀티캐스트 수신이 close와 함께 취소되는지 확인합니다.
     /// </summary>
     [Fact]
+    /// <summary>
+    /// CloseAsync_PendingReceive_IsCanceled 작업을 수행합니다.
+    /// </summary>
     public async Task CloseAsync_PendingReceive_IsCanceled()
     {
         var groupAddress = IPAddress.Parse("239.0.0.243");
@@ -68,6 +77,9 @@ public sealed class MulticastTransportTests
         await Assert.ThrowsAsync<OperationCanceledException>(async () => await pendingReceive);
     }
 
+    /// <summary>
+    /// CreateTransport 작업을 수행합니다.
+    /// </summary>
     private static MulticastTransport CreateTransport(IPAddress groupAddress, int port)
     {
         return new MulticastTransport(new MulticastTransportOptions
@@ -80,6 +92,9 @@ public sealed class MulticastTransportTests
         });
     }
 
+    /// <summary>
+    /// CreateMulticastListener 작업을 수행합니다.
+    /// </summary>
     private static UdpClient CreateMulticastListener(IPAddress groupAddress, int port)
     {
         var listener = new UdpClient(AddressFamily.InterNetwork)
@@ -93,6 +108,9 @@ public sealed class MulticastTransportTests
         return listener;
     }
 
+    /// <summary>
+    /// CreateMulticastSender 작업을 수행합니다.
+    /// </summary>
     private static UdpClient CreateMulticastSender()
     {
         var sender = new UdpClient(AddressFamily.InterNetwork);
@@ -101,6 +119,9 @@ public sealed class MulticastTransportTests
         return sender;
     }
 
+    /// <summary>
+    /// GetFreeUdpPort 작업을 수행합니다.
+    /// </summary>
     private static int GetFreeUdpPort()
     {
         using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));

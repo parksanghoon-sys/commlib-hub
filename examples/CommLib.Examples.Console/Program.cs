@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
@@ -11,12 +11,27 @@ using CommLib.Infrastructure.Transport;
 
 return await ExampleConsole.RunAsync(args);
 
+/// <summary>
+/// ExampleConsole 타입입니다.
+/// </summary>
 internal static class ExampleConsole
 {
+    /// <summary>
+    /// DemoMaxFrameLength 상수입니다.
+    /// </summary>
     private const int DemoMaxFrameLength = 4096;
+    /// <summary>
+    /// Protocol 값을 나타냅니다.
+    /// </summary>
     private static readonly LengthPrefixedProtocol Protocol = new(DemoMaxFrameLength);
+    /// <summary>
+    /// Serializer 값을 나타냅니다.
+    /// </summary>
     private static readonly NoOpSerializer Serializer = new();
 
+    /// <summary>
+    /// RunAsync 작업을 수행합니다.
+    /// </summary>
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length == 0 || IsHelpCommand(args[0]))
@@ -44,6 +59,9 @@ internal static class ExampleConsole
         }
     }
 
+    /// <summary>
+    /// RunTcpDemoAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<int> RunTcpDemoAsync(string[] args)
     {
         var port = GetIntOption(args, "--port") ?? GetFreeTcpPort();
@@ -75,6 +93,9 @@ internal static class ExampleConsole
         return 0;
     }
 
+    /// <summary>
+    /// RunUdpDemoAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<int> RunUdpDemoAsync(string[] args)
     {
         var serverPort = GetIntOption(args, "--server-port") ?? GetFreeUdpPort();
@@ -103,6 +124,9 @@ internal static class ExampleConsole
         return 0;
     }
 
+    /// <summary>
+    /// RunMulticastSendAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<int> RunMulticastSendAsync(string[] args)
     {
         var groupAddressText = GetStringOption(args, "--group") ?? "239.0.0.241";
@@ -135,6 +159,9 @@ internal static class ExampleConsole
         return 0;
     }
 
+    /// <summary>
+    /// RunMulticastReceiveAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<int> RunMulticastReceiveAsync(string[] args)
     {
         var groupAddressText = GetStringOption(args, "--group") ?? "239.0.0.241";
@@ -165,6 +192,9 @@ internal static class ExampleConsole
         return 0;
     }
 
+    /// <summary>
+    /// RunSerialDemoAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<int> RunSerialDemoAsync(string[] args)
     {
         var port = GetRequiredStringOption(args, "--port");
@@ -203,6 +233,9 @@ internal static class ExampleConsole
         return 0;
     }
 
+    /// <summary>
+    /// SendAndReceiveAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task SendAndReceiveAsync(
         ConnectionManager manager,
         DeviceProfile profile,
@@ -217,6 +250,9 @@ internal static class ExampleConsole
         Console.WriteLine($"[recv] {DescribeMessage(inboundMessage)}");
     }
 
+    /// <summary>
+    /// RunTcpEchoServerAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunTcpEchoServerAsync(TcpListener listener, CancellationToken cancellationToken)
     {
         using var client = await listener.AcceptTcpClientAsync(cancellationToken).ConfigureAwait(false);
@@ -227,6 +263,9 @@ internal static class ExampleConsole
         await stream.WriteAsync(frame, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// RunUdpEchoServerAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunUdpEchoServerAsync(UdpClient server, CancellationToken cancellationToken)
     {
         var inbound = await server.ReceiveAsync(cancellationToken).ConfigureAwait(false);
@@ -235,6 +274,9 @@ internal static class ExampleConsole
         await server.SendAsync(inbound.Buffer, inbound.RemoteEndPoint, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// RunSerialEchoPeerAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task RunSerialEchoPeerAsync(SerialPort peer, CancellationToken cancellationToken)
     {
         var stream = peer.BaseStream;
@@ -245,6 +287,9 @@ internal static class ExampleConsole
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// CreateConnectionManager 작업을 수행합니다.
+    /// </summary>
     private static ConnectionManager CreateConnectionManager()
     {
         return new ConnectionManager(
@@ -254,6 +299,9 @@ internal static class ExampleConsole
             new ConsoleConnectionEventSink());
     }
 
+    /// <summary>
+    /// CreateProfile 작업을 수행합니다.
+    /// </summary>
     private static DeviceProfile CreateProfile(string deviceId, TransportOptions transport)
     {
         return new DeviceProfile
@@ -283,11 +331,17 @@ internal static class ExampleConsole
         };
     }
 
+    /// <summary>
+    /// EncodeFrame 작업을 수행합니다.
+    /// </summary>
     private static byte[] EncodeFrame(IMessage message)
     {
         return Protocol.Encode(Serializer.Serialize(message));
     }
 
+    /// <summary>
+    /// DecodeFrame 작업을 수행합니다.
+    /// </summary>
     private static IMessage DecodeFrame(ReadOnlySpan<byte> frame)
     {
         if (!Protocol.TryDecode(frame, out var payload, out var bytesConsumed) || bytesConsumed != frame.Length)
@@ -298,6 +352,9 @@ internal static class ExampleConsole
         return Serializer.Deserialize(payload);
     }
 
+    /// <summary>
+    /// ReadLengthPrefixedFrameAsync 작업을 수행합니다.
+    /// </summary>
     private static async Task<byte[]> ReadLengthPrefixedFrameAsync(Stream stream, CancellationToken cancellationToken)
     {
         var header = new byte[4];
@@ -324,6 +381,9 @@ internal static class ExampleConsole
         return frame;
     }
 
+    /// <summary>
+    /// CreateSerialPort 작업을 수행합니다.
+    /// </summary>
     private static SerialPort CreateSerialPort(string portName, int baudRate)
     {
         return new SerialPort(portName, baudRate, Parity.None, 8, StopBits.One)
@@ -333,6 +393,9 @@ internal static class ExampleConsole
         };
     }
 
+    /// <summary>
+    /// GetFreeTcpPort 작업을 수행합니다.
+    /// </summary>
     private static int GetFreeTcpPort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -340,12 +403,18 @@ internal static class ExampleConsole
         return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
+    /// <summary>
+    /// GetFreeUdpPort 작업을 수행합니다.
+    /// </summary>
     private static int GetFreeUdpPort()
     {
         using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
         return ((IPEndPoint)udp.Client.LocalEndPoint!).Port;
     }
 
+    /// <summary>
+    /// DescribeMessage 작업을 수행합니다.
+    /// </summary>
     private static string DescribeMessage(IMessage message)
     {
         var body = MessagePayloadFormatter.FormatBody(message);
@@ -357,11 +426,17 @@ internal static class ExampleConsole
         };
     }
 
+    /// <summary>
+    /// IsHelpCommand 작업을 수행합니다.
+    /// </summary>
     private static bool IsHelpCommand(string command)
     {
         return command is "help" or "--help" or "-h" or "/?";
     }
 
+    /// <summary>
+    /// GetStringOption 작업을 수행합니다.
+    /// </summary>
     private static string? GetStringOption(IReadOnlyList<string> args, string name)
     {
         for (var index = 0; index < args.Count - 1; index++)
@@ -375,11 +450,17 @@ internal static class ExampleConsole
         return null;
     }
 
+    /// <summary>
+    /// GetRequiredStringOption 작업을 수행합니다.
+    /// </summary>
     private static string GetRequiredStringOption(IReadOnlyList<string> args, string name)
     {
         return GetStringOption(args, name) ?? throw new InvalidOperationException($"Missing required option: {name}");
     }
 
+    /// <summary>
+    /// GetIntOption 작업을 수행합니다.
+    /// </summary>
     private static int? GetIntOption(IReadOnlyList<string> args, string name)
     {
         var value = GetStringOption(args, name);
@@ -396,11 +477,17 @@ internal static class ExampleConsole
         return parsed;
     }
 
+    /// <summary>
+    /// ThrowUnknownCommand 작업을 수행합니다.
+    /// </summary>
     private static int ThrowUnknownCommand(string command)
     {
         throw new InvalidOperationException($"Unknown command: {command}");
     }
 
+    /// <summary>
+    /// PrintUsage 작업을 수행합니다.
+    /// </summary>
     private static void PrintUsage()
     {
         Console.WriteLine("CommLib example console");
@@ -418,23 +505,38 @@ internal static class ExampleConsole
         Console.WriteLine("  serial-demo requires a paired serial environment such as com0com or a hardware loopback pair.");
     }
 
+    /// <summary>
+    /// IConnectionEventSink 값을 가져옵니다.
+    /// </summary>
     private sealed class ConsoleConnectionEventSink : IConnectionEventSink
     {
+        /// <summary>
+        /// OnConnectAttempt 작업을 수행합니다.
+        /// </summary>
         public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
         {
             Console.WriteLine($"[connect] attempt {attemptNumber}/{totalAttempts} for {deviceId}");
         }
 
+        /// <summary>
+        /// OnConnectRetryScheduled 작업을 수행합니다.
+        /// </summary>
         public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
         {
             Console.WriteLine($"[connect] retry scheduled for {deviceId} after {delay.TotalMilliseconds:0} ms (attempt {attemptNumber} failed: {exception.Message})");
         }
 
+        /// <summary>
+        /// OnConnectSucceeded 작업을 수행합니다.
+        /// </summary>
         public void OnConnectSucceeded(string deviceId, int attemptNumber)
         {
             Console.WriteLine($"[connect] {deviceId} connected on attempt {attemptNumber}");
         }
 
+        /// <summary>
+        /// OnOperationFailed 작업을 수행합니다.
+        /// </summary>
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
             Console.WriteLine($"[connect] {deviceId} {operation} failed: {exception.Message}");

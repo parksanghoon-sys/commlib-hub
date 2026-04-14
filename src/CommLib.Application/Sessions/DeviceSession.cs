@@ -1,4 +1,4 @@
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using CommLib.Application.Pipeline;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -10,11 +10,29 @@ namespace CommLib.Application.Sessions;
 /// </summary>
 public sealed class DeviceSession : IDeviceSession
 {
+    /// <summary>
+    /// _outbound 값을 나타냅니다.
+    /// </summary>
     private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
+    /// <summary>
+    /// _pendingRequestStore 값을 나타냅니다.
+    /// </summary>
     private readonly PendingRequestStore _pendingRequestStore = new();
+    /// <summary>
+    /// _pendingResponses 값을 나타냅니다.
+    /// </summary>
     private readonly Dictionary<Guid, object> _pendingResponses = new();
+    /// <summary>
+    /// _syncRoot 값을 나타냅니다.
+    /// </summary>
     private readonly object _syncRoot = new();
+    /// <summary>
+    /// _maxPendingRequests 값을 나타냅니다.
+    /// </summary>
     private readonly int _maxPendingRequests;
+    /// <summary>
+    /// _defaultResponseTimeout 값을 나타냅니다.
+    /// </summary>
     private readonly TimeSpan? _defaultResponseTimeout;
 
     /// <summary>
@@ -246,6 +264,9 @@ public sealed class DeviceSession : IDeviceSession
         responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
     }
 
+    /// <summary>
+    /// TrySetResponseResult 작업을 수행합니다.
+    /// </summary>
     private static bool TrySetResponseResult(object pending, IResponseMessage response)
     {
         var pendingType = pending.GetType();
@@ -264,6 +285,9 @@ public sealed class DeviceSession : IDeviceSession
         return trySetResult is not null && (bool)(trySetResult.Invoke(pending, new object[] { response }) ?? false);
     }
 
+    /// <summary>
+    /// TrySetPendingException 작업을 수행합니다.
+    /// </summary>
     private static bool TrySetPendingException(object pending, Exception exception)
     {
         var pendingType = pending.GetType();
