@@ -1,4 +1,3 @@
-using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;

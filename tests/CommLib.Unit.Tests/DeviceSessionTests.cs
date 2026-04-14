@@ -20,6 +20,25 @@ public sealed class DeviceSessionTests
         Assert.Equal("device-1", session.DeviceId);
     }
 
+    [Fact]
+    public async Task FailPendingResponses_PendingRequestsFailImmediatelyAndClearPendingEntries()
+    {
+        var session = new DeviceSession("device-1");
+        var first = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(40));
+        var second = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(41));
+        await first.SendCompletedTask;
+        await second.SendCompletedTask;
+
+        session.FailPendingResponses(new InvalidOperationException("session failed"));
+
+        var firstException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await first.ResponseTask);
+        var secondException = await Assert.ThrowsAsync<InvalidOperationException>(async () => await second.ResponseTask);
+
+        Assert.Equal("session failed", firstException.Message);
+        Assert.Equal("session failed", secondException.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
     /// <summary>
     /// 일반 메시지를 송신하면 송신 완료 작업이 성공 상태로 끝나는지 확인합니다.
     /// </summary>

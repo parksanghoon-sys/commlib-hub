@@ -1,8 +1,7 @@
 using System.Net;
-using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
-namespace CommLib.Application.Configuration;
+namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 장치 프로필이 런타임에서 사용되기 전에 유효한지 검증합니다.
@@ -10,7 +9,7 @@ namespace CommLib.Application.Configuration;
 public static class DeviceProfileValidator
 {
     /// <summary>
-    /// 지정한 프로필을 검증하고 필수 항목이나 범위가 잘못되면 예외를 발생시킵니다.
+    /// 지정한 프로필을 검증하고, 필수 항목이 없거나 범위가 잘못되면 예외를 발생시킵니다.
     /// </summary>
     /// <param name="profile">검증할 장치 프로필입니다.</param>
     public static void ValidateAndThrow(DeviceProfile profile)
@@ -25,10 +24,7 @@ public static class DeviceProfileValidator
             throw new InvalidOperationException($"[{profile.DeviceId}] DisplayName is required.");
         }
 
-        if (profile.Protocol.MaxFrameLength <= 0)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] MaxFrameLength must be greater than 0.");
-        }
+        ValidateProtocolOptions(profile);
 
         if (profile.RequestResponse.DefaultTimeoutMs <= 0)
         {
@@ -50,10 +46,12 @@ public static class DeviceProfileValidator
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] TCP Host is required.");
                 }
+
                 if (tcp.Port is <= 0 or > 65535)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] TCP Port is invalid.");
                 }
+
                 break;
 
             case UdpTransportOptions udp:
@@ -61,14 +59,17 @@ public static class DeviceProfileValidator
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] UDP LocalPort is invalid.");
                 }
+
                 if (udp.RemotePort is <= 0 or > 65535)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemotePort is invalid.");
                 }
+
                 if (!string.IsNullOrWhiteSpace(udp.RemoteHost) != udp.RemotePort.HasValue)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemoteHost and RemotePort must be configured together.");
                 }
+
                 break;
 
             case SerialTransportOptions serial:
@@ -76,34 +77,42 @@ public static class DeviceProfileValidator
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial PortName is required.");
                 }
+
                 if (serial.BaudRate <= 0)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial BaudRate is invalid.");
                 }
+
                 if (serial.DataBits is < 5 or > 8)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial DataBits must be between 5 and 8.");
                 }
+
                 if (!IsSupportedSerialParity(serial.Parity))
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial Parity is invalid.");
                 }
+
                 if (!IsSupportedSerialStopBits(serial.StopBits))
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial StopBits is invalid.");
                 }
+
                 if (serial.TurnGapMs < 0)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial TurnGapMs must be greater than or equal to 0.");
                 }
+
                 if (serial.ReadBufferSize <= 0)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial ReadBufferSize must be greater than 0.");
                 }
+
                 if (serial.WriteBufferSize <= 0)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Serial WriteBufferSize must be greater than 0.");
                 }
+
                 break;
 
             case MulticastTransportOptions multicast:
@@ -111,27 +120,33 @@ public static class DeviceProfileValidator
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress is required.");
                 }
+
                 if (!IPAddress.TryParse(multicast.GroupAddress, out var groupAddress))
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress must be a valid IP address.");
                 }
+
                 if (!IsIpv4Multicast(groupAddress))
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress must be an IPv4 multicast address.");
                 }
+
                 if (multicast.Port is <= 0 or > 65535)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Port is invalid.");
                 }
+
                 if (multicast.Ttl <= 0)
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Ttl must be greater than 0.");
                 }
+
                 if (!string.IsNullOrWhiteSpace(multicast.LocalInterface) &&
                     !IPAddress.TryParse(multicast.LocalInterface, out _))
                 {
                     throw new InvalidOperationException($"[{profile.DeviceId}] Multicast LocalInterface must be a valid IP address.");
                 }
+
                 break;
 
             default:
@@ -161,6 +176,20 @@ public static class DeviceProfileValidator
         var bytes = address.GetAddressBytes();
         return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
                bytes[0] is >= 224 and <= 239;
+    }
+
+    private static void ValidateProtocolOptions(DeviceProfile profile)
+    {
+        if (!profile.Protocol.Type.Equals("LengthPrefixed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
+        }
+
+        if (profile.Protocol.MaxFrameLength < 4)
+        {
+            throw new InvalidOperationException(
+                $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+        }
     }
 
     private static void ValidateSerializerOptions(DeviceProfile profile)

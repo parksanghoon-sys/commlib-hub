@@ -16,10 +16,11 @@ public sealed class ProtocolFactory : IProtocolFactory
     /// <returns>설정 형식에 맞는 프로토콜 구현입니다.</returns>
     public IProtocol Create(ProtocolOptions options)
     {
-        return options.Type switch
+        if (string.Equals(options.Type, "LengthPrefixed", StringComparison.OrdinalIgnoreCase))
         {
-            "LengthPrefixed" => new LengthPrefixedProtocol(),
-            _ => throw new NotSupportedException($"Unsupported protocol: {options.Type}")
-        };
+            return new LengthPrefixedProtocol(options.MaxFrameLength);
+        }
+
+        throw new NotSupportedException($"Unsupported protocol: {options.Type}");
     }
 }

@@ -1,4 +1,3 @@
-using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using Xunit;
@@ -298,6 +297,28 @@ public sealed class DeviceProfileValidatorTests
             Protocol = new ProtocolOptions
             {
                 MaxFrameLength = 0
+            },
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_UnsupportedProtocolType_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-02b", displayName: "TCP 02B", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = new ProtocolOptions
+            {
+                Type = "StxEtx",
+                MaxFrameLength = 512
             },
             Serializer = profile.Serializer,
             RequestResponse = profile.RequestResponse,
