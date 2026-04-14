@@ -4,7 +4,7 @@ using Xunit;
 namespace CommLib.Unit.Tests;
 
 /// <summary>
-/// raw payload bitfield codec가 비트 오프셋 기준 read/write를 올바르게 수행하는지 검증합니다.
+/// Verifies that the low-level bitfield codec reads and writes payload bits correctly.
 /// </summary>
 public sealed class BitFieldCodecTests
 {
@@ -39,6 +39,36 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    public void ReadUnsigned_BigEndianWholeByteField_ReturnsExpectedValue()
+    {
+        var field = new BitFieldDefinition("register", 0, 16, BitFieldEndianness.BigEndian);
+
+        var value = BitFieldCodec.ReadUnsigned(new byte[] { 0x12, 0x34 }, field);
+
+        Assert.Equal(0x1234UL, value);
+    }
+
+    [Fact]
+    public void ReadUnsigned_BigEndianWholeByteFieldAtOffset_ReturnsExpectedValue()
+    {
+        var field = new BitFieldDefinition("register", 8, 16, BitFieldEndianness.BigEndian);
+
+        var value = BitFieldCodec.ReadUnsigned(new byte[] { 0xAA, 0x12, 0x34, 0xBB }, field);
+
+        Assert.Equal(0x1234UL, value);
+    }
+
+    [Fact]
+    public void ReadSigned_BigEndianWholeByteField_SignExtendsValue()
+    {
+        var field = new BitFieldDefinition("delta", 0, 16, BitFieldEndianness.BigEndian);
+
+        var value = BitFieldCodec.ReadSigned(new byte[] { 0xFF, 0x9C }, field);
+
+        Assert.Equal(-100, value);
+    }
+
+    [Fact]
     public void WriteUnsigned_FieldAcrossByteBoundary_WritesExpectedBitsOnly()
     {
         var field = new BitFieldDefinition("temperatureRaw", 4, 12);
@@ -47,6 +77,28 @@ public sealed class BitFieldCodecTests
         BitFieldCodec.WriteUnsigned(payload, field, 0xABC);
 
         Assert.Equal(new byte[] { 0xCF, 0xAB, 0xF0 }, payload);
+    }
+
+    [Fact]
+    public void WriteUnsigned_BigEndianWholeByteField_WritesMostSignificantByteFirst()
+    {
+        var field = new BitFieldDefinition("register", 0, 16, BitFieldEndianness.BigEndian);
+        var payload = new byte[2];
+
+        BitFieldCodec.WriteUnsigned(payload, field, 0x1234);
+
+        Assert.Equal(new byte[] { 0x12, 0x34 }, payload);
+    }
+
+    [Fact]
+    public void WriteUnsigned_BigEndianWholeByteFieldAtOffset_PreservesSurroundingBytes()
+    {
+        var field = new BitFieldDefinition("register", 8, 16, BitFieldEndianness.BigEndian);
+        var payload = new byte[] { 0xAA, 0x00, 0x00, 0xBB };
+
+        BitFieldCodec.WriteUnsigned(payload, field, 0x1234);
+
+        Assert.Equal(new byte[] { 0xAA, 0x12, 0x34, 0xBB }, payload);
     }
 
     [Fact]
@@ -68,5 +120,13 @@ public sealed class BitFieldCodecTests
         var exception = Assert.Throws<ArgumentOutOfRangeException>(() => BitFieldCodec.ReadUnsigned(new byte[] { 0x00, 0x01 }, field));
 
         Assert.Contains("status", exception.Message);
+    }
+
+    [Fact]
+    public void Ctor_BigEndianMultiByteFieldWithoutWholeBytes_Throws()
+    {
+        var exception = Assert.Throws<ArgumentException>(() => new BitFieldDefinition("bad", 4, 12, BitFieldEndianness.BigEndian));
+
+        Assert.Contains("byte-aligned", exception.Message);
     }
 }

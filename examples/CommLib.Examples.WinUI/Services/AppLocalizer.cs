@@ -125,6 +125,8 @@ public sealed class AppLocalizer : IAppLocalizer
         ["session.log.outbound.message"] = "id={0}, body=\"{1}\"",
         ["session.log.inbound.title"] = "Inbound message",
         ["session.log.inbound.message"] = "id={0}, body=\"{1}\"",
+        ["session.payload.fieldsSuffix"] = "fields[{0}]",
+        ["session.payload.schemaErrorSuffix"] = "schema decode failed: {0}",
         ["session.log.receiveLoopStopped.title"] = "Receive loop stopped",
         ["session.event.connectAttempt.title"] = "Connect attempt",
         ["session.event.connectAttempt.message"] = "{0} ({1}/{2})",
@@ -275,7 +277,9 @@ public sealed class AppLocalizer : IAppLocalizer
         ["transport.detail.udp"] = "UDP 로컬={0}, 원격={1}:{2}",
         ["transport.detail.multicast"] = "멀티캐스트 {0}:{1}",
         ["transport.detail.serial"] = "시리얼 {0} @ {1}",
-        ["transport.detail.generic"] = "전송 {0}"
+        ["transport.detail.generic"] = "전송 {0}",
+        ["session.payload.fieldsSuffix"] = "\uD544\uB4DC[{0}]",
+        ["session.payload.schemaErrorSuffix"] = "\uC2A4\uD0A4\uB9C8 \uD574\uC11D \uC2E4\uD328: {0}"
     };
 
     private AppLanguageMode _currentLanguage;

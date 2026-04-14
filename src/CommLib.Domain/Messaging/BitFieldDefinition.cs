@@ -1,17 +1,22 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// raw payload 안의 bitfield 한 구간을 설명하는 정의입니다.
+/// Describes a named bitfield range inside a raw payload.
 /// </summary>
 public sealed record BitFieldDefinition
 {
     /// <summary>
-    /// <see cref="BitFieldDefinition"/> 인스턴스를 초기화합니다.
+    /// Initializes a <see cref="BitFieldDefinition"/> instance.
     /// </summary>
-    /// <param name="name">필드 이름입니다.</param>
-    /// <param name="bitOffset">payload 시작점 기준 bit offset입니다. bit 0은 첫 번째 byte의 LSB입니다.</param>
-    /// <param name="bitLength">필드 bit 길이입니다. 현재 최대 64 bit까지 지원합니다.</param>
-    public BitFieldDefinition(string name, int bitOffset, int bitLength)
+    /// <param name="name">The field name.</param>
+    /// <param name="bitOffset">The field offset from the start of the payload. Bit 0 is the LSB of the first byte.</param>
+    /// <param name="bitLength">The field length in bits. The current implementation supports up to 64 bits.</param>
+    /// <param name="endianness">The byte order used when a field spans multiple whole bytes.</param>
+    public BitFieldDefinition(
+        string name,
+        int bitOffset,
+        int bitLength,
+        BitFieldEndianness endianness = BitFieldEndianness.LittleEndian)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -28,23 +33,43 @@ public sealed record BitFieldDefinition
             throw new ArgumentOutOfRangeException(nameof(bitLength), "Bit field length must be between 1 and 64 bits.");
         }
 
+        if (!Enum.IsDefined(endianness))
+        {
+            throw new ArgumentOutOfRangeException(nameof(endianness), "Bit field endianness is invalid.");
+        }
+
+        if (endianness == BitFieldEndianness.BigEndian &&
+            bitLength > 8 &&
+            (bitOffset % 8 != 0 || bitLength % 8 != 0))
+        {
+            throw new ArgumentException(
+                "Big-endian bit fields wider than one byte must be byte-aligned and use a whole-byte length.",
+                nameof(bitLength));
+        }
+
         Name = name;
         BitOffset = bitOffset;
         BitLength = bitLength;
+        Endianness = endianness;
     }
 
     /// <summary>
-    /// 필드 이름입니다.
+    /// Gets the field name.
     /// </summary>
     public string Name { get; }
 
     /// <summary>
-    /// payload 시작점 기준 bit offset입니다. bit 0은 첫 번째 byte의 LSB입니다.
+    /// Gets the field offset from the start of the payload. Bit 0 is the LSB of the first byte.
     /// </summary>
     public int BitOffset { get; }
 
     /// <summary>
-    /// 필드 bit 길이입니다.
+    /// Gets the field length in bits.
     /// </summary>
     public int BitLength { get; }
+
+    /// <summary>
+    /// Gets the byte order used when a field spans multiple whole bytes.
+    /// </summary>
+    public BitFieldEndianness Endianness { get; }
 }
