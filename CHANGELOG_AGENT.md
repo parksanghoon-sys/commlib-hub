@@ -208,3 +208,24 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet build commlib-codex-full.sln --no-restore`
+
+## 2026-04-14
+
+- Rebuilt the delivery line as one temporary integration branch rooted in `commlib-hub/main`:
+  - created `integration/main-refresh-20260414`
+  - merged `feat/bitfield-endianness`
+  - merged `feat/bitfield-schema-log-enrichment`
+  - merged `feat/runtime-hardening-clean-base`
+- Replayed the two local 2026-04-14 work-unit commits on top of that clean integration line:
+  - `fix(runtime): reclaim disconnected device operation gates`
+  - `docs(repo): add Korean XML documentation`
+- Resolved the integration/cherry-pick conflicts conservatively:
+  - kept the clean runtime line as the code baseline where conflicts were code-bearing
+  - re-applied the reference-counted device-operation gate cleanup on top of the bounded-queue/backpressure runtime version of `ConnectionManager`
+  - kept the integration line's current code on the handful of documentation-only cherry-pick conflicts where replaying the older comment version would have risked dropping newer runtime changes
+- Revalidated the integrated line sequentially to avoid the repo's earlier `dotnet` output-lock pattern:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Reset the continuity files so post-merge work now treats refreshed `main` as the baseline and promotes `DeviceSession` timeout-cancellation cleanup as the next isolated branch.

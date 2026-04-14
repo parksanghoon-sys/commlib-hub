@@ -1,60 +1,44 @@
 # Current Plan
 
-Date: 2026-04-07
+Date: 2026-04-14
 
 ## Goal
-Continue the raw hex / future bitfield support design by turning the new schema-backed payload layer into one real consumer, while keeping transport/protocol behavior unchanged and still stopping short of a WinUI schema editor.
+Use the temporary integration line to refresh local `main` exactly once, then restart from a fresh post-merge branch with the smallest remaining correctness fix.
 
 ## Confirmed Facts
 - The repository continuity rules currently point at `AGENT.md`; a root `AGENT_RULES.md` file is not present.
-- Active branch is `feat/rawhex-compose-flow`.
-- GitHub PR `#3` (`[codex] localize and streamline the WinUI device lab`) was already merged into `main`; the ongoing raw-hex and bitfield work remains isolated on the dedicated feature branch.
-- The earlier WinUI follow-up work remains in place:
-  - persisted English/Korean `AppLanguageMode`
-  - localized shell / Device Lab / Settings / status copy
-  - pointer-wheel forwarding for page text inputs
-  - conservative Device Lab <-> Settings transition
-  - scrollable auto-follow live log
-  - active `DeviceLabTheme` hookup
-  - collapsed transport-specific panels
-  - in-app TCP / UDP / Multicast mock endpoint support
-  - repo-level package/build centralization and coverage collector support
-- The raw hex / bitfield direction still belongs in the serializer/composer path, not in transport creation or frame-boundary protocol logic.
-- The raw-hex foundation from 2026-04-06 remains in place:
-  - `IBinaryMessagePayload`
-  - `BinaryMessageModel`, `BinaryRequestMessageModel`, and `BinaryResponseMessageModel`
-  - `MessagePayloadFormatter`
-  - `RawHexSerializer`
-  - `SerializerFactory` support for `RawHex`
-  - WinUI serializer selection plus localized raw-hex validation
-  - transport-level and live WinUI raw-hex TCP roundtrip proof
-- The first low-level bitfield foundation from 2026-04-06 remains in place:
-  - `BitFieldDefinition`
-  - `BitFieldCodec`
-  - the `payload[0]` LSB = bit `0` convention
-- The first schema-backed bitfield slice completed on 2026-04-07 without widening into protocol changes or a WinUI schema editor:
-  - `BitFieldPayloadSchema`, `BitFieldPayloadField`, and `BitFieldScalarKind`
-  - `BitFieldFieldAssignment` and `BitFieldFieldValue`
-  - `BitFieldPayloadSchemaValidator`
-  - `BitFieldPayloadSchemaCodec` for named-field compose/inspect above `BitFieldCodec`
-  - optional `SerializerOptions.BitFieldSchema`
-  - `DeviceProfileValidator` enforcement that schema usage is currently valid only with `RawHex`
-  - `OutboundMessageComposer` overload for schema-driven binary payload composition
-- The first schema slice also chose a single numeric value representation for the API surface:
-  - compose assignments and inspect results use `decimal`
-  - this keeps the first schema API simple while still covering the full signed and unsigned 64-bit scalar range that the low-level codec already supports
-- Verification completed on 2026-04-07:
+- `integration/main-refresh-20260414` is a temporary landing branch rooted in `commlib-hub/main`.
+- The integration line now contains:
+  - `feat/bitfield-endianness`
+  - `feat/bitfield-schema-log-enrichment`
+  - `feat/runtime-hardening-clean-base`
+  - `fix(runtime): reclaim disconnected device operation gates`
+  - `docs(repo): add Korean XML documentation`
+- The runtime/hosting line already includes the earlier clean hardening work:
+  - bounded unsolicited inbound buffering
+  - `IConnectionEventSink.OnInboundBackpressure`
+  - `CommLibRuntimeOptions.InboundQueueCapacity`
+  - connect-boundary `DeviceProfileValidator` enforcement
+  - `DeviceBootstrapper.StartWithReportAsync()`
+- The remaining correctness gap confirmed in the merged code is still in `DeviceSession`:
+  - `HandleTimeoutAsync()` still uses `Task.Delay(timeout)` without a cancellation token
+  - timeout background tasks can outlive session disposal unless that path is cleaned up explicitly
+- Focused validation on the integration line succeeded sequentially:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
-  - `dotnet build commlib-codex-full.sln --no-restore`
-- The earlier `PROGRESS.md` encoding issue still remains deferred; this cycle did not attempt another in-place rewrite.
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
 
 ## Next Work Unit
-1. Choose the smallest real consumer of `SerializerOptions.BitFieldSchema`, preferring config-backed inbound inspection/log enrichment over a WinUI schema editor or any transport change.
-2. If that consumer stays small and reviewable, thread the schema through one example/config surface while keeping `RawHex` as the active transport/session payload carrier.
-3. Revisit richer typed serializer/protocol options only if the first consumer exposes real pressure beyond the current optional schema seam.
+1. Merge `integration/main-refresh-20260414` into local `main` as the one refresh step the user requested.
+2. Create a fresh branch from the updated `main`.
+3. On that new branch, fix the `DeviceSession` timeout-cancellation cleanup bug with focused unit coverage.
+
+## Next Slice Design
+1. Keep the next branch narrow: `src/CommLib.Application/Sessions/DeviceSession.cs` plus the smallest supporting test updates.
+2. Do not widen that slice into reconnect policy, hosted-service wiring, or more serializer/WinUI work.
+3. Prefer a fix that cancels timeout tasks at the same lifecycle boundary that removes/fails pending responses.
 
 ## Stop / Reassess Conditions
-- If the first consumer starts pulling both outbound schema editing and inbound inspection UI into the same slice, split the work and keep only one direction in scope.
-- If schema usage starts requiring variable-length payloads or non-integer field types, stop and record that as follow-up instead of stretching the current fixed-length signed/unsigned model.
-- If `SerializerOptions.BitFieldSchema` begins to force a broad options-hierarchy refactor, document the pressure and defer that refactor until after a concrete consumer proves it necessary.
+- If the `DeviceSession` timeout fix starts pressuring a broader pending-response abstraction change, split that reflection cleanup into a later follow-up instead of combining both.
+- If a fresh post-merge branch reveals any missing integration validation outside the timeout path, record it explicitly in `TODOS.md` rather than widening the first restart slice.
