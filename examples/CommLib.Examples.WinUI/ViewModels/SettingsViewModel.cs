@@ -81,7 +81,7 @@ public sealed class SettingsViewModel : ObservableObject
 
         try
         {
-            await _settingsStore.SaveAsync(Settings.CreateSnapshot()).ConfigureAwait(false);
+            await _settingsStore.SaveAsync(Settings.CreateSnapshot());
             SetLocalizedStatus(
                 "settings.status.saved.title",
                 "settings.status.saved.detail",
@@ -107,7 +107,7 @@ public sealed class SettingsViewModel : ObservableObject
 
         try
         {
-            var settings = await _settingsStore.LoadAsync().ConfigureAwait(false);
+            var settings = await _settingsStore.LoadAsync();
             Settings.Apply(settings);
             SetLocalizedStatus(
                 "settings.status.reloaded.title",

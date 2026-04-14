@@ -1,3 +1,5 @@
+using CommLib.Domain.Configuration;
+
 namespace CommLib.Examples.WinUI.Models;
 
 public sealed class DeviceLabAppSettings
@@ -37,6 +39,8 @@ public sealed class SessionAppSettings
 
 public sealed class MessageComposerAppSettings
 {
+    public string SerializerType { get; set; } = SerializerTypes.AutoBinary;
+
     public string OutboundMessageId { get; set; } = "100";
 
     public string OutboundBody { get; set; } = "hello from the mvvm winui lab";

@@ -1,44 +1,60 @@
 # Current Plan
 
 ## Date
-- 2026-04-03
+- 2026-04-07
 
 ## Current Scope
-- WinUI example follow-up after localization foundation, wheel-scroll forwarding, restored `win-x64` default startup, conservative page transitions, the new scrollable auto-follow live log, the live `DeviceLabTheme` hookup, the new in-app mock peer path, and repo-level package/version centralization
-- Next priority: validate the remaining UDP/Multicast mock flows and confirm transport-panel visibility in a real pointer session
+- Continue the raw hex / future bitfield support design by turning the new schema-backed payload layer into one real consumer while keeping transport/protocol behavior unchanged
+- Keep transport/protocol behavior unchanged and still stop short of a WinUI schema editor or transport/protocol rewrites for this cycle
 
 ## Confirmed State
-- Branch is now `feat/winui-localization-foundation`.
-- English/Korean language mode is persisted in the WinUI example settings.
-- Shell, Device Lab, Settings, and connection/session status copy now go through the example localizer.
-- `PointerWheelScrollBridge` forwards text-input wheel events to the page `ScrollViewer` in `DeviceLab` and `Settings`.
-- `AppShellView` animates page switches with a conservative fade + horizontal slide while keeping the existing dual-host layout.
-- `DeviceLabView` live log keeps its own scrolling and auto-follows the newest log entry.
-- The live-log follower now caches the inner `ScrollViewer` and explicitly scrolls it to the document end after each text update.
-- `DeviceLabTheme` is now actually consumed by `AppShellView`, `DeviceLabView`, and `SettingsView` for shared backgrounds, card chrome, and typography instead of sitting unused.
-- `DeviceLabView` and `SettingsView` now show only the currently selected transport panel instead of every transport preset at once.
-- `DeviceLabView` now exposes an in-app `Mock Endpoint` card:
-  - TCP and UDP pin loopback-friendly settings and start local echo peers
-  - Multicast joins the selected group locally and replies back to the sender port for one-machine checks
-  - Serial still requires an external paired COM environment
-- `Directory.Build.props` now owns the shared `Nullable` / `ImplicitUsings` defaults, and `Directory.Packages.props` centrally manages the repo's package versions.
-- The two test projects now reference `coverlet.collector` through the centralized package version file, and local `XPlat Code Coverage` runs produced Cobertura XML outputs successfully.
-- The main WinUI example files now include Korean comments for non-obvious bootstrap, transition, logging, session, and mock-peer logic.
+- `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
+- Branch remains `feat/rawhex-compose-flow`.
+- GitHub PR `#3` for the earlier WinUI line of work is already merged into `main`, and the ongoing raw-hex / bitfield work stays isolated on the dedicated feature branch.
+- The WinUI example follow-up from the prior cycle remains intact:
+  - localized shell / Device Lab / Settings / status copy
+  - page text-input wheel forwarding
+  - conservative page transitions
+  - scrollable auto-follow live log
+  - active `DeviceLabTheme` usage
+  - transport-panel collapsing
+  - in-app TCP / UDP / Multicast mock endpoint support
+  - repo-level package/build centralization
+- The raw-hex library/application surface from 2026-04-06 remains in place:
+  - `IBinaryMessagePayload`
+  - `BinaryMessageModel`, `BinaryRequestMessageModel`, and `BinaryResponseMessageModel`
+  - `MessagePayloadFormatter`
+  - `RawHexSerializer`
+  - `SerializerFactory` support for `RawHex`
+  - WinUI serializer selection and localized raw-hex validation
+  - automated transport/session raw-hex roundtrip coverage
+  - a live WinUI raw-hex TCP roundtrip proof
+- The low-level bitfield foundation from 2026-04-06 remains in place:
+  - `BitFieldDefinition`
+  - `BitFieldCodec`
+  - the `payload[0]` LSB = bit `0` convention
+- The first schema-backed bitfield slice completed on 2026-04-07:
+  - `BitFieldPayloadSchema`, `BitFieldPayloadField`, and `BitFieldScalarKind`
+  - `BitFieldFieldAssignment` and `BitFieldFieldValue`
+  - `BitFieldPayloadSchemaValidator`
+  - `BitFieldPayloadSchemaCodec` for named-field compose/inspect above `BitFieldCodec`
+  - optional `SerializerOptions.BitFieldSchema`
+  - `DeviceProfileValidator` enforcement that schema usage is currently valid only with `RawHex`
+  - `OutboundMessageComposer` support for schema-driven binary payload composition
+- The first schema API uses `decimal` for compose assignments and inspect results so the layer stays simple while still covering signed and unsigned 64-bit scalar values.
 - Verification completed with:
-  - `dotnet build commlib-codex-full.sln`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
-  - a `win-x64` UI Automation smoke that found the localized window, confirmed the UDP-only `Local Port` label was hidden on the default TCP screen, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001`
-  - a follow-up `win-x64` UI Automation smoke that sent 12 TCP messages and confirmed the visible log range still reached the document end after the explicit end-scroll change
-- `PROGRESS.md` still needs encoding normalization before safe in-place automated edits, although a UTF-8 append path worked for the 2026-04-03 daily log.
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- `PROGRESS.md` still needs separate encoding normalization before normal in-place automation is safe.
 
 ## Next Work Unit
-1. Manually validate UDP and Multicast through the new in-app mock peer card.
-2. Confirm transport-panel visibility while switching TCP / UDP / Multicast / Serial in both `Device Lab` and `Settings`.
-3. Only if the multicast UX is too confusing on one machine, adjust the status copy or behavior with the smallest safe change.
+1. Choose the smallest real consumer of `SerializerOptions.BitFieldSchema`, preferring config-backed inbound inspection/log enrichment over a WinUI schema editor or any transport change.
+2. If that consumer stays small and reviewable, thread the schema through one example/config surface while keeping `RawHex` as the current payload carrier.
+3. Revisit richer typed serializer/protocol options only if the first consumer exposes real pressure beyond the current optional schema seam.
 
 ## Deferred / Not For This Step
-- `PROGRESS.md` full encoding normalization as separate repo hygiene work so future in-place edits do not need append-only handling.
+- Resume the older UDP / Multicast / pointer-session manual validation pass after the current serializer/composer work makes the next manual check more valuable.
+- `PROGRESS.md` full encoding normalization stays separate repo hygiene work.
 - Full templated-control theming stays deferred until the WinUI default-style key coverage is mapped safely for this app shape.
+- A WinUI schema editor stays deferred until the lower schema-backed layer has a real consumer and review feedback.

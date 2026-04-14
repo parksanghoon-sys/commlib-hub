@@ -1,4 +1,5 @@
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 using CommLib.Examples.WinUI.Models;
 
 namespace CommLib.Examples.WinUI.Services;
@@ -13,5 +14,5 @@ public interface IDeviceLabSessionService : IAsyncDisposable
 
     Task DisconnectAsync(CancellationToken cancellationToken = default);
 
-    Task SendAsync(ushort messageId, string body, CancellationToken cancellationToken = default);
+    Task SendAsync(IMessage message, CancellationToken cancellationToken = default);
 }
