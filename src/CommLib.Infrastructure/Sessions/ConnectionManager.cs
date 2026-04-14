@@ -25,7 +25,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     private readonly int _inboundQueueCapacity;
     private readonly object _syncRoot = new();
     private readonly Dictionary<string, DeviceConnectionState> _connections = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, SemaphoreSlim> _deviceOperationGates = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DeviceOperationGate> _deviceOperationGates = new(StringComparer.Ordinal);
     private bool _disposeRequested;
 
     /// <summary>
@@ -168,7 +168,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         finally
         {
-            deviceGate.Release();
+            ReleaseDeviceGate(profile.DeviceId, deviceGate);
         }
     }
 
@@ -194,7 +194,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         finally
         {
-            deviceGate.Release();
+            ReleaseDeviceGate(deviceId, deviceGate);
         }
     }
 
@@ -480,6 +480,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         public bool InboundBackpressureSignaled { get; set; }
     }
 
+    private sealed class DeviceOperationGate
+    {
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public int LeaseCount { get; set; }
+    }
+
     private static void DropPendingInbound(Channel<InboundEnvelope> inboundQueue)
     {
         // 이전 연결의 잔여 inbound를 제거해 재연결 후 새 세션으로 섞여 들어오지 않게 합니다.
@@ -553,24 +560,64 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
     }
 
-    private async Task<SemaphoreSlim> AcquireDeviceGateAsync(string deviceId, CancellationToken cancellationToken)
+    private async Task<DeviceOperationGate> AcquireDeviceGateAsync(string deviceId, CancellationToken cancellationToken)
     {
         var deviceGate = GetOrCreateDeviceGate(deviceId);
-        await deviceGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            await deviceGate.Semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            ReleaseDeviceGateLease(deviceId, deviceGate);
+            throw;
+        }
+
         return deviceGate;
     }
 
-    private SemaphoreSlim GetOrCreateDeviceGate(string deviceId)
+    private DeviceOperationGate GetOrCreateDeviceGate(string deviceId)
     {
         lock (_syncRoot)
         {
             if (!_deviceOperationGates.TryGetValue(deviceId, out var deviceGate))
             {
-                deviceGate = new SemaphoreSlim(1, 1);
+                deviceGate = new DeviceOperationGate();
                 _deviceOperationGates[deviceId] = deviceGate;
             }
 
+            deviceGate.LeaseCount++;
             return deviceGate;
+        }
+    }
+
+    private void ReleaseDeviceGate(string deviceId, DeviceOperationGate deviceGate)
+    {
+        deviceGate.Semaphore.Release();
+        ReleaseDeviceGateLease(deviceId, deviceGate);
+    }
+
+    private void ReleaseDeviceGateLease(string deviceId, DeviceOperationGate deviceGate)
+    {
+        var disposeGate = false;
+
+        lock (_syncRoot)
+        {
+            deviceGate.LeaseCount--;
+            if (deviceGate.LeaseCount == 0 &&
+                !_connections.ContainsKey(deviceId) &&
+                _deviceOperationGates.TryGetValue(deviceId, out var currentGate) &&
+                ReferenceEquals(currentGate, deviceGate))
+            {
+                _deviceOperationGates.Remove(deviceId);
+                disposeGate = true;
+            }
+        }
+
+        if (disposeGate)
+        {
+            deviceGate.Semaphore.Dispose();
         }
     }
 
