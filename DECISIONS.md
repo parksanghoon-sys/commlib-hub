@@ -143,3 +143,9 @@
 - Decision: create `integration/main-refresh-20260414` from `commlib-hub/main`, merge the already-clean feature/runtime branches there, cherry-pick the new 2026-04-14 work-unit commits on top, and use that single integration branch as the source for refreshing local `main`.
 - Why: this preserves narrow work-unit commits, avoids reusing the dirty mixed branch as a delivery line, and gives the requested one-time `main` merge without discarding already split review lines.
 - Consequences: refreshed `main` becomes the new baseline, and the next implementation should start from a fresh branch whose only scope is the remaining `DeviceSession` timeout-cancellation cleanup.
+
+## 2026-04-16 - Implement the WinUI local transport helper as a thin script over console commands, not as a second protocol implementation
+- Context: the deferred WinUI validation-helper backlog item needed a repeatable local peer path for TCP/UDP/multicast, but the repo already had a console example that owned the real `LengthPrefixed + NoOpSerializer` framing logic.
+- Decision: add external-peer-oriented `tcp-echo-server` / `udp-echo-server` commands to `CommLib.Examples.Console`, then wrap those commands plus the existing multicast send/receive commands with `scripts/Start-WinUiTransportValidation.ps1`.
+- Why: this keeps one code path for frame encoding/decoding, avoids re-implementing protocol behavior in PowerShell, and still gives WinUI validation a one-command entry point.
+- Consequences: future live UDP / multicast WinUI passes can reuse the helper immediately, while any richer orchestration needs can be evaluated later as console-example evolution rather than script-side protocol duplication.

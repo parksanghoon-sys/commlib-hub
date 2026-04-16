@@ -1,15 +1,15 @@
 # TODOS
 
 ## Execution Context
-- Baseline after this integration: local `main` refreshed from `commlib-hub/main`.
-- Temporary landing branch used for the merge: `integration/main-refresh-20260414`.
-- Next implementation branch should start fresh from the updated `main`.
+- Active branch: `feat/issue-9-winui-transport-helper`.
+- Tracking issue: GitHub issue `#9` (`Add reusable local WinUI transport validation helper`).
+- Branch rule: keep this branch scoped to external local validation helper commands, one wrapper script, and direct README guidance only.
 
 ## Current TODOs
-- [ ] Fix `HandleTimeoutAsync` missing `CancellationToken` in `DeviceSession`.
-  Scope: `src/CommLib.Application/Sessions/DeviceSession.cs` - `SendRequest()` and `HandleTimeoutAsync()`.
-  Objective: prevent timeout background tasks from outliving session disposal and touching already-removed pending state.
-  Validation: add or extend focused `DeviceSessionTests`, then re-run `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`.
+- [ ] Use the new helper during one live WinUI UDP / multicast validation pass, then judge whether multicast UX wording still needs tightening.
+  Scope: `examples/CommLib.Examples.WinUI`, `scripts/Start-WinUiTransportValidation.ps1`, and any resulting README or UI-copy follow-up.
+  Objective: turn the remaining manual transport validation backlog into a repeatable real-app pass now that the helper exists.
+  Validation: run one focused live WinUI session with the helper-backed TCP/UDP/multicast path and capture any remaining operator confusion separately.
 
 ## Deferred Backlog
 
@@ -50,11 +50,11 @@
 - What remains: re-run the manual UDP and Multicast mock endpoint checks, step through TCP / UDP / Multicast / Serial panel switching on both `Device Lab` and `Settings`, and only re-check transition feel / wheel-scroll / live-log manual scrolling if that pass surfaces a concrete regression.
 - Why deferred: raw-hex TCP is now wired, covered by automated lower-stack tests, validated through a live WinUI roundtrip, and the active implementation priority has shifted to the first bitfield foundation slice.
 - Objective: close the remaining interactive WinUI confidence gaps without mixing them into the current serializer-layer implementation slice.
-- Relevant context: transport-panel collapsing, live-log auto-follow, in-app mock peers, and the earlier TCP automation smoke are already in place; the remaining gaps are real-pointer confirmation plus UDP/Multicast behavior in the live app.
+- Relevant context: transport-panel collapsing, live-log auto-follow, in-app mock peers, and the earlier TCP automation smoke are already in place; the remaining gaps are real-pointer confirmation plus UDP/Multicast behavior in the live app. Issue `#9` now adds a repo-owned helper script plus console peer commands so the external-peer setup no longer depends on ad-hoc terminal history.
 - Scope: `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`, `examples/CommLib.Examples.WinUI/Views/SettingsView.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, and any resulting docs/status text.
 - Current status: TCP mock flow already has earlier automation smoke coverage, the raw-hex TCP transport/session path now has focused infrastructure roundtrip coverage, and a live WinUI raw-hex TCP pass is complete. UDP / Multicast and real-pointer confirmation are still manual-only.
 - Known blockers/open questions: whether multicast still needs clearer UX copy once the broader live pass happens, and whether any real-pointer issue appears that did not show up in automation.
-- Most natural next step: run one live `Device Lab` session that focuses on UDP, Multicast, panel switching, and real-pointer behavior rather than repeating the now-covered raw-hex TCP path.
+- Most natural next step: run one live `Device Lab` session that focuses on UDP, Multicast, panel switching, and real-pointer behavior while using `scripts/Start-WinUiTransportValidation.ps1` for any external peer setup.
 
 ### [P1_SOON] Clarify single-machine multicast mock UX if duplicate inbound lines feel confusing
 - What remains: decide whether the new in-app multicast mock flow needs stronger status/log copy, a dedicated note in the UI, or a small behavior tweak for one-machine validation sessions.
@@ -75,16 +75,6 @@
 - Current status: the app now runs successfully with the safe subset, but keys/methods for broader control styles still exist as future design-space rather than live behavior.
 - Known blockers/open questions: which default WinUI style keys are actually available in this app/runtime combination, and whether a code-built WinUI example should keep those style definitions at all.
 - Most natural next step: inventory the actual default style keys available at runtime, then either delete the dormant helpers or add back only the verified ones behind a small focused validation pass.
-
-### [P2_LATER] Add a reusable local WinUI transport validation helper
-- What remains: package the local TCP/UDP echo peer and multicast verification flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
-- Why deferred: the existing console example plus ad-hoc local echo commands are enough for immediate manual verification, but the setup is still more manual than it should be.
-- Objective: make WinUI transport validation repeatable without rediscovering local peer commands every session.
-- Relevant context: `examples/CommLib.Examples.Console` already provides `tcp-demo`, `udp-demo`, `multicast-send`, and `multicast-receive`; during this session we also used local TCP/UDP echo peers to support WinUI manual checks.
-- Scope: likely `examples/CommLib.Examples.Console`, WinUI README/docs, and possibly a small helper script under `scripts/` or `examples/`.
-- Current status: no dedicated helper exists yet; validation instructions are partly in chat and partly in example READMEs.
-- Known blockers/open questions: whether the best shape is a PowerShell script, extra console subcommands, or documentation-only guidance.
-- Most natural next step: after the current interactive validation pass, capture the exact repeatable commands that felt necessary and package only that minimal workflow.
 
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
 - What remains: identify the current mixed/non-UTF-8 encoding issue in `PROGRESS.md` and convert it to a stable encoding without losing prior history.
@@ -117,6 +107,7 @@
 - Most natural next step: wait until the schema-backed compose/inspect layer exists and at least one real device contract pressures a broader numbering or value-type surface.
 
 ## Completed
+- [x] 2026-04-16: created GitHub issue `#9` and added a reusable local WinUI transport validation helper by introducing console-side `tcp-echo-server` / `udp-echo-server`, adding `scripts/Start-WinUiTransportValidation.ps1`, and updating the WinUI/console READMEs; verified with `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`, helper-backed TCP/UDP smoke runs, and a helper-backed multicast send smoke.
 - [x] 2026-04-14: integrated `feat/bitfield-endianness`, `feat/bitfield-schema-log-enrichment`, and `feat/runtime-hardening-clean-base` onto `integration/main-refresh-20260414`, then replayed the 2026-04-14 gate-fix and Korean XML documentation commits on top; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, and `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`.
 - [x] 2026-04-14: fixed the `_deviceOperationGates` leak in `ConnectionManager` by keeping per-device operation gates reference-counted and removing them once the last lease is released for a disconnected device; added `DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates` coverage and verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.
 - [x] 2026-04-14: added Korean XML documentation across the repo's C# source/example/test files, repaired the WinUI-localized `AppLocalizer.cs` string table after the first bulk-edit path corrupted Korean literals, and re-verified with focused tests plus a fresh WinUI restore/build on the clean integration worktree.

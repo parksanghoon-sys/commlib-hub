@@ -1,35 +1,25 @@
 # Current Plan
 
 ## Date
-- 2026-04-14
+- 2026-04-16
 
 ## Current Scope
-- Refresh local `main` once through `integration/main-refresh-20260414`, then restart from a fresh branch.
-- Keep the first post-merge implementation slice limited to the remaining `DeviceSession` timeout-cancellation cleanup.
+- Close issue `#9` with a reusable local WinUI transport validation helper.
+- Keep this branch limited to helper commands, one PowerShell wrapper, and README guidance.
 
 ## Confirmed State
-- `AGENT.md` is the active repository rules file; `AGENT_RULES.md` is not present at the repo root.
-- The temporary integration line already contains the clean feature/runtime branches plus the two local 2026-04-14 commits:
-  - `feat/bitfield-endianness`
-  - `feat/bitfield-schema-log-enrichment`
-  - `feat/runtime-hardening-clean-base`
-  - `fix(runtime): reclaim disconnected device operation gates`
-  - `docs(repo): add Korean XML documentation`
-- The runtime baseline now includes bounded unsolicited inbound buffering, inbound backpressure events, hosting queue-capacity configuration, connect-boundary profile validation, and `DeviceBootstrapper.StartWithReportAsync()`.
-- The next still-open correctness issue remains in `src/CommLib.Application/Sessions/DeviceSession.cs` where `HandleTimeoutAsync()` still calls `Task.Delay(timeout)` without a cancellation token.
-- Focused validation on the integration line succeeded with:
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
-  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Branch: `feat/issue-9-winui-transport-helper`
+- Issue: `#9 Add reusable local WinUI transport validation helper`
+- The console sample now exposes `tcp-echo-server` and `udp-echo-server` for external WinUI/manual validation.
+- `scripts/Start-WinUiTransportValidation.ps1` now wraps the console sample for TCP/UDP echo plus multicast send/receive.
+- Focused validation succeeded with the console build plus TCP/UDP/helper smoke runs.
 
 ## Next Work Unit
-1. Merge the temporary integration branch into local `main`.
-2. Create a fresh branch from the updated `main`.
-3. Fix the `DeviceSession` timeout cleanup path with the smallest supporting unit coverage.
+1. Commit the helper branch cleanly.
+2. Push it and open a draft PR tied to issue `#9`.
+3. After it lands, use the helper during the deferred live UDP / multicast WinUI validation pass.
 
 ## Deferred / Not For This Step
-- Hosted-service wiring stays deferred.
-- Reconnect naming truthfulness stays deferred.
-- Broader diagnostics / health / TLS surface stays deferred.
-- Extra serializer/WinUI follow-up stays deferred until after the timeout cleanup branch lands.
+- No transport/runtime contract changes.
+- No additional WinUI UI behavior changes.
+- No broader runtime-hosting backlog work on this branch.

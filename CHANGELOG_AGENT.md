@@ -229,3 +229,20 @@
   - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
 - Reset the continuity files so post-merge work now treats refreshed `main` as the baseline and promotes `DeviceSession` timeout-cancellation cleanup as the next isolated branch.
+
+## 2026-04-16
+
+- Created GitHub issue `#9` to track the local WinUI transport validation-helper follow-up instead of leaving it as a chat-only reminder.
+- Started `feat/issue-9-winui-transport-helper` from local `main` in a fresh worktree so the dirty preserved `commlib-codex-full` checkout could remain untouched.
+- Added a repo-owned local validation helper flow without widening transport/runtime contracts:
+  - introduced `tcp-echo-server` and `udp-echo-server` commands in `examples/CommLib.Examples.Console`
+  - added `scripts/Start-WinUiTransportValidation.ps1` as the thin wrapper for TCP/UDP echo plus multicast send/receive
+  - updated the WinUI and console READMEs so contributors can start the helper without rediscovering old console commands
+- Kept multicast timeout behavior explicit rather than hiding it:
+  - `MulticastReceive` still exits non-zero when no traffic arrives before `-TimeoutMs`
+  - the README now calls that out so helper-driven no-message validation remains visible
+- Verified the helper slice sequentially with:
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
+  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -NoBuild -TimeoutMs 200`
+  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -NoBuild -TimeoutMs 200`
+  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -NoBuild -Port 7004 -Message "helper smoke"`
