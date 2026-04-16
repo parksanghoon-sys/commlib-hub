@@ -24,10 +24,7 @@ public static class DeviceProfileValidator
             throw new InvalidOperationException($"[{profile.DeviceId}] DisplayName is required.");
         }
 
-        if (profile.Protocol.MaxFrameLength <= 0)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] MaxFrameLength must be greater than 0.");
-        }
+        ValidateProtocolOptions(profile);
 
         if (profile.RequestResponse.DefaultTimeoutMs <= 0)
         {
@@ -161,6 +158,19 @@ public static class DeviceProfileValidator
                bytes[0] is >= 224 and <= 239;
     }
 
+    private static void ValidateProtocolOptions(DeviceProfile profile)
+    {
+        if (!profile.Protocol.Type.Equals("LengthPrefixed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
+        }
+
+        if (profile.Protocol.MaxFrameLength < 4)
+        {
+            throw new InvalidOperationException(
+                $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+        }
+    }
     private static void ValidateReconnectOptions(DeviceProfile profile)
     {
         var reconnect = profile.Reconnect;
