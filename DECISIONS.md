@@ -155,3 +155,9 @@
 - Decision: do not widen PR `#10` into serializer-aware peer expansion. Instead, document clearly that the helper is currently for `AutoBinary` validation, and direct `RawHex` validation to the in-app mock endpoint or another RawHex-speaking peer.
 - Why: this preserves the branch's narrow scope and keeps the helper truthful without dragging a second serializer dimension into a docs/helper-only slice.
 - Consequences: the next live WinUI validation pass can still use the helper safely for `AutoBinary`, while any future need for a `RawHex` external peer becomes its own explicit follow-up rather than an accidental extension of this PR.
+
+## 2026-04-16 - Fix helper-backed multicast confusion in the README first, not in runtime or live UI copy
+- Context: issue `#11` proved the multicast helper path is correct, but one-machine loopback means the WinUI live log can show an inbound copy of the app's own outbound multicast payload. The gap was operator truthfulness in the helper-backed docs rather than a transport defect.
+- Decision: handle issue `#12` as a README-only wording change on a tiny stacked branch (`docs/issue-12-multicast-loopback-wording`) and keep `AppLocalizer.cs` / runtime behavior untouched for now.
+- Why: this is the smallest structurally correct fix. The confusion appears first in the helper usage guidance, so clarifying the README is enough to tell the truth without widening into product text churn before review asks for it.
+- Consequences: draft PR `#13` now carries only the README note and usage tip; if reviewers still want stronger wording in the live UI, that should happen in a separate follow-up branch rather than by expanding this docs slice retroactively.

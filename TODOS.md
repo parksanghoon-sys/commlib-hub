@@ -1,16 +1,14 @@
 # TODOS
 
 ## Execution Context
-- Active branch: `feat/issue-9-winui-transport-helper`.
-- Tracking issue: GitHub issue `#9` (`Add reusable local WinUI transport validation helper`).
-- Draft PR: `#10` (`[codex] add WinUI transport validation helper`).
-- Branch rule: keep this branch scoped to external local validation helper commands, one wrapper script, and direct README guidance only.
+- Active branch: `docs/issue-12-multicast-loopback-wording`.
+- Tracking issue: GitHub issue `#12` (`Clarify helper-backed multicast self-loopback behavior in WinUI validation docs`).
+- Draft PR: `#13` (`[codex] clarify helper multicast loopback note`), stacked on top of helper draft PR `#10`.
+- Relevant prior validation: GitHub issue `#11` proved the helper-backed multicast behavior that motivated this wording follow-up.
+- Branch rule: keep this branch scoped to the smallest truthful helper-backed multicast wording clarification only.
 
 ## Current TODOs
-- [ ] Use the new helper during one live WinUI UDP / multicast validation pass, then judge whether multicast UX wording still needs tightening.
-  Scope: `examples/CommLib.Examples.WinUI`, `scripts/Start-WinUiTransportValidation.ps1`, and any resulting README or UI-copy follow-up.
-  Objective: turn the remaining manual transport validation backlog into a repeatable real-app pass now that the helper exists. This helper is currently for the `AutoBinary` path; `RawHex` still needs a different peer.
-  Validation: run one focused live WinUI session with the helper-backed TCP/UDP/multicast path and capture any remaining operator confusion separately.
+- None on this branch. Issue `#12` is implemented and published for review as a README-only stacked PR.
 
 ## Deferred Backlog
 
@@ -63,9 +61,19 @@
 - Objective: make the multicast mock path understandable during local operator testing without overcomplicating the transport layer.
 - Relevant context: `LocalMockEndpointService` now joins the selected multicast group and replies back to the sender port so a single machine can act as both sender and mock peer; depending on socket loopback behavior, the live log may still show more than one inbound event per send.
 - Scope: `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/AppLocalizer.cs`, and `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`.
-- Current status: status text already warns about self traffic plus peer echo, but the UX has not been manually judged yet in the real app.
-- Known blockers/open questions: how the local NIC / multicast loopback behavior presents on this machine during a full WinUI send/receive session, and whether the current status text is enough.
-- Most natural next step: run the manual multicast mock validation from `Device Lab`, capture the exact live-log behavior, then either keep the current wording or tighten it with the smallest safe UI-only change.
+- Current status: helper-backed one-machine multicast wording now has a README clarification in draft PR `#13`, but the in-app mock status copy remains unchanged.
+- Known blockers/open questions: whether the existing in-app mock wording is already sufficient now that the helper README path is clearer.
+- Most natural next step: wait for review on PR `#13`, then revisit only if operators still misread the in-app mock path.
+
+### [P1_SOON] Decide whether helper-backed multicast wording needs to move into live UI copy after PR `#13`
+- What remains: decide whether the README clarification from issue `#12` is enough, or whether nearby UI/status wording should also mention one-machine self-loopback behavior.
+- Why deferred: issue `#12` intentionally stayed README-only to keep the follow-up as the smallest truthful change.
+- Objective: avoid widening a docs clarification into unnecessary product text churn while still leaving a clean path if reviewers/operators want the app UI itself to say more.
+- Relevant context: issue `#11` proved that helper-backed multicast is correct and that the WinUI app can log its own outbound payload as inbound traffic on one machine; draft PR `#13` now documents that behavior in the helper section of the WinUI README.
+- Scope: `examples/CommLib.Examples.WinUI/Services/AppLocalizer.cs`, possibly nearby WinUI README wording, and any tiny follow-up docs/UI branch.
+- Current status: README is updated, UI copy is unchanged.
+- Known blockers/open questions: whether the README clarification alone is enough to prevent confusion during real review/use.
+- Most natural next step: let PR `#13` review land first, then decide whether any UI text change is still justified.
 
 ### [P2_LATER] Safely map full `DeviceLabTheme` templated-control styles before broad rollout
 - What remains: decide whether to prune the currently unused templated-control style helpers in `DeviceLabTheme` or reintroduce them with verified WinUI default-style keys and a startup-safe initialization path.
@@ -108,6 +116,8 @@
 - Most natural next step: wait until the schema-backed compose/inspect layer exists and at least one real device contract pressures a broader numbering or value-type surface.
 
 ## Completed
+- [x] 2026-04-16: created GitHub issue `#11`, ran a live helper-backed WinUI UDP / multicast validation pass, and confirmed UDP roundtrip, multicast helper send/receive, and transport-panel switching on both `Device Lab` and `Settings`; the one new finding was that one-machine multicast logs a self-loopback inbound copy of the app's own outbound payload.
+- [x] 2026-04-16: created GitHub issue `#12`, added a README-only helper-backed multicast self-loopback clarification on `docs/issue-12-multicast-loopback-wording`, and opened draft PR `#13` stacked on `feat/issue-9-winui-transport-helper`; no runtime or UI behavior changed, and no build/test rerun was needed because the change is docs-only and grounded in the completed issue `#11` validation evidence.
 - [x] 2026-04-16: created GitHub issue `#9` and added a reusable local WinUI transport validation helper by introducing console-side `tcp-echo-server` / `udp-echo-server`, adding `scripts/Start-WinUiTransportValidation.ps1`, and updating the WinUI/console READMEs; verified with `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`, helper-backed TCP/UDP smoke runs, and a helper-backed multicast send smoke.
 - [x] 2026-04-14: integrated `feat/bitfield-endianness`, `feat/bitfield-schema-log-enrichment`, and `feat/runtime-hardening-clean-base` onto `integration/main-refresh-20260414`, then replayed the 2026-04-14 gate-fix and Korean XML documentation commits on top; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, and `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`.
 - [x] 2026-04-14: fixed the `_deviceOperationGates` leak in `ConnectionManager` by keeping per-device operation gates reference-counted and removing them once the last lease is released for a disconnected device; added `DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates` coverage and verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.

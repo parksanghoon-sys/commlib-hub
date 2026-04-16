@@ -3,36 +3,36 @@
 Date: 2026-04-16
 
 ## Goal
-Close GitHub issue `#9` by adding a reusable local WinUI transport validation helper without widening into new transport/runtime contracts.
+Close GitHub issue `#12` with the smallest truthful helper-backed multicast wording fix, stacked on the helper branch without widening into runtime behavior or broader UI-copy changes.
 
 ## Confirmed Facts
-- This branch is `feat/issue-9-winui-transport-helper`, created from local `main` after the separate `commlib-codex-full` worktree was found dirty with preserved state-file edits.
-- GitHub issue `#9` now tracks this helper follow-up: `Add reusable local WinUI transport validation helper`.
-- Draft PR `#10` now carries this branch against `main`: `[codex] add WinUI transport validation helper`.
-- `examples/CommLib.Examples.WinUI/README.md` previously pointed contributors at ad-hoc `CommLib.Examples.Console` commands for local peer setup.
-- `examples/CommLib.Examples.Console` already contained the shared framing/serialization logic and multicast send/receive commands, so duplicating protocol behavior in PowerShell would be unnecessary.
-- The current implementation on this branch now adds:
-  - external-peer-only `tcp-echo-server` and `udp-echo-server` console commands
-  - `scripts/Start-WinUiTransportValidation.ps1` as the repo-owned entry point for TCP/UDP echo and multicast send/receive flows
-  - README guidance in both the WinUI and console examples
-- The helper docs are now explicit that this branch's helper path is currently `AutoBinary` / `NoOpSerializer` only; `RawHex` validation still needs the in-app mock or another RawHex-speaking peer.
-- Focused validation succeeded sequentially:
-  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
-  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -NoBuild -TimeoutMs 200`
-  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -NoBuild -TimeoutMs 200`
-  - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -NoBuild -Port 7004 -Message "helper smoke"`
-- A focused `MulticastReceive` smoke without traffic still exits non-zero on timeout by design, and the README now calls that out explicitly.
+- This branch is `docs/issue-12-multicast-loopback-wording`, created as a new worktree branch from `feat/issue-9-winui-transport-helper` so the issue `#11` validation-only branch can stay untouched.
+- GitHub issue `#12` tracks this wording-only follow-up: `Clarify helper-backed multicast self-loopback behavior in WinUI validation docs`.
+- Draft PR `#13` now carries this branch against `feat/issue-9-winui-transport-helper`: `[codex] clarify helper multicast loopback note`.
+- The parent helper implementation still lives on GitHub issue `#9` and draft PR `#10`.
+- GitHub issue `#11` already proved the relevant runtime behavior before this branch was created:
+  - helper `MulticastSend` reaches the WinUI app as inbound traffic
+  - helper `MulticastReceive` captures the app outbound multicast frame
+  - on one machine with loopback enabled, the WinUI live log can also show an inbound copy of the app's own outbound payload
+- The issue `#12` change intentionally stays docs-only:
+  - no transport/session/runtime behavior changes
+  - no status-copy or localization changes in `AppLocalizer.cs`
+  - only `examples/CommLib.Examples.WinUI/README.md` was updated
+- The README now tells the truth about helper-backed one-machine multicast validation by:
+  - stating that the app can log its own outbound multicast payload as an `Inbound message`
+  - clarifying that this self-loopback line is expected rather than a helper failure
+  - suggesting distinct helper/app message bodies to distinguish helper traffic from looped-back app traffic quickly
 
 ## Next Work Unit
-1. Keep PR `#10` limited to the issue `#9` helper slice; do not widen it with live-validation findings or UI copy tweaks.
-2. In a later branch, run one live WinUI UDP / multicast validation pass using the new helper.
-3. If that pass still shows multicast operator confusion, handle the wording/UI follow-up as its own small branch.
+1. Keep PR `#13` reviewable as a wording-only stacked diff on top of PR `#10`.
+2. Do not widen this branch into additional localization/status-copy edits unless review shows the README-only clarification is insufficient.
+3. Leave the remaining real-pointer-only WinUI confidence question as a separate manual follow-up, not as something to fold into this docs slice.
 
 ## Next Slice Design
-1. Keep the helper implementation as a thin wrapper over the existing console sample rather than introducing a second framing implementation in PowerShell.
-2. Limit docs changes to the WinUI and console READMEs that directly explain the helper.
-3. Leave the remaining live UDP / multicast / real-pointer WinUI validation pass as a later follow-up that can now reuse this helper.
+1. Treat issue `#12` as a README clarification for the helper-backed path, not as a product behavior change.
+2. Keep the wording anchored to the already-validated issue `#11` evidence instead of speculating about other multicast environments.
+3. If review later shows the app UI itself still needs stronger wording, handle that in a separate tiny branch after this README-only slice.
 
 ## Stop / Reassess Conditions
-- If helper expectations start demanding richer orchestration than a thin script plus console commands can provide, stop and re-evaluate whether the console example should grow dedicated validation subcommands instead of turning the script into a second protocol implementation.
-- If a future live WinUI pass shows multicast ergonomics are still confusing, address that as a separate UI/docs slice rather than widening this helper branch.
+- If reviewer feedback shows the README-only note is not enough to stop confusion, stop and decide whether the next change belongs in `AppLocalizer.cs` or in a broader helper-validation guide instead of expanding this branch ad hoc.
+- If the helper branch `#10` changes its multicast contract materially before merge, re-check that this wording still matches the actual stacked base.

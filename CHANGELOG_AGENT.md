@@ -256,3 +256,15 @@
 - Tightened the helper docs after design review without widening the implementation:
   - clarified in the WinUI and console READMEs that the helper currently matches the console sample's `AutoBinary` / `NoOpSerializer` contract rather than `RawHex`
   - switched the WinUI helper examples to `powershell -ExecutionPolicy Bypass -File ...` while noting that `pwsh` also works when PowerShell 7 is installed
+- Created GitHub issue `#12` after the live helper-backed multicast validation found one remaining operator-truthfulness gap:
+  - the runtime behavior was correct, but one-machine helper-backed multicast still let the WinUI live log show the app's own outbound payload as an inbound line when loopback was enabled
+  - that behavior came from issue `#11` validation evidence rather than from a new code bug
+- Started `docs/issue-12-multicast-loopback-wording` as a fresh worktree branch from `feat/issue-9-winui-transport-helper` instead of stacking the wording change onto the issue `#11` validation-only branch.
+- Kept the issue `#12` implementation as the smallest possible docs slice:
+  - updated only `examples/CommLib.Examples.WinUI/README.md`
+  - added a helper-section note that self-loopback inbound lines are expected during one-machine multicast validation
+  - added a small tip to use distinct helper/app message bodies when distinguishing helper traffic from looped-back app traffic
+- Published the wording branch for review:
+  - pushed `docs/issue-12-multicast-loopback-wording` to `commlib-hub`
+  - opened draft PR `#13`: `https://github.com/parksanghoon-sys/commlib-hub/pull/13`
+- No build or test rerun was needed for issue `#12` because the change is README-only and its wording is grounded in the already-completed live validation from issue `#11`.
