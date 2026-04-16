@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace CommLib.Domain.Messaging;
@@ -28,6 +29,46 @@ public static class MessagePayloadFormatter
     }
 
     /// <summary>
+    /// Tries to inspect a binary payload with a bitfield schema and returns a compact field summary for logs.
+    /// </summary>
+    /// <param name="message">The message whose payload should be inspected.</param>
+    /// <param name="schema">The optional schema to apply to the payload.</param>
+    /// <param name="summary">The formatted field summary when inspection succeeds.</param>
+    /// <param name="error">The inspection error when schema inspection fails.</param>
+    /// <returns><see langword="true"/> when a schema summary was produced; otherwise <see langword="false"/>.</returns>
+    public static bool TryFormatBitFieldSummary(
+        IMessage message,
+        BitFieldPayloadSchema? schema,
+        out string? summary,
+        out string? error)
+    {
+        summary = null;
+        error = null;
+
+        if (schema is null || message is not IBinaryMessagePayload binaryPayload)
+        {
+            return false;
+        }
+
+        try
+        {
+            var values = BitFieldPayloadSchemaCodec.Inspect(schema, binaryPayload.Payload.Span);
+            if (values.Count == 0)
+            {
+                return false;
+            }
+
+            summary = FormatBitFieldValues(values);
+            return true;
+        }
+        catch (InvalidOperationException exception)
+        {
+            error = exception.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
     /// raw binary payload를 공백 구분 대문자 hex 문자열로 변환합니다.
     /// </summary>
     /// <param name="payload">변환할 payload 바이트입니다.</param>
@@ -50,6 +91,26 @@ public static class MessagePayloadFormatter
             }
 
             builder.Append(hex, index * 2, 2);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FormatBitFieldValues(IReadOnlyList<BitFieldFieldValue> values)
+    {
+        var builder = new StringBuilder();
+
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (index > 0)
+            {
+                builder.Append(", ");
+            }
+
+            var value = values[index];
+            builder.Append(value.Field.Name);
+            builder.Append('=');
+            builder.Append(value.Value.ToString(CultureInfo.InvariantCulture));
         }
 
         return builder.ToString();

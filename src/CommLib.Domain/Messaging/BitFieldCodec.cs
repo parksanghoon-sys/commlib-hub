@@ -1,40 +1,35 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// raw payload를 bitfield 단위로 읽고 쓰는 공용 codec입니다.
+/// Reads and writes scalar values against bitfield definitions in a raw payload.
 /// </summary>
 public static class BitFieldCodec
 {
     /// <summary>
-    /// 지정한 bitfield를 unsigned 정수로 읽습니다.
+    /// Reads a bitfield as an unsigned integer.
     /// </summary>
-    /// <param name="payload">원본 payload입니다.</param>
-    /// <param name="field">읽을 field 정의입니다.</param>
-    /// <returns>field 구간의 unsigned 값입니다.</returns>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="field">The field to read.</param>
+    /// <returns>The unsigned value stored in the field.</returns>
     public static ulong ReadUnsigned(ReadOnlySpan<byte> payload, BitFieldDefinition field)
     {
         ArgumentNullException.ThrowIfNull(field);
         EnsureFieldFits(payload.Length, field);
 
-        ulong value = 0;
-        for (var bitIndex = 0; bitIndex < field.BitLength; bitIndex++)
+        return field.Endianness switch
         {
-            var absoluteBitIndex = field.BitOffset + bitIndex;
-            var byteIndex = absoluteBitIndex / 8;
-            var bitInByte = absoluteBitIndex % 8;
-            var bit = (payload[byteIndex] >> bitInByte) & 0x01;
-            value |= (ulong)bit << bitIndex;
-        }
-
-        return value;
+            BitFieldEndianness.LittleEndian => ReadUnsignedLittleEndian(payload, field),
+            BitFieldEndianness.BigEndian => ReadUnsignedBigEndian(payload, field),
+            _ => throw new ArgumentOutOfRangeException(nameof(field), $"Bit field '{field.Name}' has an unsupported endianness.")
+        };
     }
 
     /// <summary>
-    /// 지정한 bitfield를 signed 정수로 읽습니다.
+    /// Reads a bitfield as a signed integer.
     /// </summary>
-    /// <param name="payload">원본 payload입니다.</param>
-    /// <param name="field">읽을 field 정의입니다.</param>
-    /// <returns>field 구간의 signed 값입니다.</returns>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="field">The field to read.</param>
+    /// <returns>The signed value stored in the field.</returns>
     public static long ReadSigned(ReadOnlySpan<byte> payload, BitFieldDefinition field)
     {
         var value = ReadUnsigned(payload, field);
@@ -54,17 +49,68 @@ public static class BitFieldCodec
     }
 
     /// <summary>
-    /// 지정한 bitfield 구간에 unsigned 정수 값을 씁니다.
+    /// Writes an unsigned integer value into a bitfield.
     /// </summary>
-    /// <param name="payload">쓰기 대상 payload입니다.</param>
-    /// <param name="field">쓸 field 정의입니다.</param>
-    /// <param name="value">쓸 unsigned 값입니다.</param>
+    /// <param name="payload">The destination payload.</param>
+    /// <param name="field">The field to write.</param>
+    /// <param name="value">The unsigned value to write.</param>
     public static void WriteUnsigned(Span<byte> payload, BitFieldDefinition field, ulong value)
     {
         ArgumentNullException.ThrowIfNull(field);
         EnsureFieldFits(payload.Length, field);
         EnsureValueFits(field, value);
 
+        switch (field.Endianness)
+        {
+            case BitFieldEndianness.LittleEndian:
+                WriteUnsignedLittleEndian(payload, field, value);
+                return;
+
+            case BitFieldEndianness.BigEndian:
+                WriteUnsignedBigEndian(payload, field, value);
+                return;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(field), $"Bit field '{field.Name}' has an unsupported endianness.");
+        }
+    }
+
+    private static ulong ReadUnsignedLittleEndian(ReadOnlySpan<byte> payload, BitFieldDefinition field)
+    {
+        ulong value = 0;
+        for (var bitIndex = 0; bitIndex < field.BitLength; bitIndex++)
+        {
+            var absoluteBitIndex = field.BitOffset + bitIndex;
+            var byteIndex = absoluteBitIndex / 8;
+            var bitInByte = absoluteBitIndex % 8;
+            var bit = (payload[byteIndex] >> bitInByte) & 0x01;
+            value |= (ulong)bit << bitIndex;
+        }
+
+        return value;
+    }
+
+    private static ulong ReadUnsignedBigEndian(ReadOnlySpan<byte> payload, BitFieldDefinition field)
+    {
+        if (field.BitLength <= 8)
+        {
+            return ReadUnsignedLittleEndian(payload, field);
+        }
+
+        var byteIndex = field.BitOffset / 8;
+        var byteCount = field.BitLength / 8;
+        ulong value = 0;
+
+        for (var index = 0; index < byteCount; index++)
+        {
+            value = (value << 8) | payload[byteIndex + index];
+        }
+
+        return value;
+    }
+
+    private static void WriteUnsignedLittleEndian(Span<byte> payload, BitFieldDefinition field, ulong value)
+    {
         for (var bitIndex = 0; bitIndex < field.BitLength; bitIndex++)
         {
             var absoluteBitIndex = field.BitOffset + bitIndex;
@@ -81,6 +127,24 @@ public static class BitFieldCodec
             {
                 payload[byteIndex] &= unchecked((byte)~mask);
             }
+        }
+    }
+
+    private static void WriteUnsignedBigEndian(Span<byte> payload, BitFieldDefinition field, ulong value)
+    {
+        if (field.BitLength <= 8)
+        {
+            WriteUnsignedLittleEndian(payload, field, value);
+            return;
+        }
+
+        var byteIndex = field.BitOffset / 8;
+        var byteCount = field.BitLength / 8;
+
+        for (var index = 0; index < byteCount; index++)
+        {
+            var shift = (byteCount - index - 1) * 8;
+            payload[byteIndex + index] = (byte)((value >> shift) & 0xFF);
         }
     }
 
