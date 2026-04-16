@@ -1,4 +1,3 @@
-using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using CommLib.Domain.Protocol;
@@ -55,8 +54,6 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
             // 새 연결 요청은 항상 이전 연결을 먼저 깨끗이 정리한 뒤 시작한다.
             // 이렇게 하면 Device Lab에서 transport를 바꿔 가며 반복 연결해도 상태가 누적되지 않는다.
             await DisconnectCoreAsync(CancellationToken.None, emitOfflineState: false).ConfigureAwait(false);
-            DeviceProfileValidator.ValidateAndThrow(profile);
-
             var manager = new ConnectionManager(
                 _transportFactory,
                 _protocolFactory,

@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
-using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 using CommLib.Infrastructure.Factories;
@@ -320,7 +319,6 @@ internal static class ExampleConsole
         IMessage outboundMessage,
         CancellationToken cancellationToken)
     {
-        DeviceProfileValidator.ValidateAndThrow(profile);
         await manager.ConnectAsync(profile, cancellationToken).ConfigureAwait(false);
         Console.WriteLine($"[send] {DescribeMessage(outboundMessage)}");
         await manager.SendAsync(profile.DeviceId, outboundMessage, cancellationToken).ConfigureAwait(false);

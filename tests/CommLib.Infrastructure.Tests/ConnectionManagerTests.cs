@@ -30,6 +30,26 @@ public sealed class ConnectionManagerTests
         Assert.Same(profile.Transport, transportFactory.LastOptions);
     }
 
+    [Fact]
+    public async Task ConnectAsync_InvalidProfile_ThrowsBeforeRuntimeFactoriesRun()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var protocolFactory = new FakeProtocolFactory();
+        var serializerFactory = new FakeSerializerFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: protocolFactory,
+            serializerFactory: serializerFactory);
+        var profile = CreateInvalidTcpProfile();
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
+
+        Assert.Equal("[device-1] TCP Host is required.", exception.Message);
+        Assert.Null(transportFactory.LastOptions);
+        Assert.Null(protocolFactory.LastOptions);
+        Assert.Null(serializerFactory.LastOptions);
+    }
+
     /// <summary>
     /// 연결 시 프로필의 protocol 설정으로 protocol factory를 호출하는지 확인합니다.
     /// </summary>
@@ -1207,6 +1227,30 @@ public sealed class ConnectionManagerTests
             {
                 Type = "TcpClient",
                 Host = "127.0.0.1",
+                Port = port
+            },
+            Protocol = new ProtocolOptions
+            {
+                Type = "LengthPrefixed"
+            },
+            Serializer = new SerializerOptions
+            {
+                Type = "AutoBinary"
+            }
+        };
+    }
+
+    private static DeviceProfile CreateInvalidTcpProfile(string deviceId = "device-1", int port = 502)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = deviceId,
+            DisplayName = deviceId,
+            Enabled = true,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = string.Empty,
                 Port = port
             },
             Protocol = new ProtocolOptions

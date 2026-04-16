@@ -144,6 +144,22 @@ public sealed class DeviceBootstrapperTests
         Assert.Equal(new[] { "enabled-1", "enabled-2" }, manager.ConnectedIds);
     }
 
+    [Fact]
+    public async Task StartAsync_WhenProfileIsInvalid_ThrowsBeforeConnectionManagerIsCalled()
+    {
+        var manager = new FakeConnectionManager();
+        var bootstrapper = new DeviceBootstrapper(manager);
+        var profiles = new[]
+        {
+            CreateInvalidTcpProfile("invalid-1", enabled: true, port: 1000)
+        };
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => bootstrapper.StartAsync(profiles));
+
+        Assert.Contains("[invalid-1] TCP Host is required.", exception.Message);
+        Assert.Empty(manager.ConnectedIds);
+    }
+
     /// <summary>
     /// 연결 관리자 예외를 숨기지 않고 호출자에게 전파하는지 확인합니다.
     /// </summary>
@@ -201,6 +217,51 @@ public sealed class DeviceBootstrapperTests
         Assert.Equal(new[] { "enabled-1", "enabled-2" }, manager.ConnectedIds);
     }
 
+    [Fact]
+    public async Task StartWithReportAsync_WhenProfilesIncludeValidationAndConnectionFailures_ContinuesAndReturnsReport()
+    {
+        var manager = new FakeConnectionManager
+        {
+            ConnectAsyncHandler = profile =>
+            {
+                if (profile.DeviceId == "enabled-2")
+                {
+                    throw new InvalidOperationException("boom");
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+        var bootstrapper = new DeviceBootstrapper(manager);
+
+        var profiles = new[]
+        {
+            CreateProfile("enabled-1", enabled: true, port: 1000),
+            CreateInvalidTcpProfile("invalid-1", enabled: true, port: 1001),
+            CreateProfile("enabled-2", enabled: true, port: 1002),
+            CreateProfile("enabled-3", enabled: true, port: 1003),
+            CreateProfile("disabled-1", enabled: false, port: 1004)
+        };
+
+        var report = await bootstrapper.StartWithReportAsync(profiles);
+
+        Assert.Equal(new[] { "enabled-1", "enabled-2", "enabled-3" }, manager.ConnectedIds);
+        Assert.Equal(new[] { "enabled-1", "enabled-3" }, report.ConnectedDeviceIds);
+        Assert.True(report.HasFailures);
+        Assert.Collection(
+            report.Failures,
+            failure =>
+            {
+                Assert.Equal("invalid-1", failure.DeviceId);
+                Assert.Equal("[invalid-1] TCP Host is required.", failure.Exception.Message);
+            },
+            failure =>
+            {
+                Assert.Equal("enabled-2", failure.DeviceId);
+                Assert.Equal("boom", failure.Exception.Message);
+            });
+    }
+
     private static DeviceProfile CreateProfile(string deviceId, bool enabled, int port)
     {
         return new DeviceProfile
@@ -212,6 +273,24 @@ public sealed class DeviceBootstrapperTests
             {
                 Type = "TcpClient",
                 Host = "127.0.0.1",
+                Port = port
+            },
+            Protocol = new ProtocolOptions(),
+            Serializer = new SerializerOptions()
+        };
+    }
+
+    private static DeviceProfile CreateInvalidTcpProfile(string deviceId, bool enabled, int port)
+    {
+        return new DeviceProfile
+        {
+            DeviceId = deviceId,
+            DisplayName = deviceId,
+            Enabled = enabled,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = string.Empty,
                 Port = port
             },
             Protocol = new ProtocolOptions(),
