@@ -15,11 +15,14 @@ namespace CommLib.Infrastructure.Sessions;
 /// </summary>
 public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 {
+    private const int DefaultInboundQueueCapacity = 256;
+
     private readonly ITransportFactory _transportFactory;
     private readonly IProtocolFactory _protocolFactory;
     private readonly ISerializerFactory _serializerFactory;
     private readonly IConnectionEventSink _eventSink;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
+    private readonly int _inboundQueueCapacity;
     private readonly object _syncRoot = new();
     private readonly Dictionary<string, DeviceConnectionState> _connections = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SemaphoreSlim> _deviceOperationGates = new(StringComparer.Ordinal);
@@ -50,13 +53,20 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         IProtocolFactory protocolFactory,
         ISerializerFactory serializerFactory,
         IConnectionEventSink? eventSink,
-        Func<TimeSpan, CancellationToken, Task> delayAsync)
+        Func<TimeSpan, CancellationToken, Task> delayAsync,
+        int inboundQueueCapacity = DefaultInboundQueueCapacity)
     {
+        if (inboundQueueCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(inboundQueueCapacity), "Inbound queue capacity must be greater than 0.");
+        }
+
         _transportFactory = transportFactory;
         _protocolFactory = protocolFactory;
         _serializerFactory = serializerFactory;
         _eventSink = eventSink ?? NullConnectionEventSink.Instance;
         _delayAsync = delayAsync;
+        _inboundQueueCapacity = inboundQueueCapacity;
     }
 
     /// <summary>
@@ -85,7 +95,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             var decoder = new MessageFrameDecoder(protocol, serializer);
             var receiver = new TransportMessageReceiver(decoder, transport);
             var session = new DeviceSession(profile.DeviceId, profile.RequestResponse);
-            var inboundQueue = Channel.CreateUnbounded<InboundEnvelope>();
+
+            // 응답으로 매칭되지 않은 inbound는 별도 bounded queue에 보관해 메모리 상한을 유지합니다.
+            var inboundQueue = CreateInboundQueue();
             var receivePumpTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
             newState = new DeviceConnectionState(
@@ -322,6 +334,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // 큐가 가득 차면 writer가 대기하므로 추가 transport 수신도 함께 backpressure를 받습니다.
         }
         catch (Exception exception)
         {
@@ -343,6 +356,19 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
+
+    private Channel<InboundEnvelope> CreateInboundQueue()
+    {
+        var options = new BoundedChannelOptions(_inboundQueueCapacity)
+        {
+            // 메시지를 드롭하지 않고 생산자를 대기시켜 메모리 사용량을 제한합니다.
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = false,
+            SingleWriter = true
+        };
+
+        return Channel.CreateBounded<InboundEnvelope>(options);
+    }
 
     private sealed class DeviceConnectionState
     {
@@ -386,7 +412,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         {
         }
     }
-
+    // 이전 연결의 잔여 inbound를 제거해 재연결 후 새 세션으로 섞여 들어오지 않게 합니다.
     private static async Task TryCloseTransportAsync(ITransport transport)
     {
         try

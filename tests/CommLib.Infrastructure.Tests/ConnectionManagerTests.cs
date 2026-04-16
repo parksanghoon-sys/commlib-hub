@@ -301,6 +301,41 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// bounded inbound queue가 가득 차면 transport 수신도 추가로 진행되지 않고 대기하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, transportFactory.Transport.ReceiveCount);
+
+        var first = await manager.ReceiveAsync(profile.DeviceId);
+        Assert.Equal((ushort)41, first.MessageId);
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount == 3);
+
+        var second = await manager.ReceiveAsync(profile.DeviceId);
+        var third = await manager.ReceiveAsync(profile.DeviceId);
+
+        Assert.Equal((ushort)42, second.MessageId);
+        Assert.Equal((ushort)43, third.MessageId);
+    }
+
+    /// <summary>
     /// body가 있는 메시지는 기본 serializer 조합에서 frame payload에 본문까지 포함하는지 확인합니다.
     /// </summary>
     [Fact]
@@ -937,6 +972,41 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// queue pressure로 writer가 막힌 상태에서도 disconnect가 receive pump를 정리하고 재연결을 허용하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        var firstTransport = transportFactory.Transports[0];
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(51));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(52));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(53));
+
+        await WaitForAsync(() => firstTransport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, firstTransport.ReceiveCount);
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        Assert.Null(manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsClosed);
+
+        await manager.ConnectAsync(profile);
+
+        Assert.NotNull(manager.GetSession(profile.DeviceId));
+        Assert.Equal(2, transportFactory.Transports.Count);
+    }
+
+    /// <summary>
     /// disconnect 시 transport에 걸려 있던 대기 수신도 함께 종료되는지 확인합니다.
     /// </summary>
     [Fact]
@@ -1102,14 +1172,28 @@ public sealed class ConnectionManagerTests
         IProtocolFactory? protocolFactory = null,
         ISerializerFactory? serializerFactory = null,
         IConnectionEventSink? eventSink = null,
-        Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
+        Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
+        int inboundQueueCapacity = 256)
     {
         return new ConnectionManager(
             transportFactory ?? new FakeTransportFactory(),
             protocolFactory ?? new FakeProtocolFactory(),
             serializerFactory ?? new FakeSerializerFactory(),
             eventSink,
-            delayAsync ?? ((_, _) => Task.CompletedTask));
+            delayAsync ?? ((_, _) => Task.CompletedTask),
+            inboundQueueCapacity);
+    }
+
+    private static byte[] CreateInboundFrame(ushort messageId)
+    {
+        var payload = System.Text.Encoding.UTF8.GetBytes(messageId.ToString());
+        var frame = new byte[payload.Length + 4];
+        frame[0] = 0x00;
+        frame[1] = 0x00;
+        frame[2] = 0x00;
+        frame[3] = (byte)payload.Length;
+        payload.CopyTo(frame.AsSpan(4));
+        return frame;
     }
 
     private static DeviceProfile CreateTcpProfile(string deviceId = "device-1", int port = 502)
