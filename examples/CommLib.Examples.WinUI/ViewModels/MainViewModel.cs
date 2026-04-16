@@ -390,8 +390,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             Protocol = new ProtocolOptions
             {
                 Type = "LengthPrefixed",
-                MaxFrameLength = 4096,
-                UseCrc = false
+                MaxFrameLength = 4096
             },
             Serializer = new SerializerOptions
             {

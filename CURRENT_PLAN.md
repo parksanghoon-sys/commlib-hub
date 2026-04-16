@@ -3,38 +3,44 @@
 Date: 2026-04-16
 
 ## Goal
-Deliver a clean replacement for stale PR `#8` on top of the current `main`, limited to configuration-bound `AddCommLibCore(...)` registration plus Generic Host lifecycle wiring.
+Deliver the first clean replacement slice for stale PR `#5` on top of PR `#19`, limited to runtime contract hardening around `LengthPrefixed` framing, session failure handling, and terminal receive-failure semantics.
 
 ## Confirmed Facts
-- Active branch is `feat/hosting-lifecycle-wiring-main-base`, created from the current `commlib-hub/main` after PR `#18` merged the `DeviceSession` timeout cleanup.
-- The older PR `#8` is no longer a safe merge candidate:
-  - GitHub reports it as not mergeable against current `main`
-  - its diff has widened far past hosting lifecycle wiring and now includes many unrelated files
-- The clean replacement on this branch intentionally keeps only the hosting-lifecycle slice:
-  - `AddCommLibCore(this IServiceCollection, IConfiguration)` binds `CommLibOptions`
-  - `CommLibHostedService` starts enabled configured device profiles through `DeviceBootstrapper`
-  - `CommLibHostedService` disposes the connection manager on host stop
-  - focused unit coverage exercises the hosted service and configuration registration path
-- This branch does **not** pull in the not-yet-merged runtime-surface pieces from PR `#5`:
-  - no `CommLibRuntimeOptions`
-  - no inbound queue-capacity wiring
-  - no broader diagnostics or `IConnectionEventSink` surface work
+- Active branch is `feat/runtime-hardening-stack-on-19`, created from `feat/hosting-lifecycle-wiring-main-base` after draft PR `#19` was published as the clean replacement for stale PR `#8`.
+- The older PR `#5` is not mergeable against current `main` and still spans too many concerns for a single safe replacement.
+- Instead of re-creating all of old `#5` at once, this branch now carries only the first runtime-hardening slice:
+  - `ProtocolOptions` is narrowed to the live `LengthPrefixed` contract
+  - `ProtocolFactory` passes `MaxFrameLength` into `LengthPrefixedProtocol`
+  - `LengthPrefixedProtocol` enforces maximum frame length on encode/decode
+  - `DeviceSession` can fail all pending responses on terminal session failure
+  - `ConnectionManager` treats background receive failure as terminal, fails pending requests, and hides failed sessions
+  - same-device `ConnectAsync()` calls are serialized so transport open does not race
+  - sample config and example consumers were updated to the narrower protocol contract
+- This branch intentionally does **not** yet pull in the later slices from old PR `#5`:
+  - no bounded unsolicited inbound queue yet
+  - no `StartWithReportAsync()` / bootstrap report path yet
+  - no hosting-level inbound queue capacity or queue-pressure event yet
+  - no reconnect doc clarification slice yet
 - Validation succeeded on 2026-04-16:
-  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~CommLibHostedServiceTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~LengthPrefixedProtocolTests|FullyQualifiedName~ProtocolFactoryTests|FullyQualifiedName~ConnectionManagerTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests|FullyQualifiedName~DeviceProfileValidatorTests"`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet restore examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore -nodeReuse:false -maxcpucount:1`
 
 ## Next Work Unit
-1. Commit the hosting-lifecycle code/test slice separately from the continuity-file updates.
-2. Publish this branch as the clean replacement for PR `#8`.
-3. Close or supersede the stale PR `#8`, then move to the next runtime-facing open line on a fresh branch.
+1. Commit the continuity-file updates for this first split slice.
+2. Push this branch and publish it as a stacked draft PR on top of `feat/hosting-lifecycle-wiring-main-base`.
+3. Revisit the remaining old `#5` slices one at a time, starting with bounded unsolicited inbound buffering.
 
 ## Next Slice Design
-1. Keep this branch limited to hosting registration, hosted-service lifecycle hookup, and the tests required to prove that path.
-2. Do not widen into runtime-hardening work from PR `#5`, especially queue-capacity, reconnect, or observability surface changes.
-3. Treat any follow-up around `IConnectionEventSink`, health checks, or richer host options as separate backlog items after this replacement is published.
+1. Keep this branch scoped to the runtime contract hardening already proven by the current tests and example builds.
+2. Do not add bounded queue/backpressure, bootstrap report, or reconnect wording changes into this first replacement slice.
+3. Treat any gate-lifecycle cleanup or DI-surface work discovered during review as follow-up unless it blocks this slice from staying correct.
 
 ## Stop / Reassess Conditions
-- If the clean replacement starts needing `CommLibRuntimeOptions` or other PR `#5` dependencies to stay coherent, stop and split the lines instead of re-coupling them.
-- If validation starts failing outside the hosting/unit surface, verify whether the branch accidentally picked up unrelated changes.
+- If the stacked PR needs to base directly on `main` before `#19` merges, stop and decide whether to restack or wait rather than duplicating the host wiring diff here.
+- If new failures appear outside the runtime-contract surface, verify whether another slice from old `#5` leaked into this branch by accident.

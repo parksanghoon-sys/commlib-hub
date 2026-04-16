@@ -39,6 +39,12 @@ public interface IDeviceSession
     bool TryCompleteResponse(IResponseMessage response);
 
     /// <summary>
+    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
+    /// </summary>
+    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
+    void FailPendingResponses(Exception exception);
+
+    /// <summary>
     /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.
     /// </summary>
     /// <param name="message">꺼낸 outbound 메시지입니다.</param>

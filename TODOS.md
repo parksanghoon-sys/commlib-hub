@@ -1,61 +1,81 @@
 # TODOS
 
 ## Execution Context
-- Active branch: `feat/hosting-lifecycle-wiring-main-base`
-- Tracking line: clean replacement for stale PR `#8` (`[codex] wire Generic Host lifecycle into AddCommLibCore`)
-- Parent baseline: current `commlib-hub/main` after PR `#18` merged the `DeviceSession` timeout cleanup
-- Branch rule: keep this branch limited to configuration-bound host wiring, `CommLibHostedService`, focused unit tests, and continuity updates
+- Active branch: `feat/runtime-hardening-stack-on-19`
+- Tracking line: first split replacement slice for stale PR `#5`
+- Parent baseline: `feat/hosting-lifecycle-wiring-main-base` / draft PR `#19`
+- Branch rule: keep this branch limited to runtime contract hardening around `LengthPrefixed`, session failure handling, focused tests, and continuity updates
 
 ## Current TODOs
-- [ ] Publish the clean replacement for PR `#8` once the hosting-lifecycle slice and continuity updates are committed.
-  Scope: `src/CommLib.Hosting`, `tests/CommLib.Unit.Tests/CommLibHostedServiceTests.cs`, package/project references, and the root continuity files.
-  Validation: attach the successful `restore`, focused hosted-service tests, full `CommLib.Unit.Tests`, and `CommLib.Infrastructure.Tests` runs to the replacement PR.
+- [ ] Publish the first split replacement for stale PR `#5` as a stacked draft PR on top of `feat/hosting-lifecycle-wiring-main-base`.
+  Scope: `ProtocolOptions`, `LengthPrefixedProtocol`, `ProtocolFactory`, `DeviceSession`, `ConnectionManager`, related tests, and only the config/example updates needed to keep those contracts compiling.
+  Validation: attach the focused runtime tests, full unit/infrastructure test runs, and the console/WinUI example builds to the stacked PR.
 
 ## Deferred Backlog
 
 ### Runtime Hardening & Correctness
+### [P1_SOON] Port bounded unsolicited inbound buffering as the next clean slice from old PR `#5`
+- What remains: replace the unbounded unsolicited inbound queue in `ConnectionManager` with a bounded queue and preserve safe disconnect/reconnect cleanup behavior.
+- Why deferred: this branch intentionally stops at runtime contract hardening so the first replacement slice stays reviewable.
+- Objective: prevent unbounded unsolicited inbound growth without mixing bootstrap, hosting, or reconnect concerns into the same PR.
+- Relevant context: old commit `6130ed4` carried this slice on top of the older runtime-hardening branch; it should now be replayed onto the current stacked clean branch instead.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs` plus focused infrastructure tests.
+- Current status: not yet replayed onto the clean replacement line.
+- Known blockers/open questions: whether the first bounded mode should remain backpressure-first (`Wait`) exactly as before or whether review feedback suggests a different first policy.
+- Most natural next step: port the bounded-channel slice after this first runtime-contract PR is published.
+
 ### [P1_SOON] Replace reflection-based `TrySetResponseResult` in `DeviceSession`
 - What remains: remove the runtime `GetMethod(...).Invoke(...)` path from `TrySetResponseResult()` by introducing a typed pending-entry abstraction or another non-reflection completion path.
-- Why deferred: issue `#17` intentionally stayed narrow and fixed only timeout-wait cleanup.
+- Why deferred: the first replacement slice for old PR `#5` already widened `DeviceSession` enough through terminal failure handling.
 - Objective: eliminate reflection from the hot response-completion path without widening this branch.
-- Relevant context: current `main` still stores pending response completions as `object` in `_pendingResponses`, and the non-generic response completion path uses reflection to finish typed `TaskCompletionSource<TResponse>` instances.
+- Relevant context: the current stacked runtime-contract branch still stores pending response completions as `object` in `_pendingResponses`, and the non-generic response completion path uses reflection to finish typed `TaskCompletionSource<TResponse>` instances.
 - Scope: `src/CommLib.Application/Sessions/DeviceSession.cs`, focused unit tests, and any internal helper abstraction that replaces the reflection path.
-- Current status: reflection is still live on the non-generic path; timeout waits are now cleaned up separately on this branch.
+- Current status: reflection is still live on the non-generic path even after pending-response failure handling was added here.
 - Known blockers/open questions: whether the replacement should stay as a private nested helper in `DeviceSession` or become a reusable application-layer abstraction.
 - Most natural next step: design a private typed pending-entry wrapper and verify it with the existing `DeviceSessionTests` surface.
+
+### [P1_SOON] Port bootstrap validation/report flow as a separate clean slice from old PR `#5`
+- What remains: move profile validation to the connection/bootstrap boundary and add `StartWithReportAsync()` with `DeviceBootstrapReport` / `DeviceBootstrapFailure`.
+- Why deferred: this is a second independent behavior change and would make the first replacement slice too large.
+- Objective: keep bootstrap failure handling explicit without coupling it to queueing or host-wiring concerns.
+- Relevant context: old commit `994eeb6` carried this behavior and also moved `DeviceProfileValidator`; it now needs a fresh replay on top of the stacked clean branch.
+- Scope: `src/CommLib.Application/Bootstrap`, `DeviceProfileValidator`, `ConnectionManager`, and focused unit/infrastructure coverage.
+- Current status: not yet replayed onto the clean replacement line.
+- Known blockers/open questions: whether the validator should remain in `CommLib.Application` for one intermediate slice or move directly to `CommLib.Domain.Configuration` during the replay.
+- Most natural next step: port this after the bounded-queue slice unless review feedback suggests bootstrap correctness should land first.
 
 ### Production Integration & Hosting
 ### [P1_SOON] Expose `IConnectionEventSink` through DI without coupling callers to `ConnectionManager` internals
 - What remains: give `AddCommLibCore()` a DI-friendly way to accept an `IConnectionEventSink` implementation.
-- Why deferred: the clean PR `#8` replacement intentionally stays at Generic Host start/stop wiring only.
+- Why deferred: `#19` intentionally stays at Generic Host start/stop wiring only, and this first runtime slice also avoids widening the hosting surface.
 - Objective: let production callers wire logging and metrics without reflection or internal constructor knowledge.
-- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, but the hosting layer still does not surface it even after this hosted-service branch.
+- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, and later old-`#5` slices also depend on that seam for queue-pressure events.
 - Scope: `src/CommLib.Hosting`, `src/CommLib.Infrastructure/Sessions`, and any resulting interface-boundary adjustment.
-- Current status: still deferred outside this clean hosting-lifecycle branch.
+- Current status: still deferred outside the current clean host/runtime split.
 - Known blockers/open questions: whether the sink should stay in infrastructure or move upward so hosting can reference it more cleanly.
 - Most natural next step: revisit this after the replacement PR for `#8` is published and the hosting layer is back on a clean base.
 
 ### API / Contract Truthfulness
 ### [P1_SOON] Decide whether `ReconnectOptions` naming is still too broad for connect-time retry only
 - What remains: choose between doc-only clarification, a staged alias/deprecation path, or a later breaking rename.
-- Why deferred: the current behavior is explicit, but issue `#17` is a narrower correctness fix and should not widen into public contract churn.
+- Why deferred: the reconnect wording belongs to a later old-`#5` slice and is not necessary for the first runtime-contract replacement to stand up.
 - Objective: keep the public configuration surface truthful without unnecessary compatibility churn.
-- Relevant context: the runtime still treats post-connect receive failure as terminal and `ReconnectOptions` still affects connect-time transport-open retry only.
+- Relevant context: the runtime-contract slice now makes terminal receive-failure behavior more explicit, which increases the value of clarifying that `ReconnectOptions` still covers connect-time retry only.
 - Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `DeviceProfile`, docs, and any compatibility shim if a staged alias is chosen.
-- Current status: still pending on a separate branch/PR.
+- Current status: still pending as a later clean slice after the core behavior change lands.
 - Known blockers/open questions: how much external dependency exists on the current property/type names.
 - Most natural next step: inventory references before changing names.
 
 ### Review & Delivery
 ### [P1_SOON] Resolve the longer-lived open review lines on top of current `main`
-- What remains: finish publishing the clean replacement for PR `#8`, then review and merge or replace the still-open PRs `#5`, `#7`, and `#6`.
-- Why deferred: this hosting branch should stay publishable on its own once the replacement PR is open.
+- What remains: publish this first split replacement for old `#5`, then continue replacing the remaining old-`#5` slices before returning to PRs `#7` and `#6`.
+- Why deferred: this branch should stay publishable as one narrow runtime slice before more old-`#5` behavior is layered on.
 - Objective: reduce the amount of long-lived branch state that is still open after the helper/docs line landed.
-- Relevant context: `#14`, `#16`, and `#18` are now merged; the remaining open lines are older runtime/hosting/rawhex branches, and `#8` now needs a clean-base replacement rather than direct merge.
+- Relevant context: `#14`, `#16`, and `#18` are merged; `#19` is now the clean replacement for old `#8`; old `#5`, `#7`, and `#6` still remain open, but `#5` is being decomposed into smaller clean replacements.
 - Scope: GitHub PR management plus any minimal rebasing/replacement work needed per line.
-- Current status: clean replacement work for `#8` is in progress on this branch; `#5`, `#7`, and `#6` still remain open after it.
-- Known blockers/open questions: whether `#5`, `#7`, and `#6` are still reviewable as-is against current `main` or now need the same clean replacement treatment.
-- Most natural next step: publish the replacement for `#8`, then inspect `#5` next because it is the remaining runtime-facing line closest to this context.
+- Current status: `#19` is open as the clean `#8` replacement; the first split replacement for old `#5` is now implemented locally on this branch; `#7` and `#6` remain untouched after that.
+- Known blockers/open questions: whether later old-`#5` slices should keep stacking on `#19` / this branch or wait until `#19` lands on `main`.
+- Most natural next step: publish this stacked slice, then port the bounded inbound queue slice next.
 
 ### Repo Hygiene
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
@@ -80,6 +100,7 @@
 - Most natural next step: close it manually or with a higher-permission token the next time GitHub hygiene is touched.
 
 ## Completed
+- [x] 2026-04-16: implemented the first split replacement slice for stale PR `#5` on top of `#19`, covering `LengthPrefixed` contract narrowing, max-frame enforcement, terminal receive failure handling, and matching focused/full validation.
 - [x] 2026-04-16: rebuilt the stale `#8` hosting line on a fresh `main` base with `AddCommLibCore(IConfiguration)`, `CommLibHostedService`, focused hosted-service tests, and green unit/infrastructure validation.
 - [x] 2026-04-16: merged PR `#18` for `DeviceSession` timeout cleanup and moved to the next runtime-facing line on a fresh branch.
 - [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.

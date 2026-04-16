@@ -90,6 +90,30 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
 
         Assert.True(transportFactory.Transport.IsOpen);
+        Assert.Equal(1, transportFactory.Transport.OpenCount);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_ConcurrentSameDeviceCalls_SerializesTransportOpen()
+    {
+        var firstTransport = new BlockingOpenTransport();
+        var secondTransport = new FakeTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(firstTransport, secondTransport));
+        var profile = CreateTcpProfile();
+
+        var firstConnect = manager.ConnectAsync(profile);
+        await firstTransport.OpenStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        var secondConnect = manager.ConnectAsync(profile);
+        await Task.Delay(100);
+        Assert.Equal(0, secondTransport.OpenCount);
+
+        firstTransport.ReleaseOpen();
+        await firstConnect;
+        await secondConnect;
+
+        Assert.Equal(1, firstTransport.OpenCount);
+        Assert.Equal(1, secondTransport.OpenCount);
     }
 
     /// <summary>
@@ -403,6 +427,80 @@ public sealed class ConnectionManagerTests
         Assert.False(message.IsSuccess);
     }
 
+    [Fact]
+    public async Task ReceiveAsync_WhenBackgroundReceiveFails_ThrowsDeviceConnectionExceptionAndEmitsReceiveFailure()
+    {
+        var failingTransport = new FakeTransport
+        {
+            ReceiveException = new InvalidOperationException("FakeTransport failed to receive.")
+        };
+        var eventSink = new RecordingConnectionEventSink();
+        var manager = CreateManager(
+            transportFactory: new SequencedTransportFactory(failingTransport),
+            eventSink: eventSink);
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+
+        var first = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ReceiveAsync(profile.DeviceId));
+        var second = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.ReceiveAsync(profile.DeviceId));
+
+        Assert.Equal(profile.DeviceId, first.DeviceId);
+        Assert.Equal("receive", first.Operation);
+        Assert.Equal("FakeTransport failed to receive.", first.InnerException?.Message);
+        Assert.Equal(profile.DeviceId, second.DeviceId);
+        Assert.Equal("receive", second.Operation);
+        Assert.Contains(
+            "failure:device-1:receive:Device 'device-1' failed during receive. See inner exception for details.",
+            eventSink.Events);
+    }
+
+    [Fact]
+    public async Task SendAsync_WhenBackgroundReceiveFails_ThrowsStoredReceiveFailureAndHidesSession()
+    {
+        var transport = new BlockingReceiveTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(transport));
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        transport.FailReceive(new InvalidOperationException("FakeTransport failed to receive."));
+        await WaitForAsync(() => manager.GetSession(profile.DeviceId) is null);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(() => manager.SendAsync(profile.DeviceId, new FakeMessage(41)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("receive", exception.Operation);
+        Assert.Equal("FakeTransport failed to receive.", exception.InnerException?.Message);
+        Assert.Null(manager.GetSession(profile.DeviceId));
+    }
+
+    [Fact]
+    public async Task ReceivePump_WhenBackgroundReceiveFails_FailsPendingRequestImmediately()
+    {
+        var transport = new BlockingReceiveTransport();
+        var manager = CreateManager(transportFactory: new SequencedTransportFactory(transport));
+        var profile = CreateTcpProfile();
+
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var request = new FakeRequestMessage(77);
+        var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        await sendResult.SendCompletedTask;
+        session.TryDequeueOutbound(out _);
+        await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        transport.FailReceive(new InvalidOperationException("FakeTransport failed to receive."));
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await sendResult.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("receive", exception.Operation);
+        Assert.Equal("FakeTransport failed to receive.", exception.InnerException?.Message);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
     /// <summary>
     /// ?곌껐?섏? ?딆? ?μ튂 ?앸퀎?먮줈 ?≪떊?섎㈃ ?덉쇅瑜?諛쒖깮?쒗궎?붿? ?뺤씤?⑸땲??
     /// </summary>
@@ -454,6 +552,29 @@ public sealed class ConnectionManagerTests
         Assert.NotNull(secondSession);
         Assert.NotSame(firstSession, secondSession);
         Assert.True(firstTransport.IsClosed);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_SameDeviceConnectedTwice_FailsPendingRequestsFromReplacedSession()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile("device-1", 502);
+
+        await manager.ConnectAsync(profile);
+        var firstSession = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var pending = firstSession.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(55));
+        await pending.SendCompletedTask;
+        firstSession.TryDequeueOutbound(out _);
+
+        await manager.ConnectAsync(profile);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await pending.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
+        Assert.Equal(0, firstSession.PendingRequestCount);
     }
 
     /// <summary>
@@ -665,6 +786,27 @@ public sealed class ConnectionManagerTests
 
         Assert.Null(manager.GetSession(profile.DeviceId));
         Assert.True(transportFactory.Transport.IsClosed);
+    }
+
+    [Fact]
+    public async Task DisconnectAsync_WithPendingRequest_FailsPendingRequestImmediately()
+    {
+        var manager = CreateManager();
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var pending = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(66));
+        await pending.SendCompletedTask;
+        session.TryDequeueOutbound(out _);
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        var exception = await Assert.ThrowsAsync<DeviceConnectionException>(async () => await pending.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Equal(profile.DeviceId, exception.DeviceId);
+        Assert.Equal("disconnect", exception.Operation);
+        Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
+        Assert.Equal(0, session.PendingRequestCount);
     }
 
     /// <summary>
@@ -1036,7 +1178,7 @@ public sealed class ConnectionManagerTests
         }
     }
 
-    private sealed class FakeTransport : ITransport
+    private class FakeTransport : ITransport
     {
         private readonly Channel<byte[]> _inbound = Channel.CreateUnbounded<byte[]>();
         private readonly CancellationTokenSource _closeTokenSource = new();
@@ -1046,6 +1188,8 @@ public sealed class ConnectionManagerTests
         public byte[]? LastFrame { get; private set; }
 
         public bool IsOpen { get; private set; }
+
+        public int OpenCount { get; private set; }
 
         public int SendCount { get; private set; }
 
@@ -1057,7 +1201,9 @@ public sealed class ConnectionManagerTests
 
         public bool FailOnClose { get; init; }
 
-        public Task OpenAsync(CancellationToken cancellationToken = default)
+        public Exception? ReceiveException { get; init; }
+
+        public virtual Task OpenAsync(CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (IsClosed)
@@ -1070,6 +1216,7 @@ public sealed class ConnectionManagerTests
                 throw new InvalidOperationException("FakeTransport failed to open.");
             }
 
+            OpenCount++;
             IsOpen = true;
             return Task.CompletedTask;
         }
@@ -1089,9 +1236,15 @@ public sealed class ConnectionManagerTests
             _inbound.Writer.TryWrite(frame);
         }
 
-        public async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        public virtual async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
         {
             ThrowIfUnavailable();
+
+            if (ReceiveException is not null)
+            {
+                throw ReceiveException;
+            }
+
             using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closeTokenSource.Token);
             var frame = await _inbound.Reader.ReadAsync(linkedTokenSource.Token).ConfigureAwait(false);
             ReceiveCount++;
@@ -1129,6 +1282,56 @@ public sealed class ConnectionManagerTests
             {
                 throw new InvalidOperationException("FakeTransport is not open.");
             }
+        }
+    }
+
+    private sealed class BlockingOpenTransport : FakeTransport
+    {
+        public TaskCompletionSource OpenStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource OpenReleased { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async Task OpenAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            OpenStarted.TrySetResult();
+            await OpenReleased.Task.WaitAsync(cancellationToken);
+            await base.OpenAsync(cancellationToken);
+        }
+
+        public void ReleaseOpen()
+        {
+            OpenReleased.TrySetResult();
+        }
+    }
+
+    private sealed class BlockingReceiveTransport : FakeTransport
+    {
+        public TaskCompletionSource ReceiveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private readonly TaskCompletionSource<Exception> _receiveFailure = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override async Task<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsClosed)
+            {
+                throw new InvalidOperationException("FakeTransport is closed.");
+            }
+
+            if (!IsOpen)
+            {
+                throw new InvalidOperationException("FakeTransport is not open.");
+            }
+
+            ReceiveStarted.TrySetResult();
+            var exception = await _receiveFailure.Task.WaitAsync(cancellationToken);
+            throw exception;
+        }
+
+        public void FailReceive(Exception exception)
+        {
+            _receiveFailure.TrySetResult(exception);
         }
     }
 
@@ -1270,6 +1473,16 @@ public sealed class ConnectionManagerTests
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
             Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
+        }
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 1000)
+    {
+        using var cts = new CancellationTokenSource(timeoutMs);
+        while (!condition())
+        {
+            cts.Token.ThrowIfCancellationRequested();
+            await Task.Delay(10, cts.Token);
         }
     }
 }
