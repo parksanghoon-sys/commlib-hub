@@ -1,3 +1,4 @@
+using System.Reflection;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Messaging;
 using Xunit;
@@ -112,6 +113,28 @@ public sealed class DeviceSessionTests
     }
 
     /// <summary>
+    /// 응답이 먼저 완료되면 대기 중인 timeout 등록도 즉시 취소되고 정리되는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryCompleteResponse_CompletesResponse_CancelsPendingTimeoutRegistration()
+    {
+        var session = new DeviceSession("device-1");
+        var request = new FakeRequestMessage(12);
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request, TimeSpan.FromSeconds(5));
+        var response = new FakeResponseMessage(13) { CorrelationId = request.CorrelationId };
+
+        Assert.Equal(1, GetPendingTimeoutRegistrationCount(session));
+
+        var completed = session.TryCompleteResponse(response);
+        var completedResponse = await result.ResponseTask;
+
+        Assert.True(completed);
+        Assert.Same(response, completedResponse);
+        Assert.Equal(0, session.PendingRequestCount);
+        Assert.Equal(0, GetPendingTimeoutRegistrationCount(session));
+    }
+
+    /// <summary>
     /// 알 수 없는 상관관계 응답은 완료 처리하지 않고 무시하는지 확인합니다.
     /// </summary>
     [Fact]
@@ -140,6 +163,7 @@ public sealed class DeviceSessionTests
 
         Assert.Contains("Timed out waiting for response", exception.Message);
         Assert.Equal(0, session.PendingRequestCount);
+        Assert.Equal(0, GetPendingTimeoutRegistrationCount(session));
     }
 
     /// <summary>
@@ -273,5 +297,14 @@ public sealed class DeviceSessionTests
     {
         Assert.True(session.TryDequeueOutbound(out var message));
         return Assert.IsAssignableFrom<IMessage>(message);
+    }
+
+    private static int GetPendingTimeoutRegistrationCount(DeviceSession session)
+    {
+        var field = typeof(DeviceSession).GetField("_pendingResponseTimeouts", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+
+        var registrations = Assert.IsType<Dictionary<Guid, CancellationTokenSource>>(field.GetValue(session));
+        return registrations.Count;
     }
 }
