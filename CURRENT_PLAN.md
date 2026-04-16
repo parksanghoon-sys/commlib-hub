@@ -3,43 +3,38 @@
 Date: 2026-04-16
 
 ## Goal
-Deliver issue `#17` as a narrow `DeviceSession` correctness fix on top of the current `main`, keeping the branch limited to timeout-wait cleanup plus focused unit coverage.
+Deliver a clean replacement for stale PR `#8` on top of the current `main`, limited to configuration-bound `AddCommLibCore(...)` registration plus Generic Host lifecycle wiring.
 
 ## Confirmed Facts
-- Active branch is `fix/issue-17-device-session-timeout-cleanup`, created from `commlib-hub/main` after the helper/docs line landed through PR `#14` and PR `#16`.
-- GitHub issue `#17` now tracks this work: `Fix stale DeviceSession timeout waits after session disposal`.
-- The helper follow-up line is complete on `main`:
-  - PR `#14` merged the reusable WinUI transport validation helper
-  - PR `#16` merged the helper-backed multicast self-loopback README clarification
-  - superseded PRs `#10`, `#13`, and `#15` are closed
-  - issues `#9` and `#12` are closed; issue `#11` still remains open only because the current PAT could not close or comment on issues
-- The still-open longer-lived review lines are unchanged:
-  - PR `#5`: runtime hardening
-  - PR `#8`: Generic Host lifecycle wiring
-  - PR `#7`: rawhex + schema-backed bitfield base
-  - PR `#6`: stacked WinUI RawHex schema-log follow-up
-- `DeviceSession` on current `main` still launches timeout waits with plain `Task.Delay(timeout)` and no cancellation path.
-- That means a successful response completion leaves the timeout task alive until the full timeout elapses, even though the pending request has already been removed.
-- This branch now implements the smallest safe fix inside `DeviceSession` only:
-  - timed requests register a private `CancellationTokenSource`
-  - response completion cancels and disposes that timeout registration immediately
-  - timeout firing disposes its registration after removing the pending entry
-  - the existing pending-response storage contract stays intact; no wider pending-entry refactor was introduced here
-- Focused validation succeeded on 2026-04-16:
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests"`
+- Active branch is `feat/hosting-lifecycle-wiring-main-base`, created from the current `commlib-hub/main` after PR `#18` merged the `DeviceSession` timeout cleanup.
+- The older PR `#8` is no longer a safe merge candidate:
+  - GitHub reports it as not mergeable against current `main`
+  - its diff has widened far past hosting lifecycle wiring and now includes many unrelated files
+- The clean replacement on this branch intentionally keeps only the hosting-lifecycle slice:
+  - `AddCommLibCore(this IServiceCollection, IConfiguration)` binds `CommLibOptions`
+  - `CommLibHostedService` starts enabled configured device profiles through `DeviceBootstrapper`
+  - `CommLibHostedService` disposes the connection manager on host stop
+  - focused unit coverage exercises the hosted service and configuration registration path
+- This branch does **not** pull in the not-yet-merged runtime-surface pieces from PR `#5`:
+  - no `CommLibRuntimeOptions`
+  - no inbound queue-capacity wiring
+  - no broader diagnostics or `IConnectionEventSink` surface work
+- Validation succeeded on 2026-04-16:
+  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~CommLibHostedServiceTests"`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ConnectionManagerTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
 
 ## Next Work Unit
-1. Keep this branch scoped to the `DeviceSession` timeout cleanup, its focused tests, and continuity updates only.
-2. Publish issue `#17` as a narrow review branch/PR once the local state files are aligned.
-3. After issue `#17` is out for review, return to the next unblocked runtime backlog item on a fresh `main`-based branch rather than reusing this fix branch.
+1. Commit the hosting-lifecycle code/test slice separately from the continuity-file updates.
+2. Publish this branch as the clean replacement for PR `#8`.
+3. Close or supersede the stale PR `#8`, then move to the next runtime-facing open line on a fresh branch.
 
 ## Next Slice Design
-1. Avoid widening this branch into the broader `DeviceSession` reflection cleanup; that remains a separate follow-up.
-2. Do not mix runtime-surface or hosting changes from PR `#5` / PR `#8` into this branch.
-3. Keep the proof focused on timeout-registration cleanup rather than trying to design a broader session shutdown contract in the same slice.
+1. Keep this branch limited to hosting registration, hosted-service lifecycle hookup, and the tests required to prove that path.
+2. Do not widen into runtime-hardening work from PR `#5`, especially queue-capacity, reconnect, or observability surface changes.
+3. Treat any follow-up around `IConnectionEventSink`, health checks, or richer host options as separate backlog items after this replacement is published.
 
 ## Stop / Reassess Conditions
-- If the timeout cleanup starts to require a broader pending-entry abstraction, stop and split that refactor into its own follow-up instead of expanding issue `#17`.
-- If local validation starts failing outside `DeviceSession` / `ConnectionManagerTests`, verify whether the branch accidentally widened past the intended timeout-only scope.
+- If the clean replacement starts needing `CommLibRuntimeOptions` or other PR `#5` dependencies to stay coherent, stop and split the lines instead of re-coupling them.
+- If validation starts failing outside the hosting/unit surface, verify whether the branch accidentally picked up unrelated changes.

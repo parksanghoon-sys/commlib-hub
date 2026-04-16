@@ -1,15 +1,15 @@
 # TODOS
 
 ## Execution Context
-- Active branch: `fix/issue-17-device-session-timeout-cleanup`
-- Tracking issue: GitHub issue `#17` (`Fix stale DeviceSession timeout waits after session disposal`)
-- Parent baseline: current `commlib-hub/main` after helper/docs merges `#14` and `#16`
-- Branch rule: keep this branch limited to `DeviceSession` timeout-wait cleanup, focused tests, and continuity updates
+- Active branch: `feat/hosting-lifecycle-wiring-main-base`
+- Tracking line: clean replacement for stale PR `#8` (`[codex] wire Generic Host lifecycle into AddCommLibCore`)
+- Parent baseline: current `commlib-hub/main` after PR `#18` merged the `DeviceSession` timeout cleanup
+- Branch rule: keep this branch limited to configuration-bound host wiring, `CommLibHostedService`, focused unit tests, and continuity updates
 
 ## Current TODOs
-- [ ] Publish issue `#17` as a narrow review branch once the local timeout-cleanup fix and continuity updates are committed.
-  Scope: `src/CommLib.Application/Sessions/DeviceSession.cs`, `tests/CommLib.Unit.Tests/DeviceSessionTests.cs`, and the root continuity files.
-  Validation: keep the existing local proof (`DeviceSessionTests`, `CommLib.Unit.Tests`, focused `ConnectionManagerTests`) attached to the PR body.
+- [ ] Publish the clean replacement for PR `#8` once the hosting-lifecycle slice and continuity updates are committed.
+  Scope: `src/CommLib.Hosting`, `tests/CommLib.Unit.Tests/CommLibHostedServiceTests.cs`, package/project references, and the root continuity files.
+  Validation: attach the successful `restore`, focused hosted-service tests, full `CommLib.Unit.Tests`, and `CommLib.Infrastructure.Tests` runs to the replacement PR.
 
 ## Deferred Backlog
 
@@ -27,13 +27,13 @@
 ### Production Integration & Hosting
 ### [P1_SOON] Expose `IConnectionEventSink` through DI without coupling callers to `ConnectionManager` internals
 - What remains: give `AddCommLibCore()` a DI-friendly way to accept an `IConnectionEventSink` implementation.
-- Why deferred: this is a runtime-surface change and should not be mixed into issue `#17`.
+- Why deferred: the clean PR `#8` replacement intentionally stays at Generic Host start/stop wiring only.
 - Objective: let production callers wire logging and metrics without reflection or internal constructor knowledge.
-- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, but the hosting layer still does not surface it.
+- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, but the hosting layer still does not surface it even after this hosted-service branch.
 - Scope: `src/CommLib.Hosting`, `src/CommLib.Infrastructure/Sessions`, and any resulting interface-boundary adjustment.
-- Current status: still deferred outside this timeout-only branch.
+- Current status: still deferred outside this clean hosting-lifecycle branch.
 - Known blockers/open questions: whether the sink should stay in infrastructure or move upward so hosting can reference it more cleanly.
-- Most natural next step: revisit this after the current timeout fix is out for review.
+- Most natural next step: revisit this after the replacement PR for `#8` is published and the hosting layer is back on a clean base.
 
 ### API / Contract Truthfulness
 ### [P1_SOON] Decide whether `ReconnectOptions` naming is still too broad for connect-time retry only
@@ -48,14 +48,14 @@
 
 ### Review & Delivery
 ### [P1_SOON] Resolve the longer-lived open review lines on top of current `main`
-- What remains: review and merge or replace the still-open PRs `#5`, `#8`, `#7`, and `#6`.
-- Why deferred: issue `#17` is a small correctness fix that should stay publishable on its own.
+- What remains: finish publishing the clean replacement for PR `#8`, then review and merge or replace the still-open PRs `#5`, `#7`, and `#6`.
+- Why deferred: this hosting branch should stay publishable on its own once the replacement PR is open.
 - Objective: reduce the amount of long-lived branch state that is still open after the helper/docs line landed.
-- Relevant context: `#14` and `#16` are now merged; the remaining open lines are older runtime/hosting/rawhex branches.
+- Relevant context: `#14`, `#16`, and `#18` are now merged; the remaining open lines are older runtime/hosting/rawhex branches, and `#8` now needs a clean-base replacement rather than direct merge.
 - Scope: GitHub PR management plus any minimal rebasing/replacement work needed per line.
-- Current status: all four PRs remain open at the time this branch was created.
-- Known blockers/open questions: whether each line is still reviewable as-is against current `main` or now needs a clean replacement branch.
-- Most natural next step: once issue `#17` is out, re-evaluate PR `#8` and PR `#5` first because they are the next runtime-facing lines.
+- Current status: clean replacement work for `#8` is in progress on this branch; `#5`, `#7`, and `#6` still remain open after it.
+- Known blockers/open questions: whether `#5`, `#7`, and `#6` are still reviewable as-is against current `main` or now need the same clean replacement treatment.
+- Most natural next step: publish the replacement for `#8`, then inspect `#5` next because it is the remaining runtime-facing line closest to this context.
 
 ### Repo Hygiene
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
@@ -80,6 +80,8 @@
 - Most natural next step: close it manually or with a higher-permission token the next time GitHub hygiene is touched.
 
 ## Completed
+- [x] 2026-04-16: rebuilt the stale `#8` hosting line on a fresh `main` base with `AddCommLibCore(IConfiguration)`, `CommLibHostedService`, focused hosted-service tests, and green unit/infrastructure validation.
+- [x] 2026-04-16: merged PR `#18` for `DeviceSession` timeout cleanup and moved to the next runtime-facing line on a fresh branch.
 - [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.
 - [x] 2026-04-03: centralized shared MSBuild defaults into `Directory.Build.props` and moved package versions into `Directory.Packages.props`, removing inline package-version declarations from the project files.
 - [x] 2026-04-03: re-validated the repo after central package management with `dotnet build commlib-codex-full.sln` and `dotnet test commlib-codex-full.sln --no-build`.

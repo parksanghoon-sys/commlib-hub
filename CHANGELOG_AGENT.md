@@ -126,3 +126,15 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests"`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ConnectionManagerTests"`
+- Started `feat/hosting-lifecycle-wiring-main-base` from the current `commlib-hub/main` after PR `#18` so the Generic Host lifecycle line could be rebuilt without the stale branch drift in PR `#8`.
+- Rebuilt the hosting-lifecycle slice on that clean base:
+  - added `AddCommLibCore(this IServiceCollection, IConfiguration)` to bind `CommLibOptions`
+  - added `CommLibHostedService` to start enabled configured devices through `DeviceBootstrapper`
+  - disposed `IConnectionManager` on host stop
+  - added `InternalsVisibleTo("CommLib.Unit.Tests")` plus focused `CommLibHostedServiceTests`
+  - added only the package/project references needed for the hosting test path
+- Verified the clean hosting replacement with:
+  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~CommLibHostedServiceTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
