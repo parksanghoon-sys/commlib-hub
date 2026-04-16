@@ -9,7 +9,7 @@
 ## Current TODOs
 - [ ] Use the new helper during one live WinUI UDP / multicast validation pass, then judge whether multicast UX wording still needs tightening.
   Scope: `examples/CommLib.Examples.WinUI`, `scripts/Start-WinUiTransportValidation.ps1`, and any resulting README or UI-copy follow-up.
-  Objective: turn the remaining manual transport validation backlog into a repeatable real-app pass now that the helper exists.
+  Objective: turn the remaining manual transport validation backlog into a repeatable real-app pass now that the helper exists. This helper is currently for the `AutoBinary` path; `RawHex` still needs a different peer.
   Validation: run one focused live WinUI session with the helper-backed TCP/UDP/multicast path and capture any remaining operator confusion separately.
 
 ## Deferred Backlog

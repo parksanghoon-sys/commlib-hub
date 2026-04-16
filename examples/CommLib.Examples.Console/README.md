@@ -27,6 +27,7 @@ dotnet run --project examples/CommLib.Examples.Console -- serial-demo --port COM
 ## Notes
 
 - All demos use `LengthPrefixedProtocol` plus `NoOpSerializer` via the library factories.
+- `tcp-echo-server` and `udp-echo-server` therefore match the WinUI example's `AutoBinary` path, not `RawHex`.
 - The sample prints connection attempts through `IConnectionEventSink`, so connect-time retry behavior is visible during runs.
 - `Reconnect` in the sample profile means transport-open retry during `ConnectAsync()` only. A later live-session receive failure still remains terminal until a higher layer reconnects.
 - `tcp-echo-server` and `udp-echo-server` stop on `Ctrl+C` or an optional `--timeout-ms` so they are easy to reuse during WinUI manual validation.

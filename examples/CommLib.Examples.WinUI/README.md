@@ -35,7 +35,7 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
 - The `Device Lab` and `Settings` pages now show only the currently selected transport panel instead of every transport preset at once.
-- For repeatable local manual verification without external hardware, use [scripts/Start-WinUiTransportValidation.ps1](../../scripts/Start-WinUiTransportValidation.ps1) to launch the repo-owned TCP/UDP echo peers or multicast send/receive flow instead of rediscovering console commands each session.
+- For repeatable local manual verification without external hardware, use [scripts/Start-WinUiTransportValidation.ps1](../../scripts/Start-WinUiTransportValidation.ps1) to launch the repo-owned TCP/UDP echo peers or multicast send/receive flow instead of rediscovering console commands each session. This helper currently matches the console sample's `AutoBinary` / `NoOpSerializer` contract, not the WinUI `RawHex` path.
 - The in-app mock peer path covers TCP, UDP, and Multicast on loopback; Serial still stays external because it needs a paired COM environment.
 - The sample now defaults to `win-x64` again because the current branch state no longer reproduces the earlier local `Microsoft.UI.Xaml.dll` startup fault; `-r win-x86` remains available if you need to compare runtimes.
 - The default `appsettings.json` is copied to the output folder on build and then reused as the runtime settings file.
@@ -45,16 +45,18 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 Use the helper from a separate terminal when you want the WinUI app to talk to an external local peer instead of the in-app mock endpoint:
 
 ```powershell
-pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -Port 7001
-pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -Port 7002
-pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastReceive -Group 239.0.0.241 -Port 7004 -TimeoutMs 30000
-pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -Group 239.0.0.241 -Port 7004 -Message "hello from helper"
+powershell -ExecutionPolicy Bypass -File ./scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -Port 7001
+powershell -ExecutionPolicy Bypass -File ./scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -Port 7002
+powershell -ExecutionPolicy Bypass -File ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastReceive -Group 239.0.0.241 -Port 7004 -TimeoutMs 30000
+powershell -ExecutionPolicy Bypass -File ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -Group 239.0.0.241 -Port 7004 -Message "hello from helper"
 ```
 
+- The helper is intended for `AutoBinary` validation only right now because it reuses the console sample's `LengthPrefixed + NoOpSerializer` path.
+- If the WinUI app is set to `RawHex`, use the in-app mock endpoint or another `RawHex`-speaking peer instead of this helper.
 - `TcpEcho` and `UdpEcho` keep the external peer alive until `Ctrl+C` or an optional `-TimeoutMs` elapses.
 - `MulticastReceive` waits for one inbound frame and exits; run it before triggering a WinUI send or a helper `MulticastSend`.
 - `MulticastReceive` returns a non-zero exit code when the timeout elapses without traffic, so a no-message validation run is visible immediately.
-- Add `-NoBuild` if the console example is already built and you want faster repeated runs.
+- Add `-NoBuild` if the console example is already built and you want faster repeated runs. `pwsh` works too if PowerShell 7 is installed; the examples above use Windows PowerShell syntax because it is present on more developer machines by default.
 
 ## RawHex Schema Example
 

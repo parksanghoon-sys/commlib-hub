@@ -250,3 +250,9 @@
   - pushed `feat/issue-9-winui-transport-helper` to `commlib-hub`
   - GitHub app PR creation hit the same integration `403`, so the flow fell back to `gh pr create`
   - opened draft PR `#10`: `https://github.com/parksanghoon-sys/commlib-hub/pull/10`
+- Tightened the helper docs after design review without widening scope:
+  - clarified that the helper currently matches the console sample's `AutoBinary` / `NoOpSerializer` contract rather than the WinUI `RawHex` path
+  - switched the WinUI README examples to `powershell -ExecutionPolicy Bypass -File ...` while still noting that `pwsh` works when available
+- Tightened the helper docs after design review without widening the implementation:
+  - clarified in the WinUI and console READMEs that the helper currently matches the console sample's `AutoBinary` / `NoOpSerializer` contract rather than `RawHex`
+  - switched the WinUI helper examples to `powershell -ExecutionPolicy Bypass -File ...` while noting that `pwsh` also works when PowerShell 7 is installed

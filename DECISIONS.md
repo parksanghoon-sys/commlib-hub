@@ -149,3 +149,9 @@
 - Decision: add external-peer-oriented `tcp-echo-server` / `udp-echo-server` commands to `CommLib.Examples.Console`, then wrap those commands plus the existing multicast send/receive commands with `scripts/Start-WinUiTransportValidation.ps1`.
 - Why: this keeps one code path for frame encoding/decoding, avoids re-implementing protocol behavior in PowerShell, and still gives WinUI validation a one-command entry point.
 - Consequences: future live UDP / multicast WinUI passes can reuse the helper immediately, while any richer orchestration needs can be evaluated later as console-example evolution rather than script-side protocol duplication.
+
+## 2026-04-16 - Keep the helper branch narrow and document its serializer scope honestly instead of expanding it to RawHex immediately
+- Context: the first helper branch reused the console sample's peer path, which is built on `LengthPrefixed + NoOpSerializer`. A design review pointed out that the README could otherwise make the helper look like a general external-peer path for any WinUI serializer mode.
+- Decision: do not widen PR `#10` into serializer-aware peer expansion. Instead, document clearly that the helper is currently for `AutoBinary` validation, and direct `RawHex` validation to the in-app mock endpoint or another RawHex-speaking peer.
+- Why: this preserves the branch's narrow scope and keeps the helper truthful without dragging a second serializer dimension into a docs/helper-only slice.
+- Consequences: the next live WinUI validation pass can still use the helper safely for `AutoBinary`, while any future need for a `RawHex` external peer becomes its own explicit follow-up rather than an accidental extension of this PR.

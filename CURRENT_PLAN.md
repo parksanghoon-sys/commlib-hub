@@ -15,6 +15,7 @@ Close GitHub issue `#9` by adding a reusable local WinUI transport validation he
   - external-peer-only `tcp-echo-server` and `udp-echo-server` console commands
   - `scripts/Start-WinUiTransportValidation.ps1` as the repo-owned entry point for TCP/UDP echo and multicast send/receive flows
   - README guidance in both the WinUI and console examples
+- The helper docs are now explicit that this branch's helper path is currently `AutoBinary` / `NoOpSerializer` only; `RawHex` validation still needs the in-app mock or another RawHex-speaking peer.
 - Focused validation succeeded sequentially:
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
   - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -NoBuild -TimeoutMs 200`
