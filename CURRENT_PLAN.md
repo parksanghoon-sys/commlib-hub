@@ -3,39 +3,41 @@
 Date: 2026-04-16
 
 ## Goal
-Deliver issue `#21` as a clean `main`-based runtime slice that bounds unsolicited inbound buffering without mixing bootstrap-report, reconnect-contract, or hosting-surface changes into the same branch.
+Deliver issue `#23` as a clean bootstrap-validation/reporting slice on top of the bounded-inbound branch, without mixing queue-pressure signaling, reconnect-contract naming, or DI-surface expansion into the same review line.
 
 ## Confirmed Facts
-- Active branch is `feat/issue-21-bounded-inbound-buffering`, created from the current `commlib-hub/main` after the user cleaned up the earlier PR / issue lines.
-- GitHub tracking for this slice is issue `#21`: `Port bounded unsolicited inbound buffering as a clean runtime slice`.
-- Current `main` already includes the previously split runtime and hosting lines, so this branch does not need to restack on top of another open feature branch.
-- This branch now carries only the bounded unsolicited inbound buffering slice:
-  - `ConnectionManager` owns a default inbound queue capacity of `256`
-  - the internal constructor accepts an explicit `inboundQueueCapacity`
-  - unsolicited inbound messages now use a bounded channel created with `BoundedChannelFullMode.Wait`
-  - disconnect / reconnect cleanup keeps working even when the receive pump is blocked on a full queue
+- Active branch is `feat/issue-23-bootstrap-reporting`, created from `feat/issue-21-bounded-inbound-buffering` so this slice can stack directly on draft PR `#22`.
+- GitHub tracking for this slice is issue `#23`: `Port bootstrap validation/report flow as a clean runtime slice`.
+- This branch now carries only the bootstrap validation/reporting slice:
+  - `ConnectionManager.ConnectAsync()` validates `DeviceProfile` before runtime factories or transport-open side effects run
+  - `DeviceBootstrapper.StartAsync()` keeps fail-fast behavior for invalid enabled profiles
+  - `DeviceBootstrapper.StartWithReportAsync()` continues across validation/connect failures and returns `DeviceBootstrapReport`
+  - `DeviceBootstrapFailure` / `DeviceBootstrapReport` capture bootstrap failures without aborting the whole pass
+  - console and WinUI example callers no longer need to invoke `DeviceProfileValidator` manually before `ConnectAsync()`
 - This branch intentionally does **not** yet add:
-  - bootstrap validation / `StartWithReportAsync()`
-  - public queue-pressure signals or hosting-level queue-capacity configuration
+  - queue-pressure signaling or hosting-level queue-capacity options
   - `ReconnectOptions` wording changes
   - `DeviceSession` reflection removal
+  - `IConnectionEventSink` DI-surface changes
+  - `DeviceProfileValidator` namespace relocation to `CommLib.Domain`
 - Validation succeeded on 2026-04-16:
-  - `dotnet restore tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj`
-  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains|FullyQualifiedName~DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect"`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet restore examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore -nodeReuse:false -maxcpucount:1`
 
 ## Next Work Unit
-1. Commit the bounded inbound buffering slice and the continuity-file updates as separate commits.
-2. Push `feat/issue-21-bounded-inbound-buffering` to `commlib-hub`.
-3. Open a draft PR against `main` that stays limited to the bounded queue / focused tests only.
+1. Commit the bootstrap validation/reporting slice and the continuity-file updates as separate commits.
+2. Push `feat/issue-23-bootstrap-reporting` to `commlib-hub`.
+3. Open a stacked draft PR against `feat/issue-21-bounded-inbound-buffering`.
 
 ## Next Slice Design
-1. Keep this branch reviewable as one correctness / runtime-pressure slice.
-2. Treat bootstrap reporting as the next likely runtime slice after this PR is published.
-3. Keep queue-pressure signaling, DI surface expansion, and reconnect naming as separate follow-up lines unless review feedback makes them blocking.
+1. Keep this branch reviewable as one bootstrap-correctness/reporting slice.
+2. Treat queue-pressure signaling as the next likely runtime/hosting follow-up after this PR is published.
+3. Revisit `DeviceProfileValidator` relocation only if review feedback shows the current namespace placement is actively hurting clarity or coupling.
 
 ## Stop / Reassess Conditions
-- If review feedback rejects `BoundedChannelFullMode.Wait` as the first policy, stop and decide whether to switch policy here or defer alternative queue-pressure semantics into a separate slice.
-- If any additional runtime changes are needed outside `ConnectionManager` and its focused tests, reassess whether they belong in this branch or in the next runtime slice.
+- If review feedback insists that bootstrap validation must move to `CommLib.Domain` in the same line, decide explicitly whether to widen this branch or defer the move into a separate configuration-ownership slice.
+- If additional behavior is needed outside bootstrap/reporting and direct `ConnectAsync()` validation, reassess whether it belongs here or in the next runtime slice.
