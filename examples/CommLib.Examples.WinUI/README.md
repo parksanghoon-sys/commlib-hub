@@ -55,6 +55,8 @@ powershell -ExecutionPolicy Bypass -File ./scripts/Start-WinUiTransportValidatio
 - If the WinUI app is set to `RawHex`, use the in-app mock endpoint or another `RawHex`-speaking peer instead of this helper.
 - `TcpEcho` and `UdpEcho` keep the external peer alive until `Ctrl+C` or an optional `-TimeoutMs` elapses.
 - `MulticastReceive` waits for one inbound frame and exits; run it before triggering a WinUI send or a helper `MulticastSend`.
+- In one-machine multicast validation with loopback enabled, the WinUI live log can also show the app's own outbound multicast payload as an `Inbound message`. That self-loopback line is expected and does not mean the helper path failed.
+- Use different message bodies for helper `MulticastSend` and the WinUI `Send` action if you want to distinguish helper traffic from the app's own looped-back multicast payload quickly.
 - `MulticastReceive` returns a non-zero exit code when the timeout elapses without traffic, so a no-message validation run is visible immediately.
 - Add `-NoBuild` if the console example is already built and you want faster repeated runs. `pwsh` works too if PowerShell 7 is installed; the examples above use Windows PowerShell syntax because it is present on more developer machines by default.
 
