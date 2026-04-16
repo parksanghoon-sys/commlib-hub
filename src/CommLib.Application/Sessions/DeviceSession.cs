@@ -13,6 +13,7 @@ public sealed class DeviceSession : IDeviceSession
     private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
     private readonly PendingRequestStore _pendingRequestStore = new();
     private readonly Dictionary<Guid, object> _pendingResponses = new();
+    private readonly Dictionary<Guid, CancellationTokenSource> _pendingResponseTimeouts = new();
     private readonly object _syncRoot = new();
     private readonly int _maxPendingRequests;
     private readonly TimeSpan? _defaultResponseTimeout;
@@ -112,6 +113,7 @@ public sealed class DeviceSession : IDeviceSession
         where TResponse : IResponseMessage
     {
         TaskCompletionSource<TResponse>? responseTcs;
+        CancellationTokenSource? timeoutRegistration;
 
         lock (_syncRoot)
         {
@@ -124,8 +126,10 @@ public sealed class DeviceSession : IDeviceSession
             _pendingResponses.Remove(response.CorrelationId);
             _pendingRequestStore.Complete(response.CorrelationId);
             responseTcs = typedPending;
+            timeoutRegistration = DetachPendingTimeoutRegistration(response.CorrelationId);
         }
 
+        CancelAndDisposeTimeoutRegistration(timeoutRegistration);
         responseTcs.TrySetResult(response);
         return true;
     }
@@ -137,22 +141,27 @@ public sealed class DeviceSession : IDeviceSession
     /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
     public bool TryCompleteResponse(IResponseMessage response)
     {
+        object? pending;
+        CancellationTokenSource? timeoutRegistration;
+
         lock (_syncRoot)
         {
-            if (!_pendingResponses.TryGetValue(response.CorrelationId, out var pending))
+            if (!_pendingResponses.TryGetValue(response.CorrelationId, out pending))
             {
                 return false;
             }
 
             _pendingResponses.Remove(response.CorrelationId);
             _pendingRequestStore.Complete(response.CorrelationId);
-
-            return pending switch
-            {
-                TaskCompletionSource<IResponseMessage> typed => typed.TrySetResult(response),
-                _ => TrySetResponseResult(pending, response)
-            };
+            timeoutRegistration = DetachPendingTimeoutRegistration(response.CorrelationId);
         }
+
+        CancelAndDisposeTimeoutRegistration(timeoutRegistration);
+        return pending switch
+        {
+            TaskCompletionSource<IResponseMessage> typed => typed.TrySetResult(response),
+            _ => TrySetResponseResult(pending, response)
+        };
     }
 
     private Task SendRequest<TRequest, TResponse>(
@@ -162,10 +171,19 @@ public sealed class DeviceSession : IDeviceSession
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
+        var responseTimeout = timeout ?? _defaultResponseTimeout;
+        CancellationTokenSource? timeoutRegistration = null;
+
+        if (responseTimeout is { } effectiveTimeout && effectiveTimeout > TimeSpan.Zero)
+        {
+            timeoutRegistration = new CancellationTokenSource();
+        }
+
         lock (_syncRoot)
         {
             if (_pendingResponses.Count >= _maxPendingRequests)
             {
+                timeoutRegistration?.Dispose();
                 var exception = new InvalidOperationException("Pending request limit has been reached.");
                 responseTcs.TrySetException(exception);
                 return Task.FromException(exception);
@@ -173,6 +191,7 @@ public sealed class DeviceSession : IDeviceSession
 
             if (!_outbound.Writer.TryWrite(request))
             {
+                timeoutRegistration?.Dispose();
                 var exception = new InvalidOperationException("Outbound queue is full.");
                 responseTcs.TrySetException(exception);
                 return Task.FromException(exception);
@@ -180,12 +199,16 @@ public sealed class DeviceSession : IDeviceSession
 
             _pendingResponses[request.CorrelationId] = responseTcs;
             _pendingRequestStore.Register(request.CorrelationId);
+
+            if (timeoutRegistration is not null)
+            {
+                _pendingResponseTimeouts[request.CorrelationId] = timeoutRegistration;
+            }
         }
 
-        var responseTimeout = timeout ?? _defaultResponseTimeout;
-        if (responseTimeout is { } effectiveTimeout && effectiveTimeout > TimeSpan.Zero)
+        if (responseTimeout is { } effectiveResponseTimeout && effectiveResponseTimeout > TimeSpan.Zero && timeoutRegistration is not null)
         {
-            _ = HandleTimeoutAsync(request.CorrelationId, effectiveTimeout, responseTcs);
+            _ = HandleTimeoutAsync(request.CorrelationId, effectiveResponseTimeout, responseTcs, timeoutRegistration.Token);
         }
 
         return Task.CompletedTask;
@@ -194,10 +217,20 @@ public sealed class DeviceSession : IDeviceSession
     private async Task HandleTimeoutAsync<TResponse>(
         Guid correlationId,
         TimeSpan timeout,
-        TaskCompletionSource<TResponse> responseTcs)
+        TaskCompletionSource<TResponse> responseTcs,
+        CancellationToken cancellationToken)
         where TResponse : IResponseMessage
     {
-        await Task.Delay(timeout).ConfigureAwait(false);
+        try
+        {
+            await Task.Delay(timeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        CancellationTokenSource? timeoutRegistration;
 
         lock (_syncRoot)
         {
@@ -207,9 +240,37 @@ public sealed class DeviceSession : IDeviceSession
             }
 
             _pendingRequestStore.Complete(correlationId);
+            timeoutRegistration = DetachPendingTimeoutRegistration(correlationId);
         }
 
+        DisposeTimeoutRegistration(timeoutRegistration);
         responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
+    }
+
+    private CancellationTokenSource? DetachPendingTimeoutRegistration(Guid correlationId)
+    {
+        if (_pendingResponseTimeouts.Remove(correlationId, out var timeoutRegistration))
+        {
+            return timeoutRegistration;
+        }
+
+        return null;
+    }
+
+    private static void CancelAndDisposeTimeoutRegistration(CancellationTokenSource? timeoutRegistration)
+    {
+        if (timeoutRegistration is null)
+        {
+            return;
+        }
+
+        timeoutRegistration.Cancel();
+        timeoutRegistration.Dispose();
+    }
+
+    private static void DisposeTimeoutRegistration(CancellationTokenSource? timeoutRegistration)
+    {
+        timeoutRegistration?.Dispose();
     }
 
     private static bool TrySetResponseResult(object pending, IResponseMessage response)

@@ -1,57 +1,45 @@
 # Current Plan
 
-Date: 2026-04-03
+Date: 2026-04-16
 
 ## Goal
-Keep the WinUI example follow-up moving with the next work unit focused on validating the new in-app mock peer flow across the remaining transports now that transport-specific panels, conservative page transitions, the scrollable auto-follow live log, the live `DeviceLabTheme` hookup, and the new repo-level package management baseline are all in place.
+Deliver issue `#17` as a narrow `DeviceSession` correctness fix on top of the current `main`, keeping the branch limited to timeout-wait cleanup plus focused unit coverage.
 
 ## Confirmed Facts
-- Active branch is `feat/winui-localization-foundation`.
-- Localization foundation is implemented in the WinUI example:
-  - persisted `AppLanguageMode` in `appsettings.json`
-  - singleton `IAppLocalizer` / `AppLocalizer`
-  - localized shell/page/transport/language choices
-  - localized shell, Device Lab, and Settings page copy
-  - localized connection/session/status text on the main flow
-- `PointerWheelScrollBridge` forwards text-input mouse-wheel events back to the page `ScrollViewer` in `DeviceLabView` and `SettingsView`.
-- `AppShellView` animates `Device Lab` <-> `Settings` with a conservative opacity + horizontal slide transition while keeping the existing dual-host page structure.
-- `DeviceLabView` live log now uses a dedicated read-only multiline `TextBox` with its own scrollbars, no-wrap log lines, and end-of-document auto-follow.
-- The live-log follower now caches the inner `ScrollViewer` and explicitly drives it to `ScrollableHeight` after each text update instead of relying only on moving the text selection to the end.
-- `DeviceLabTheme` is now a live shared styling source for `AppShellView`, `DeviceLabView`, and `SettingsView` through safe brush/text/border resources.
-- `DeviceLabView` and `SettingsView` now collapse transport settings down to the currently selected transport instead of showing TCP/UDP/Multicast/Serial panels all at once.
-- `DeviceLabView` now includes a `Mock Endpoint` card backed by in-process `ILocalMockEndpointService` / `LocalMockEndpointService`.
-- Repo-level build/package configuration is now partially centralized:
-  - `Directory.Build.props` owns the shared `Nullable` and `ImplicitUsings` defaults
-  - `Directory.Packages.props` owns the package versions for WinUI/toolkit, `Microsoft.Extensions`, test packages, `coverlet.collector`, and `System.IO.Ports`
-  - project files now keep only project-specific package references without inline version numbers
-- Both test projects now reference `coverlet.collector` with `PrivateAssets=all`, and local `XPlat Code Coverage` runs generated Cobertura reports successfully.
-- The core WinUI example files now carry Korean comments around non-obvious lifecycle and control-flow areas, including DI bootstrap, shell/page transitions, wheel forwarding, live-log auto-follow, session state ownership, and local mock-peer runtime behavior.
-- The local mock peer flow currently behaves as follows:
-  - TCP starts a loopback echo listener on the selected TCP port and pins the host to `127.0.0.1`
-  - UDP starts a loopback echo listener on the selected UDP remote port and pins the remote host to `127.0.0.1`
-  - Multicast joins the selected group/port locally and replies back to the sender port for one-machine testing
-  - Serial remains external-only and surfaces as unavailable for the in-app mock flow
-- Verification completed on 2026-04-03:
-  - `dotnet build commlib-codex-full.sln`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
-  - `dotnet test commlib-codex-full.sln`
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
-  - a `win-x64` UI Automation smoke that found the running window, located the mock-start button in the localized UI, confirmed the TCP-default screen hid the UDP-only `Local Port` label, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001` with payload `mock-tcp-ping`
-  - a follow-up `win-x64` UI Automation smoke that started the local TCP mock, connected, sent 12 messages, and confirmed the live-log visible text range still reached the document end after the new explicit end-scroll logic
-- The earlier local `win-x64` startup crash still does not reproduce on the current branch state, so the sample remains on the restored `win-x64` default path.
-- Terminal-driven raw mouse-wheel injection was still not reliable enough to fully prove physical wheel behavior end-to-end, so real-pointer confirmation remains a manual follow-up rather than a closed automation item.
-- `PROGRESS.md` still rejects in-place `apply_patch` edits because of encoding corruption, but a date-based UTF-8 append path worked for the 2026-04-03 entry, so the file is usable for additive daily logs while full normalization remains deferred.
+- Active branch is `fix/issue-17-device-session-timeout-cleanup`, created from `commlib-hub/main` after the helper/docs line landed through PR `#14` and PR `#16`.
+- GitHub issue `#17` now tracks this work: `Fix stale DeviceSession timeout waits after session disposal`.
+- The helper follow-up line is complete on `main`:
+  - PR `#14` merged the reusable WinUI transport validation helper
+  - PR `#16` merged the helper-backed multicast self-loopback README clarification
+  - superseded PRs `#10`, `#13`, and `#15` are closed
+  - issues `#9` and `#12` are closed; issue `#11` still remains open only because the current PAT could not close or comment on issues
+- The still-open longer-lived review lines are unchanged:
+  - PR `#5`: runtime hardening
+  - PR `#8`: Generic Host lifecycle wiring
+  - PR `#7`: rawhex + schema-backed bitfield base
+  - PR `#6`: stacked WinUI RawHex schema-log follow-up
+- `DeviceSession` on current `main` still launches timeout waits with plain `Task.Delay(timeout)` and no cancellation path.
+- That means a successful response completion leaves the timeout task alive until the full timeout elapses, even though the pending request has already been removed.
+- This branch now implements the smallest safe fix inside `DeviceSession` only:
+  - timed requests register a private `CancellationTokenSource`
+  - response completion cancels and disposes that timeout registration immediately
+  - timeout firing disposes its registration after removing the pending entry
+  - the existing pending-response storage contract stays intact; no wider pending-entry refactor was introduced here
+- Focused validation succeeded on 2026-04-16:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ConnectionManagerTests"`
 
 ## Next Work Unit
-1. Manually validate the new UDP in-app mock peer flow from the running `win-x64` WinUI app.
-2. Manually validate the new Multicast in-app mock peer flow and decide whether the single-machine self-echo + peer-echo behavior needs clearer UX copy.
-3. Step through TCP / UDP / Multicast / Serial selection on both `Device Lab` and `Settings` with a real pointer session to confirm only the active transport panel remains visible.
-4. Validate with:
-   - interactive `win-x64` transport checks
-   - local UDP / Multicast loopback sends through the new mock card
-   - targeted `win-x86` spot-check only if a follow-up behavior tweak touches host/runtime-sensitive code
+1. Keep this branch scoped to the `DeviceSession` timeout cleanup, its focused tests, and continuity updates only.
+2. Publish issue `#17` as a narrow review branch/PR once the local state files are aligned.
+3. After issue `#17` is out for review, return to the next unblocked runtime backlog item on a fresh `main`-based branch rather than reusing this fix branch.
+
+## Next Slice Design
+1. Avoid widening this branch into the broader `DeviceSession` reflection cleanup; that remains a separate follow-up.
+2. Do not mix runtime-surface or hosting changes from PR `#5` / PR `#8` into this branch.
+3. Keep the proof focused on timeout-registration cleanup rather than trying to design a broader session shutdown contract in the same slice.
 
 ## Stop / Reassess Conditions
-- If single-machine multicast produces confusing duplicate inbound lines, prefer clarifying status/log copy or documenting the expected behavior before redesigning the transport path.
-- If any collapsed transport panel still appears in UI Automation or the live UI when it should be hidden, inspect the binding/converter path before widening the layout change.
+- If the timeout cleanup starts to require a broader pending-entry abstraction, stop and split that refactor into its own follow-up instead of expanding issue `#17`.
+- If local validation starts failing outside `DeviceSession` / `ConnectionManagerTests`, verify whether the branch accidentally widened past the intended timeout-only scope.

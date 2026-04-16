@@ -109,3 +109,20 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
   - Cobertura XML outputs generated under each test project's `TestResults/.../coverage.cobertura.xml`
+
+## 2026-04-16
+
+- Created GitHub issue `#17` to track the remaining `DeviceSession` timeout-wait cleanup as its own narrow correctness slice.
+- Started `fix/issue-17-device-session-timeout-cleanup` from the current `commlib-hub/main` so the preserved dirty worktrees and the merged helper/docs line stay isolated from this fix.
+- Narrowed the implementation to `DeviceSession` timeout cleanup only:
+  - added per-request timeout registrations via private `CancellationTokenSource` storage
+  - cancel and dispose those registrations immediately when a response completes before the timeout
+  - dispose timeout registrations after timeout expiry removes the pending request entry
+  - kept the current pending-response storage contract intact instead of widening into the reflection-removal refactor in the same branch
+- Added focused unit coverage for the new cleanup path:
+  - `TryCompleteResponse_CompletesResponse_CancelsPendingTimeoutRegistration`
+  - timeout tests now also assert that the timeout-registration map returns to zero after expiry
+- Verified the fix with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ConnectionManagerTests"`
