@@ -138,3 +138,20 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~CommLibHostedServiceTests"`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- Started `feat/runtime-hardening-stack-on-19` from `feat/hosting-lifecycle-wiring-main-base` so the stale runtime PR `#5` could be rebuilt as smaller clean slices instead of one oversized replacement.
+- Ported the first runtime-hardening slice only:
+  - narrowed `ProtocolOptions` to the live `LengthPrefixed` framing contract
+  - passed `MaxFrameLength` into `LengthPrefixedProtocol` and enforced it during encode/decode
+  - let `DeviceSession` fail all pending responses when the session becomes terminal
+  - taught `ConnectionManager` to treat background receive failure as terminal, fail pending requests, and hide failed sessions
+  - serialized same-device `ConnectAsync()` calls so transport open does not race
+  - updated `appsettings.json`, the console example, and the WinUI view model to the narrower framing contract
+- Verified the first split runtime slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~LengthPrefixedProtocolTests|FullyQualifiedName~ProtocolFactoryTests|FullyQualifiedName~ConnectionManagerTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests|FullyQualifiedName~DeviceProfileValidatorTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet restore examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
+  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore -nodeReuse:false -maxcpucount:1`
