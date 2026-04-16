@@ -1,3 +1,4 @@
+using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
@@ -41,7 +42,51 @@ public sealed class DeviceBootstrapper
                 continue;
             }
 
+            DeviceProfileValidator.ValidateAndThrow(profile);
             await _connectionManager.ConnectAsync(profile, cancellationToken);
         }
+    }
+
+    /// <summary>
+    /// 활성화된 장치 프로필을 모두 시작하고, 실패한 항목은 중단하지 않고 결과로 수집합니다.
+    /// </summary>
+    /// <param name="profiles">검사하고 연결할 장치 프로필 목록입니다.</param>
+    /// <param name="cancellationToken">부트스트랩 작업 취소 토큰입니다.</param>
+    /// <returns>성공/실패를 함께 담은 부트스트랩 결과입니다.</returns>
+    public async Task<DeviceBootstrapReport> StartWithReportAsync(
+        IEnumerable<DeviceProfile> profiles,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(profiles);
+
+        var connectedDeviceIds = new List<string>();
+        var failures = new List<DeviceBootstrapFailure>();
+
+        foreach (var profile in profiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!profile.Enabled)
+            {
+                continue;
+            }
+
+            try
+            {
+                DeviceProfileValidator.ValidateAndThrow(profile);
+                await _connectionManager.ConnectAsync(profile, cancellationToken).ConfigureAwait(false);
+                connectedDeviceIds.Add(profile.DeviceId);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                failures.Add(new DeviceBootstrapFailure(profile.DeviceId, exception));
+            }
+        }
+
+        return new DeviceBootstrapReport(connectedDeviceIds, failures);
     }
 }

@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using System.Runtime.ExceptionServices;
+using CommLib.Application.Configuration;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -77,8 +78,10 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <returns>등록 작업입니다.</returns>
     public async Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposeRequested();
+        DeviceProfileValidator.ValidateAndThrow(profile);
 
         var deviceGate = await AcquireDeviceGateAsync(profile.DeviceId, cancellationToken).ConfigureAwait(false);
         DeviceConnectionState? existingState = null;
