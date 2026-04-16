@@ -246,3 +246,7 @@
   - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -NoBuild -TimeoutMs 200`
   - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -NoBuild -TimeoutMs 200`
   - `powershell -ExecutionPolicy Bypass -File scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -NoBuild -Port 7004 -Message "helper smoke"`
+- Published the helper branch for review:
+  - pushed `feat/issue-9-winui-transport-helper` to `commlib-hub`
+  - GitHub app PR creation hit the same integration `403`, so the flow fell back to `gh pr create`
+  - opened draft PR `#10`: `https://github.com/parksanghoon-sys/commlib-hub/pull/10`

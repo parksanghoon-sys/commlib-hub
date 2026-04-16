@@ -3,6 +3,7 @@
 ## Execution Context
 - Active branch: `feat/issue-9-winui-transport-helper`.
 - Tracking issue: GitHub issue `#9` (`Add reusable local WinUI transport validation helper`).
+- Draft PR: `#10` (`[codex] add WinUI transport validation helper`).
 - Branch rule: keep this branch scoped to external local validation helper commands, one wrapper script, and direct README guidance only.
 
 ## Current TODOs

@@ -8,6 +8,7 @@ Close GitHub issue `#9` by adding a reusable local WinUI transport validation he
 ## Confirmed Facts
 - This branch is `feat/issue-9-winui-transport-helper`, created from local `main` after the separate `commlib-codex-full` worktree was found dirty with preserved state-file edits.
 - GitHub issue `#9` now tracks this helper follow-up: `Add reusable local WinUI transport validation helper`.
+- Draft PR `#10` now carries this branch against `main`: `[codex] add WinUI transport validation helper`.
 - `examples/CommLib.Examples.WinUI/README.md` previously pointed contributors at ad-hoc `CommLib.Examples.Console` commands for local peer setup.
 - `examples/CommLib.Examples.Console` already contained the shared framing/serialization logic and multicast send/receive commands, so duplicating protocol behavior in PowerShell would be unnecessary.
 - The current implementation on this branch now adds:
@@ -22,9 +23,9 @@ Close GitHub issue `#9` by adding a reusable local WinUI transport validation he
 - A focused `MulticastReceive` smoke without traffic still exits non-zero on timeout by design, and the README now calls that out explicitly.
 
 ## Next Work Unit
-1. Review the helper diff for branch-scope discipline and keep this branch limited to the issue `#9` validation-helper slice.
-2. Commit the helper plus continuity updates on this branch.
-3. Push the branch and open a draft PR linked to issue `#9`.
+1. Keep PR `#10` limited to the issue `#9` helper slice; do not widen it with live-validation findings or UI copy tweaks.
+2. In a later branch, run one live WinUI UDP / multicast validation pass using the new helper.
+3. If that pass still shows multicast operator confusion, handle the wording/UI follow-up as its own small branch.
 
 ## Next Slice Design
 1. Keep the helper implementation as a thin wrapper over the existing console sample rather than introducing a second framing implementation in PowerShell.
