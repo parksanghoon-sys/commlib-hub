@@ -3,31 +3,32 @@
 ## Execution Context
 - Baseline after this integration: local `main` refreshed from `commlib-hub/main`.
 - Temporary landing branch used for the merge: `integration/main-refresh-20260414`.
-- Next implementation branch should start fresh from the updated `main`.
+- Active implementation branch: `feat/hosting-lifecycle-wiring`.
+- GitHub issue search on 2026-04-16 found no existing repo issue for the hosting lifecycle wiring slice, so this branch name plus `TODOS.md` remain the active tracking handle.
 
 ## Current TODOs
-- [ ] Fix `HandleTimeoutAsync` missing `CancellationToken` in `DeviceSession`.
-  Scope: `src/CommLib.Application/Sessions/DeviceSession.cs` - `SendRequest()` and `HandleTimeoutAsync()`.
-  Objective: prevent timeout background tasks from outliving session disposal and touching already-removed pending state.
-  Validation: add or extend focused `DeviceSessionTests`, then re-run `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`.
+- [ ] Re-evaluate whether `ReconnectOptions` naming is still too broad for connect-time retry only on the next fresh branch after `feat/hosting-lifecycle-wiring`.
+  Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, docs/sample config, compatibility notes.
+  Objective: keep the public contract truthful without widening this hosting branch into a broader runtime-policy refactor.
+  Validation: add focused contract/docs/tests as needed, then re-run `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`.
 
 ## Deferred Backlog
 
 ### Runtime Hardening & Correctness
-### [P1_SOON] Add hosted-service lifecycle wiring for `ConnectionManager` / `DeviceBootstrapper`
-- What remains: add an `IHostedService` or `BackgroundService` wrapper so `AddCommLibCore()` can participate directly in Generic Host start/stop lifecycle.
-- Why deferred: the runtime surface is now on `main`, but the user asked to merge and restart with one narrow correctness slice first.
-- Objective: let hosted apps bootstrap and dispose the communication runtime without custom glue code.
-- Relevant context: `DeviceBootstrapper.StartWithReportAsync()` and `ConnectionManager.DisposeAsync()` already provide most of the underlying behavior; the missing piece is host-lifecycle orchestration in `src/CommLib.Hosting`.
-- Scope: `src/CommLib.Hosting`, `src/CommLib.Application/Bootstrap`, focused tests.
-- Current status: `AddCommLibCore()` registers services only; no hosted-service wrapper exists yet.
-- Known blockers/open questions: whether startup should fail fast on the first bootstrap error or prefer the report-returning path by default.
-- Most natural next step: design the smallest host wrapper and lock it down with focused hosting/unit coverage.
+### [P2_LATER] Consider whether hosted startup should later offer a report-returning policy in addition to the new fail-fast default
+- What remains: decide whether Generic Host integration eventually needs an option that uses `DeviceBootstrapper.StartWithReportAsync()` instead of the current fail-fast `StartAsync()` path.
+- Why deferred: the first hosting slice intentionally stayed small and aligned with normal host-start semantics; there is still no concrete deployment need for partial startup.
+- Objective: avoid overfitting the host wrapper today while leaving a clear path if operators later need "start what you can and report the rest" behavior.
+- Relevant context: `CommLibHostedService` currently maps enabled raw profiles and reuses `DeviceBootstrapper.StartAsync()`, so the first invalid/failed enabled profile fails host startup immediately. `DeviceBootstrapper.StartWithReportAsync()` already exists if later requirements justify a configurable reporting mode.
+- Scope: `src/CommLib.Hosting`, `src/CommLib.Application/Bootstrap`, docs, focused tests.
+- Current status: fail-fast startup is the only built-in Generic Host behavior.
+- Known blockers/open questions: whether any real deployment wants partial startup strongly enough to justify additional runtime options and reporting surface.
+- Most natural next step: wait for a concrete hosting/operator requirement before widening the host wrapper contract.
 
 ### API / Contract Truthfulness
 ### [P1_SOON] Re-evaluate whether `ReconnectOptions` naming is still too broad for connect-time retry only
 - What remains: decide whether doc-only clarification is enough or whether a staged alias/deprecation path is warranted.
-- Why deferred: behavior is already explicit in code and tests, but the immediate restart slice is the `DeviceSession` timeout bug.
+- Why deferred: the new hosting slice is complete, but it is still better to handle contract naming in its own narrow follow-up branch.
 - Objective: keep the public contract truthful without creating unnecessary churn before a stable package surface exists.
 - Relevant context: runtime recovery remains terminal after receive-pump failure; `ReconnectOptions` still governs connect-time `OpenAsync()` retries only.
 - Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, docs/sample config, compatibility shims if needed.
@@ -40,7 +41,7 @@
 - What remains: decide whether logging, metrics, health checks, and TLS/certificate-aware TCP options belong in core, hosting, or a later integration package.
 - Why deferred: the repo is now structurally stronger, but expected deployment constraints still are not concrete enough to justify widening the surface immediately.
 - Objective: improve operability without forcing every future concern into the core runtime package.
-- Relevant context: `IConnectionEventSink` and inbound backpressure events now exist, but there is still no first-class `ILogger`, metrics, health-check, or TLS surface.
+- Relevant context: `IConnectionEventSink` and inbound backpressure events now exist, and Generic Host lifecycle wiring now exists for configuration-bound registration, but there is still no first-class `ILogger`, metrics, health-check, or TLS surface.
 - Scope: `src/CommLib.Hosting`, `src/CommLib.Infrastructure`, transport options, future integration seams.
 - Current status: diagnostics are callback-oriented and secure-transport concerns are still out of scope.
 - Known blockers/open questions: target deployment environment, certificate ownership, and whether callback-based observability is sufficient.
@@ -117,33 +118,8 @@
 - Most natural next step: wait until the schema-backed compose/inspect layer exists and at least one real device contract pressures a broader numbering or value-type surface.
 
 ## Completed
+- [x] 2026-04-16: completed `feat/hosting-lifecycle-wiring` by adding configuration-bound `AddCommLibCore(IConfiguration, ...)` overloads, binding `CommLibOptions` from the root config or `CommLib` section, registering `CommLibHostedService` only on the Generic Host path, reusing `DeviceBootstrapper.StartAsync()` for fail-fast startup, reusing `ConnectionManager.DisposeAsync()` for host-stop cleanup, and validating with `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.
+- [x] 2026-04-14: fixed `DeviceSession` timeout cleanup on `feat/device-session-timeout-cleanup` by replacing detached timeout waits with cancellable timeout registrations, cancelling timeout waits on both response completion and `FailPendingResponses()`, exposing an internal delay seam to `CommLib.Unit.Tests` via `InternalsVisibleTo`, and validating with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~DeviceSessionTests"`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.
 - [x] 2026-04-14: integrated `feat/bitfield-endianness`, `feat/bitfield-schema-log-enrichment`, and `feat/runtime-hardening-clean-base` onto `integration/main-refresh-20260414`, then replayed the 2026-04-14 gate-fix and Korean XML documentation commits on top; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, and `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`.
 - [x] 2026-04-14: fixed the `_deviceOperationGates` leak in `ConnectionManager` by keeping per-device operation gates reference-counted and removing them once the last lease is released for a disconnected device; added `DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates` coverage and verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.
 - [x] 2026-04-14: added Korean XML documentation across the repo's C# source/example/test files, repaired the WinUI-localized `AppLocalizer.cs` string table after the first bulk-edit path corrupted Korean literals, and re-verified with focused tests plus a fresh WinUI restore/build on the clean integration worktree.
-- [x] 2026-04-07: added the first schema-backed bitfield slice with `BitFieldPayloadSchema`, `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldPayloadSchemaValidator`, `BitFieldPayloadSchemaCodec`, optional `SerializerOptions.BitFieldSchema`, and schema-based `OutboundMessageComposer` support; validated with full unit tests, full infrastructure tests, and a solution build.
-- [x] 2026-04-06: added the first bitfield foundation slice with `BitFieldDefinition` and `BitFieldCodec`, covering unsigned reads, signed reads, and unsigned writes against named bit ranges using the `payload[0]` LSB = bit `0` convention; verified with focused `BitFieldCodecTests` plus full unit and infrastructure test runs.
-- [x] 2026-04-06: completed a live `win-x64` WinUI raw-hex TCP roundtrip through the in-app mock endpoint by launching the app in `RawHex` mode, invoking `Start Mock`, `Connect`, and `Send`, and confirming matching outbound/inbound `DE AD BE EF` log entries for message id `321`; fixed the UI command-state regression that had kept `Send` disabled after connect by removing `ConfigureAwait(false)` from WinUI async command handlers that update observable state.
-- [x] 2026-04-06: added `RawHexConnectionManagerRoundtripTests` to lock the real TCP `ConnectionManager`/`LengthPrefixedProtocol`/`RawHexSerializer` roundtrip for both direct binary payloads and the existing hex-text bridge; verified with the focused test filter and a full `CommLib.Infrastructure.Tests` run.
-- [x] 2026-04-06: wired serializer choice through the WinUI example by persisting `MessageComposer.SerializerType`, adding serializer choice state/UI on `Device Lab` and `Settings`, introducing `OutboundMessageComposer`, switching the session send path to composed `IMessage`, and surfacing localized raw-hex validation errors; verified with unit tests, infrastructure tests, and WinUI/console builds.
-- [x] 2026-04-06: established the first raw-hex foundation slice with `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `SerializerFactory` support for `RawHex`, and formatter-based binary payload rendering in WinUI session logs plus the console example; verified with unit tests, infrastructure tests, and example builds.
-- [x] 2026-04-03: split the day’s work into three local commits (`1601dbc`, `f21d5dd`, `bad9ee7`), pushed `feat/winui-localization-foundation`, created PR `#3`, and confirmed that GitHub now shows the PR as merged into `main`.
-- [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.
-- [x] 2026-04-03: centralized shared MSBuild defaults into `Directory.Build.props` and moved package versions into `Directory.Packages.props`, removing inline package-version declarations from the project files.
-- [x] 2026-04-03: re-validated the repo after central package management with `dotnet build commlib-codex-full.sln` and `dotnet test commlib-codex-full.sln --no-build`.
-- [x] 2026-04-03: added Korean explanatory comments to the main WinUI example files, focusing on non-obvious DI/bootstrap, shell transition, wheel forwarding, live-log auto-follow, session-state, and local mock-peer paths instead of line-by-line boilerplate comments.
-- [x] 2026-04-03: strengthened the WinUI live-log auto-follow by caching the log `TextBox` inner `ScrollViewer`, forcing it to `ScrollableHeight` after each text update, and re-verifying with a `win-x64` automation pass that still reached the document end after 12 sends.
-- [x] 2026-04-03: collapsed the WinUI transport settings in both `DeviceLabView` and `SettingsView` so only the currently selected transport panel stays visible.
-- [x] 2026-04-03: added an in-app `Mock Endpoint` card plus `ILocalMockEndpointService` / `LocalMockEndpointService` so the WinUI example can start local TCP/UDP/Multicast peers without a second process.
-- [x] 2026-04-03: verified the new mock-peer path with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a `win-x64` UI Automation smoke that invoked `Start Mock`, confirmed the default TCP screen hid the UDP-only `Local Port` label, and completed a raw TCP echo roundtrip to `127.0.0.1:7001`.
-- [x] 2026-04-03: created the example-focused branch `feat/winui-localization-foundation`.
-- [x] 2026-04-03: introduced WinUI localization foundation with persisted `AppLanguageMode`, `IAppLocalizer`/`AppLocalizer`, and localized shell/page/transport/language choices.
-- [x] 2026-04-03: moved shell, Device Lab, Settings, and main connection/session status copy onto the localization path.
-- [x] 2026-04-03: verified the localization pass with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a 12-second `win-x86` smoke run.
-- [x] 2026-04-03: added `PointerWheelScrollBridge` and routed `TextBox` mouse-wheel input back to the page `ScrollViewer` in `DeviceLabView` and `SettingsView`.
-- [x] 2026-04-03: re-verified the wheel-scroll change with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a focused UI Automation smoke run that confirmed `Settings` navigation plus root scroll movement.
-- [x] 2026-04-03: attempted to reproduce the earlier local `win-x64` startup crash, but direct `win-x64` launch and `dotnet run -r win-x64 --no-build` both stayed alive for 12 seconds with no Application Error / Windows Error Reporting / .NET Runtime events.
-- [x] 2026-04-03: restored the WinUI example default runtime from `win-x86` back to `win-x64`, updated the README note, and re-validated default `win-x64` plus explicit `win-x86` smoke runs.
-- [x] 2026-04-03: added a conservative `AppShellView` fade + horizontal slide transition for `Device Lab` <-> `Settings` while keeping the existing dual-host page structure.
-- [x] 2026-04-03: verified the transition change with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and direct `win-x64` / `win-x86` page-switch smoke runs that kept the app alive.
-- [x] 2026-04-03: changed the `DeviceLabView` live log into a scrollable read-only multiline log surface with no-wrap lines and end-of-document auto-follow, then re-verified it with WinUI build/tests plus a local `win-x64` TCP echo automation pass that kept the visible log range pinned to the latest entry at 20 lines.
-- [x] 2026-04-03: turned `DeviceLabTheme` into a live shared source for WinUI backgrounds, card chrome, and typography in `AppShellView`, `DeviceLabView`, and `SettingsView`, then re-verified the example with build/tests plus a successful direct `win-x64` launch and UI Automation window detection.

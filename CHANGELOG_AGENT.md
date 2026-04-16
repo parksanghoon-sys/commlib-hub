@@ -229,3 +229,20 @@
   - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
 - Reset the continuity files so post-merge work now treats refreshed `main` as the baseline and promotes `DeviceSession` timeout-cancellation cleanup as the next isolated branch.
+
+## 2026-04-16
+
+- Checked issue continuity for the hosting-lifecycle branch:
+  - searched GitHub issues in `parksanghoon-sys/commlib-hub`
+  - found no existing issue already tracking the `AddCommLibCore()` Generic Host lifecycle wiring slice
+  - kept the active branch name plus `TODOS.md` as the current tracking handle
+- Completed the `feat/hosting-lifecycle-wiring` implementation slice:
+  - added `AddCommLibCore(IConfiguration, ...)` overloads so the hosting path can bind `CommLibOptions` from either the root configuration or the `CommLib` section
+  - added `CommLibHostedService` so the configuration-bound registration path now participates directly in Generic Host start/stop lifecycle
+  - kept the first host-start policy fail-fast by reusing `DeviceBootstrapper.StartAsync()` after filtering to enabled raw profiles only
+  - reused `ConnectionManager.DisposeAsync()` through `IAsyncDisposable` cleanup on host stop
+  - added focused unit coverage for the hosted-service start/stop path and configuration-bound DI registration
+- Verified the hosting-lifecycle branch with:
+  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
