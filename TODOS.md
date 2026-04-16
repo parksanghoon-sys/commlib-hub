@@ -1,52 +1,83 @@
 # TODOS
 
+## Execution Context
+- Active branch: `fix/issue-17-device-session-timeout-cleanup`
+- Tracking issue: GitHub issue `#17` (`Fix stale DeviceSession timeout waits after session disposal`)
+- Parent baseline: current `commlib-hub/main` after helper/docs merges `#14` and `#16`
+- Branch rule: keep this branch limited to `DeviceSession` timeout-wait cleanup, focused tests, and continuity updates
+
 ## Current TODOs
-- [ ] Manually validate the new UDP in-app mock peer flow from the current `win-x64` WinUI app.
-- [ ] Manually validate the new Multicast in-app mock peer flow and decide whether the single-machine self-echo + peer-echo behavior needs clearer UX copy.
-- [ ] Step through TCP / UDP / Multicast / Serial selection on both `Device Lab` and `Settings` with a real pointer session and confirm only the selected transport panel stays visible.
-- [ ] Re-check transition feel, wheel-scroll behavior, and live-log manual scrolling only if the transport-panel/manual mock pass exposes a concrete regression.
+- [ ] Publish issue `#17` as a narrow review branch once the local timeout-cleanup fix and continuity updates are committed.
+  Scope: `src/CommLib.Application/Sessions/DeviceSession.cs`, `tests/CommLib.Unit.Tests/DeviceSessionTests.cs`, and the root continuity files.
+  Validation: keep the existing local proof (`DeviceSessionTests`, `CommLib.Unit.Tests`, focused `ConnectionManagerTests`) attached to the PR body.
 
 ## Deferred Backlog
 
-### [P1_SOON] Clarify single-machine multicast mock UX if duplicate inbound lines feel confusing
-- What remains: decide whether the new in-app multicast mock flow needs stronger status/log copy, a dedicated note in the UI, or a small behavior tweak for one-machine validation sessions.
-- Why deferred: the implementation is in place and TCP has been smoke-validated, but the remaining manual multicast pass has not yet confirmed whether seeing both self loopback traffic and peer echo is intuitive enough.
-- Objective: make the multicast mock path understandable during local operator testing without overcomplicating the transport layer.
-- Relevant context: `LocalMockEndpointService` now joins the selected multicast group and replies back to the sender port so a single machine can act as both sender and mock peer; depending on socket loopback behavior, the live log may still show more than one inbound event per send.
-- Scope: `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/AppLocalizer.cs`, and `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`.
-- Current status: status text already warns about self traffic plus peer echo, but the UX has not been manually judged yet in the real app.
-- Known blockers/open questions: how the local NIC / multicast loopback behavior presents on this machine during a full WinUI send/receive session, and whether the current status text is enough.
-- Most natural next step: run the manual multicast mock validation from `Device Lab`, capture the exact live-log behavior, then either keep the current wording or tighten it with the smallest safe UI-only change.
+### Runtime Hardening & Correctness
+### [P1_SOON] Replace reflection-based `TrySetResponseResult` in `DeviceSession`
+- What remains: remove the runtime `GetMethod(...).Invoke(...)` path from `TrySetResponseResult()` by introducing a typed pending-entry abstraction or another non-reflection completion path.
+- Why deferred: issue `#17` intentionally stayed narrow and fixed only timeout-wait cleanup.
+- Objective: eliminate reflection from the hot response-completion path without widening this branch.
+- Relevant context: current `main` still stores pending response completions as `object` in `_pendingResponses`, and the non-generic response completion path uses reflection to finish typed `TaskCompletionSource<TResponse>` instances.
+- Scope: `src/CommLib.Application/Sessions/DeviceSession.cs`, focused unit tests, and any internal helper abstraction that replaces the reflection path.
+- Current status: reflection is still live on the non-generic path; timeout waits are now cleaned up separately on this branch.
+- Known blockers/open questions: whether the replacement should stay as a private nested helper in `DeviceSession` or become a reusable application-layer abstraction.
+- Most natural next step: design a private typed pending-entry wrapper and verify it with the existing `DeviceSessionTests` surface.
 
-### [P2_LATER] Safely map full `DeviceLabTheme` templated-control styles before broad rollout
-- What remains: decide whether to prune the currently unused templated-control style helpers in `DeviceLabTheme` or reintroduce them with verified WinUI default-style keys and a startup-safe initialization path.
-- Why deferred: during this session, a broader theme rollout exposed startup failures when the theme dictionary eagerly created styles that depended on missing default resource keys such as `DefaultListViewStyle`.
-- Objective: either make the full theme surface safe and real for templated controls, or remove the dormant pieces so the theme stays aligned with the actual UI contract.
-- Relevant context: the current successful hookup uses `DeviceLabTheme.Shared` for live brush/text/border resources in `AppShellView`, `DeviceLabView`, and `SettingsView`; broad app-resource merging and eager templated-control style creation proved too risky for the current step.
-- Scope: `examples/CommLib.Examples.WinUI/Styles/DeviceLabTheme.cs` plus any future consumer updates in the WinUI views.
-- Current status: the app now runs successfully with the safe subset, but keys/methods for broader control styles still exist as future design-space rather than live behavior.
-- Known blockers/open questions: which default WinUI style keys are actually available in this app/runtime combination, and whether a code-built WinUI example should keep those style definitions at all.
-- Most natural next step: inventory the actual default style keys available at runtime, then either delete the dormant helpers or add back only the verified ones behind a small focused validation pass.
+### Production Integration & Hosting
+### [P1_SOON] Expose `IConnectionEventSink` through DI without coupling callers to `ConnectionManager` internals
+- What remains: give `AddCommLibCore()` a DI-friendly way to accept an `IConnectionEventSink` implementation.
+- Why deferred: this is a runtime-surface change and should not be mixed into issue `#17`.
+- Objective: let production callers wire logging and metrics without reflection or internal constructor knowledge.
+- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, but the hosting layer still does not surface it.
+- Scope: `src/CommLib.Hosting`, `src/CommLib.Infrastructure/Sessions`, and any resulting interface-boundary adjustment.
+- Current status: still deferred outside this timeout-only branch.
+- Known blockers/open questions: whether the sink should stay in infrastructure or move upward so hosting can reference it more cleanly.
+- Most natural next step: revisit this after the current timeout fix is out for review.
 
-### [P2_LATER] Add a reusable local WinUI transport validation helper
-- What remains: package the local TCP/UDP echo peer and multicast verification flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
-- Why deferred: the existing console example plus ad-hoc local echo commands are enough for immediate manual verification, but the setup is still more manual than it should be.
-- Objective: make WinUI transport validation repeatable without rediscovering local peer commands every session.
-- Relevant context: `examples/CommLib.Examples.Console` already provides `tcp-demo`, `udp-demo`, `multicast-send`, and `multicast-receive`; during this session we also used local TCP/UDP echo peers to support WinUI manual checks.
-- Scope: likely `examples/CommLib.Examples.Console`, WinUI README/docs, and possibly a small helper script under `scripts/` or `examples/`.
-- Current status: no dedicated helper exists yet; validation instructions are partly in chat and partly in example READMEs.
-- Known blockers/open questions: whether the best shape is a PowerShell script, extra console subcommands, or documentation-only guidance.
-- Most natural next step: after the current interactive validation pass, capture the exact repeatable commands that felt necessary and package only that minimal workflow.
+### API / Contract Truthfulness
+### [P1_SOON] Decide whether `ReconnectOptions` naming is still too broad for connect-time retry only
+- What remains: choose between doc-only clarification, a staged alias/deprecation path, or a later breaking rename.
+- Why deferred: the current behavior is explicit, but issue `#17` is a narrower correctness fix and should not widen into public contract churn.
+- Objective: keep the public configuration surface truthful without unnecessary compatibility churn.
+- Relevant context: the runtime still treats post-connect receive failure as terminal and `ReconnectOptions` still affects connect-time transport-open retry only.
+- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `DeviceProfile`, docs, and any compatibility shim if a staged alias is chosen.
+- Current status: still pending on a separate branch/PR.
+- Known blockers/open questions: how much external dependency exists on the current property/type names.
+- Most natural next step: inventory references before changing names.
 
+### Review & Delivery
+### [P1_SOON] Resolve the longer-lived open review lines on top of current `main`
+- What remains: review and merge or replace the still-open PRs `#5`, `#8`, `#7`, and `#6`.
+- Why deferred: issue `#17` is a small correctness fix that should stay publishable on its own.
+- Objective: reduce the amount of long-lived branch state that is still open after the helper/docs line landed.
+- Relevant context: `#14` and `#16` are now merged; the remaining open lines are older runtime/hosting/rawhex branches.
+- Scope: GitHub PR management plus any minimal rebasing/replacement work needed per line.
+- Current status: all four PRs remain open at the time this branch was created.
+- Known blockers/open questions: whether each line is still reviewable as-is against current `main` or now needs a clean replacement branch.
+- Most natural next step: once issue `#17` is out, re-evaluate PR `#8` and PR `#5` first because they are the next runtime-facing lines.
+
+### Repo Hygiene
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
-- What remains: identify the current mixed/non-UTF-8 encoding issue in `PROGRESS.md` and convert it to a stable encoding without losing prior history.
-- Why deferred: this does not block the product work itself, and a careless rewrite could damage an important project memory file.
-- Objective: make future automated updates to `PROGRESS.md` safe and tool-friendly.
-- Relevant context: `apply_patch` rejected an in-place `PROGRESS.md` update on 2026-04-03 because the file stream was not valid UTF-8; we were still able to append the `2026-04-03` daily log as new UTF-8 text without rewriting older bytes.
+- What remains: rewrite `PROGRESS.md` into a stable UTF-8 form without losing history.
+- Why deferred: it is orthogonal to issue `#17`, and a careless rewrite could damage project memory.
+- Objective: make future progress updates safe for normal in-place editing.
+- Relevant context: `apply_patch` still rejects in-place edits on some worktrees because `PROGRESS.md` contains non-UTF-8 or mixed-encoding content.
 - Scope: `PROGRESS.md` only.
-- Current status: append-only daily logging is workable, but some older/later sections still show encoding corruption depending on the reader and the file is not safe for normal in-place patching.
-- Known blockers/open questions: whether the file contains mixed UTF-8 and legacy code-page bytes, and what normalization path preserves the current readable Korean content best.
-- Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result so future updates can use normal in-place editing again.
+- Current status: still deferred.
+- Known blockers/open questions: the precise legacy encoding mix and the safest normalization path.
+- Most natural next step: back up the file and normalize it in one deliberate hygiene-focused branch.
+
+### GitHub Hygiene
+### [P3_NICE] Close stale issue `#11` once GitHub permissions allow it
+- What remains: close GitHub issue `#11`, which describes the already-completed helper-backed WinUI validation pass.
+- Why deferred: the current PAT could not close or comment on issues even though PR merge operations succeeded.
+- Objective: keep the repo issue list aligned with actual completed work.
+- Relevant context: issue `#11` is the only remaining open issue after issues `#9` and `#12` were auto-closed by merged PRs.
+- Scope: GitHub issue state only.
+- Current status: still open because of PAT permission limits, not because validation remains incomplete.
+- Known blockers/open questions: whether the token permissions will be widened or whether this must be closed manually in the browser.
+- Most natural next step: close it manually or with a higher-permission token the next time GitHub hygiene is touched.
 
 ## Completed
 - [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.

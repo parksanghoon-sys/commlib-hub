@@ -83,3 +83,9 @@
 - Decision: add the package version once in `Directory.Packages.props`, then reference it only from `CommLib.Unit.Tests` and `CommLib.Infrastructure.Tests` with `PrivateAssets=all`.
 - Why: this matches the package's actual execution model, keeps non-test projects free of irrelevant dependencies, and still gives the repo-wide coverage behavior the user is aiming for because all executable tests now support `--collect:"XPlat Code Coverage"`.
 - Consequences: future coverage collection commands should run at the test-project or solution test layer; if new test projects are added later, they should opt into `coverlet.collector` the same way.
+
+## 2026-04-16 - Cancel `DeviceSession` timeout waits through per-request registrations instead of letting orphaned `Task.Delay` calls run to completion
+- Context: on current `main`, `DeviceSession` launched timeout work with fire-and-forget `Task.Delay(timeout)` calls. When a response completed early, the pending request entry disappeared, but the timeout task still stayed alive until the full delay elapsed.
+- Decision: keep the fix local to `DeviceSession` by tracking a private `CancellationTokenSource` per timed request. Timed requests now register that token source on send, response completion cancels and disposes it immediately, and the timeout path disposes it after removing the pending request.
+- Why: this is the smallest structurally correct fix for issue `#17`; it stops stale timeout waits without widening the branch into the separate reflection-removal refactor or a larger session shutdown redesign.
+- Consequences: successful responses no longer leave unnecessary timeout waits alive, focused tests can assert that timeout registrations return to zero, and any broader pending-entry abstraction can remain a later dedicated follow-up.
