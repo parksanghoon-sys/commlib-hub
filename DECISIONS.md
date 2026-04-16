@@ -89,3 +89,9 @@
 - Decision: keep the fix local to `DeviceSession` by tracking a private `CancellationTokenSource` per timed request. Timed requests now register that token source on send, response completion cancels and disposes it immediately, and the timeout path disposes it after removing the pending request.
 - Why: this is the smallest structurally correct fix for issue `#17`; it stops stale timeout waits without widening the branch into the separate reflection-removal refactor or a larger session shutdown redesign.
 - Consequences: successful responses no longer leave unnecessary timeout waits alive, focused tests can assert that timeout registrations return to zero, and any broader pending-entry abstraction can remain a later dedicated follow-up.
+
+## 2026-04-16 - Rebuild stale PR `#8` as a clean `main`-based hosting slice without pulling runtime-hardening dependencies forward
+- Context: the older Generic Host lifecycle PR `#8` is no longer mergeable against current `main` and its diff has widened into many unrelated files. The earlier implementation also depended on runtime-hardening pieces that still live in the separate stale PR `#5`.
+- Decision: rebuild PR `#8` on a fresh `main` base with only the configuration-bound hosting surface: `AddCommLibCore(IServiceCollection, IConfiguration)`, `CommLibHostedService`, and focused tests. Do not reintroduce `CommLibRuntimeOptions`, inbound queue-capacity wiring, or broader observability surface work into this branch.
+- Why: this keeps the hosting line reviewable and publishable on its own, reduces long-lived branch drift, and avoids re-coupling two stale PR lines that should stay independently reviewable.
+- Consequences: Generic Host start/stop wiring can land first as a narrow improvement, while `IConnectionEventSink`, diagnostics, health, TLS, and other runtime-surface work remain explicit follow-up backlog items.
