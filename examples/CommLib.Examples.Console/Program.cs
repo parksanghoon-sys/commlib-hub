@@ -45,7 +45,9 @@ internal static class ExampleConsole
             return args[0].ToLowerInvariant() switch
             {
                 "tcp-demo" => await RunTcpDemoAsync(args[1..]).ConfigureAwait(false),
+                "tcp-echo-server" => await RunTcpEchoServerOnlyAsync(args[1..]).ConfigureAwait(false),
                 "udp-demo" => await RunUdpDemoAsync(args[1..]).ConfigureAwait(false),
+                "udp-echo-server" => await RunUdpEchoServerOnlyAsync(args[1..]).ConfigureAwait(false),
                 "multicast-send" => await RunMulticastSendAsync(args[1..]).ConfigureAwait(false),
                 "multicast-receive" => await RunMulticastReceiveAsync(args[1..]).ConfigureAwait(false),
                 "serial-demo" => await RunSerialDemoAsync(args[1..]).ConfigureAwait(false),
@@ -94,6 +96,79 @@ internal static class ExampleConsole
     }
 
     /// <summary>
+    /// WinUI나 다른 외부 프로세스가 붙을 수 있는 로컬 TCP echo peer를 실행합니다.
+    /// </summary>
+    private static async Task<int> RunTcpEchoServerOnlyAsync(string[] args)
+    {
+        var port = GetIntOption(args, "--port") ?? 7001;
+        var timeoutMs = GetIntOption(args, "--timeout-ms");
+        using var lifetime = CreatePeerLifetime(timeoutMs);
+        using var listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start();
+        var actualPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        Console.WriteLine($"[tcp-echo-server] listening on 127.0.0.1:{actualPort}");
+        if (timeoutMs is > 0)
+        {
+            Console.WriteLine($"[tcp-echo-server] will stop after {timeoutMs} ms if no one cancels earlier");
+        }
+        else
+        {
+            Console.WriteLine("[tcp-echo-server] press Ctrl+C to stop");
+        }
+
+        while (!lifetime.IsCancellationRequested)
+        {
+            TcpClient? client = null;
+            try
+            {
+                client = await listener.AcceptTcpClientAsync(lifetime.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                break;
+            }
+
+            using (client)
+            using (var stream = client.GetStream())
+            {
+                Console.WriteLine($"[tcp-echo-server] client connected from {client.Client.RemoteEndPoint}");
+
+                while (!lifetime.IsCancellationRequested)
+                {
+                    byte[] frame;
+                    try
+                    {
+                        frame = await ReadLengthPrefixedFrameAsync(stream, lifetime.Token).ConfigureAwait(false);
+                    }
+                    catch (EndOfStreamException)
+                    {
+                        Console.WriteLine("[tcp-echo-server] client disconnected");
+                        break;
+                    }
+                    catch (IOException) when (!lifetime.IsCancellationRequested)
+                    {
+                        Console.WriteLine("[tcp-echo-server] client disconnected");
+                        break;
+                    }
+                    catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    var message = DecodeFrame(frame);
+                    Console.WriteLine($"[tcp-echo-server] recv {DescribeMessage(message)}");
+                    await stream.WriteAsync(frame, lifetime.Token).ConfigureAwait(false);
+                    await stream.FlushAsync(lifetime.Token).ConfigureAwait(false);
+                    Console.WriteLine("[tcp-echo-server] echoed frame");
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    /// <summary>
     /// RunUdpDemoAsync 작업을 수행합니다.
     /// </summary>
     private static async Task<int> RunUdpDemoAsync(string[] args)
@@ -121,6 +196,47 @@ internal static class ExampleConsole
 
         await SendAndReceiveAsync(manager, profile, outboundMessage, cts.Token).ConfigureAwait(false);
         await serverTask.ConfigureAwait(false);
+        return 0;
+    }
+
+    /// <summary>
+    /// WinUI나 다른 외부 프로세스가 붙을 수 있는 로컬 UDP echo peer를 실행합니다.
+    /// </summary>
+    private static async Task<int> RunUdpEchoServerOnlyAsync(string[] args)
+    {
+        var port = GetIntOption(args, "--port") ?? 7002;
+        var timeoutMs = GetIntOption(args, "--timeout-ms");
+        using var lifetime = CreatePeerLifetime(timeoutMs);
+        using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+
+        Console.WriteLine($"[udp-echo-server] listening on 127.0.0.1:{port}");
+        if (timeoutMs is > 0)
+        {
+            Console.WriteLine($"[udp-echo-server] will stop after {timeoutMs} ms if no one cancels earlier");
+        }
+        else
+        {
+            Console.WriteLine("[udp-echo-server] press Ctrl+C to stop");
+        }
+
+        while (!lifetime.IsCancellationRequested)
+        {
+            UdpReceiveResult inbound;
+            try
+            {
+                inbound = await server.ReceiveAsync(lifetime.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var message = DecodeFrame(inbound.Buffer);
+            Console.WriteLine($"[udp-echo-server] recv {DescribeMessage(message)} from {inbound.RemoteEndPoint}");
+            await server.SendAsync(inbound.Buffer, inbound.RemoteEndPoint, lifetime.Token).ConfigureAwait(false);
+            Console.WriteLine("[udp-echo-server] echoed datagram");
+        }
+
         return 0;
     }
 
@@ -340,6 +456,28 @@ internal static class ExampleConsole
     }
 
     /// <summary>
+    /// 로컬 validation peer 수명 취소 토큰을 만듭니다.
+    /// </summary>
+    private static CancellationTokenSource CreatePeerLifetime(int? timeoutMs)
+    {
+        var lifetime = timeoutMs is > 0
+            ? new CancellationTokenSource(TimeSpan.FromMilliseconds(timeoutMs.Value))
+            : new CancellationTokenSource();
+
+        ConsoleCancelEventHandler? cancelHandler = null;
+        cancelHandler = (_, args) =>
+        {
+            args.Cancel = true;
+            lifetime.Cancel();
+            Console.CancelKeyPress -= cancelHandler;
+        };
+
+        Console.CancelKeyPress += cancelHandler;
+        lifetime.Token.Register(() => Console.CancelKeyPress -= cancelHandler);
+        return lifetime;
+    }
+
+    /// <summary>
     /// DecodeFrame 작업을 수행합니다.
     /// </summary>
     private static IMessage DecodeFrame(ReadOnlySpan<byte> frame)
@@ -494,13 +632,16 @@ internal static class ExampleConsole
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  tcp-demo [--port 7001] [--message \"hello\"]");
+        Console.WriteLine("  tcp-echo-server [--port 7001] [--timeout-ms 60000]");
         Console.WriteLine("  udp-demo [--server-port 7002] [--client-port 7003] [--message \"hello\"]");
+        Console.WriteLine("  udp-echo-server [--port 7002] [--timeout-ms 60000]");
         Console.WriteLine("  multicast-receive [--group 239.0.0.241] [--port 7004] [--timeout-ms 10000]");
         Console.WriteLine("  multicast-send [--group 239.0.0.241] [--port 7004] [--message \"hello\"]");
         Console.WriteLine("  serial-demo --port COM3 --peer-port COM4 [--baud 115200] [--message \"hello\"]");
         Console.WriteLine();
         Console.WriteLine("Notes:");
         Console.WriteLine("  tcp-demo and udp-demo are self-contained loopback examples.");
+        Console.WriteLine("  tcp-echo-server and udp-echo-server stay alive for external WinUI/manual validation until Ctrl+C or timeout.");
         Console.WriteLine("  multicast-send and multicast-receive are intended to be run in separate terminals.");
         Console.WriteLine("  serial-demo requires a paired serial environment such as com0com or a hardware loopback pair.");
     }

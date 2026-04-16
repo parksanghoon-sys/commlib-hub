@@ -35,10 +35,26 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
 - The `Device Lab` and `Settings` pages now show only the currently selected transport panel instead of every transport preset at once.
-- For local manual verification without external hardware, reuse `examples/CommLib.Examples.Console` for `tcp-demo`, `udp-demo`, or multicast send/receive peers in separate terminals.
+- For repeatable local manual verification without external hardware, use [scripts/Start-WinUiTransportValidation.ps1](../../scripts/Start-WinUiTransportValidation.ps1) to launch the repo-owned TCP/UDP echo peers or multicast send/receive flow instead of rediscovering console commands each session.
 - The in-app mock peer path covers TCP, UDP, and Multicast on loopback; Serial still stays external because it needs a paired COM environment.
 - The sample now defaults to `win-x64` again because the current branch state no longer reproduces the earlier local `Microsoft.UI.Xaml.dll` startup fault; `-r win-x86` remains available if you need to compare runtimes.
 - The default `appsettings.json` is copied to the output folder on build and then reused as the runtime settings file.
+
+## Local Validation Helper
+
+Use the helper from a separate terminal when you want the WinUI app to talk to an external local peer instead of the in-app mock endpoint:
+
+```powershell
+pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode TcpEcho -Port 7001
+pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode UdpEcho -Port 7002
+pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastReceive -Group 239.0.0.241 -Port 7004 -TimeoutMs 30000
+pwsh ./scripts/Start-WinUiTransportValidation.ps1 -Mode MulticastSend -Group 239.0.0.241 -Port 7004 -Message "hello from helper"
+```
+
+- `TcpEcho` and `UdpEcho` keep the external peer alive until `Ctrl+C` or an optional `-TimeoutMs` elapses.
+- `MulticastReceive` waits for one inbound frame and exits; run it before triggering a WinUI send or a helper `MulticastSend`.
+- `MulticastReceive` returns a non-zero exit code when the timeout elapses without traffic, so a no-message validation run is visible immediately.
+- Add `-NoBuild` if the console example is already built and you want faster repeated runs.
 
 ## RawHex Schema Example
 
