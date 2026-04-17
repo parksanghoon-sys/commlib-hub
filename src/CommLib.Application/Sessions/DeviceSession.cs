@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using CommLib.Application.Pipeline;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
@@ -11,9 +10,7 @@ namespace CommLib.Application.Sessions;
 public sealed class DeviceSession : IDeviceSession
 {
     private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
-    private readonly PendingRequestStore _pendingRequestStore = new();
-    private readonly Dictionary<Guid, object> _pendingResponses = new();
-    private readonly Dictionary<Guid, CancellationTokenSource> _pendingResponseTimeouts = new();
+    private readonly Dictionary<Guid, PendingResponseEntry> _pendingResponses = new();
     private readonly object _syncRoot = new();
     private readonly int _maxPendingRequests;
     private readonly TimeSpan? _defaultResponseTimeout;
@@ -89,9 +86,9 @@ public sealed class DeviceSession : IDeviceSession
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
-        var responseTcs = new TaskCompletionSource<TResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var sendCompletedTask = SendRequest(request, responseTcs, timeout);
-        return new SendResult<TResponse>(sendCompletedTask, responseTcs.Task);
+        var pendingEntry = new PendingResponseEntry<TResponse>();
+        var sendCompletedTask = SendRequest(request, pendingEntry, timeout);
+        return new SendResult<TResponse>(sendCompletedTask, pendingEntry.ResponseTask);
     }
 
     /// <summary>
@@ -113,26 +110,21 @@ public sealed class DeviceSession : IDeviceSession
     public bool TryCompleteResponse<TResponse>(TResponse response)
         where TResponse : IResponseMessage
     {
-        TaskCompletionSource<TResponse>? responseTcs;
-        CancellationTokenSource? timeoutRegistration;
+        PendingResponseEntry<TResponse>? pendingEntry;
 
         lock (_syncRoot)
         {
             if (!_pendingResponses.TryGetValue(response.CorrelationId, out var pending) ||
-                pending is not TaskCompletionSource<TResponse> typedPending)
+                pending is not PendingResponseEntry<TResponse> typedPending)
             {
                 return false;
             }
 
             _pendingResponses.Remove(response.CorrelationId);
-            _pendingRequestStore.Complete(response.CorrelationId);
-            responseTcs = typedPending;
-            timeoutRegistration = DetachPendingTimeoutRegistration(response.CorrelationId);
+            pendingEntry = typedPending;
         }
 
-        CancelAndDisposeTimeoutRegistration(timeoutRegistration);
-        responseTcs.TrySetResult(response);
-        return true;
+        return pendingEntry.TryCompleteTyped(response);
     }
 
     /// <summary>
@@ -142,27 +134,20 @@ public sealed class DeviceSession : IDeviceSession
     /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
     public bool TryCompleteResponse(IResponseMessage response)
     {
-        object? pending;
-        CancellationTokenSource? timeoutRegistration;
+        PendingResponseEntry? pendingEntry;
 
         lock (_syncRoot)
         {
-            if (!_pendingResponses.TryGetValue(response.CorrelationId, out pending))
+            if (!_pendingResponses.TryGetValue(response.CorrelationId, out pendingEntry) ||
+                !pendingEntry.CanComplete(response))
             {
                 return false;
             }
 
             _pendingResponses.Remove(response.CorrelationId);
-            _pendingRequestStore.Complete(response.CorrelationId);
-            timeoutRegistration = DetachPendingTimeoutRegistration(response.CorrelationId);
         }
 
-        CancelAndDisposeTimeoutRegistration(timeoutRegistration);
-        return pending switch
-        {
-            TaskCompletionSource<IResponseMessage> typed => typed.TrySetResult(response),
-            _ => TrySetResponseResult(pending, response)
-        };
+        return pendingEntry.TryComplete(response);
     }
 
     /// <summary>
@@ -173,8 +158,7 @@ public sealed class DeviceSession : IDeviceSession
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        object[] pendingResponses;
-        Guid[] correlationIds;
+        PendingResponseEntry[] pendingResponses;
 
         lock (_syncRoot)
         {
@@ -184,66 +168,47 @@ public sealed class DeviceSession : IDeviceSession
             }
 
             pendingResponses = _pendingResponses.Values.ToArray();
-            correlationIds = _pendingResponses.Keys.ToArray();
             _pendingResponses.Clear();
-
-            foreach (var correlationId in correlationIds)
-            {
-                _pendingRequestStore.Complete(correlationId);
-            }
         }
 
         foreach (var pending in pendingResponses)
         {
-            TrySetPendingException(pending, exception);
+            pending.Fail(exception);
         }
     }
 
     private Task SendRequest<TRequest, TResponse>(
         TRequest request,
-        TaskCompletionSource<TResponse> responseTcs,
+        PendingResponseEntry<TResponse> pendingEntry,
         TimeSpan? timeout)
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
         var responseTimeout = timeout ?? _defaultResponseTimeout;
-        CancellationTokenSource? timeoutRegistration = null;
-
-        if (responseTimeout is { } effectiveTimeout && effectiveTimeout > TimeSpan.Zero)
-        {
-            timeoutRegistration = new CancellationTokenSource();
-        }
 
         lock (_syncRoot)
         {
             if (_pendingResponses.Count >= _maxPendingRequests)
             {
-                timeoutRegistration?.Dispose();
                 var exception = new InvalidOperationException("Pending request limit has been reached.");
-                responseTcs.TrySetException(exception);
+                pendingEntry.Fail(exception);
                 return Task.FromException(exception);
             }
 
             if (!_outbound.Writer.TryWrite(request))
             {
-                timeoutRegistration?.Dispose();
                 var exception = new InvalidOperationException("Outbound queue is full.");
-                responseTcs.TrySetException(exception);
+                pendingEntry.Fail(exception);
                 return Task.FromException(exception);
             }
 
-            _pendingResponses[request.CorrelationId] = responseTcs;
-            _pendingRequestStore.Register(request.CorrelationId);
-
-            if (timeoutRegistration is not null)
-            {
-                _pendingResponseTimeouts[request.CorrelationId] = timeoutRegistration;
-            }
+            _pendingResponses[request.CorrelationId] = pendingEntry;
         }
 
-        if (responseTimeout is { } effectiveResponseTimeout && effectiveResponseTimeout > TimeSpan.Zero && timeoutRegistration is not null)
+        if (responseTimeout is { } effectiveResponseTimeout && effectiveResponseTimeout > TimeSpan.Zero)
         {
-            _ = HandleTimeoutAsync(request.CorrelationId, effectiveResponseTimeout, responseTcs, timeoutRegistration.Token);
+            var cancellationToken = pendingEntry.RegisterTimeout();
+            _ = HandleTimeoutAsync(request.CorrelationId, effectiveResponseTimeout, pendingEntry, cancellationToken);
         }
 
         return Task.CompletedTask;
@@ -252,7 +217,7 @@ public sealed class DeviceSession : IDeviceSession
     private async Task HandleTimeoutAsync<TResponse>(
         Guid correlationId,
         TimeSpan timeout,
-        TaskCompletionSource<TResponse> responseTcs,
+        PendingResponseEntry<TResponse> pendingEntry,
         CancellationToken cancellationToken)
         where TResponse : IResponseMessage
     {
@@ -265,76 +230,88 @@ public sealed class DeviceSession : IDeviceSession
             return;
         }
 
-        CancellationTokenSource? timeoutRegistration;
-
         lock (_syncRoot)
         {
             if (!_pendingResponses.Remove(correlationId))
             {
                 return;
             }
-
-            _pendingRequestStore.Complete(correlationId);
-            timeoutRegistration = DetachPendingTimeoutRegistration(correlationId);
         }
 
-        DisposeTimeoutRegistration(timeoutRegistration);
-        responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
+        pendingEntry.Timeout(correlationId);
     }
 
-    private CancellationTokenSource? DetachPendingTimeoutRegistration(Guid correlationId)
+    private abstract class PendingResponseEntry
     {
-        if (_pendingResponseTimeouts.Remove(correlationId, out var timeoutRegistration))
+        private CancellationTokenSource? _timeoutRegistration;
+
+        public CancellationToken RegisterTimeout()
         {
-            return timeoutRegistration;
+            _timeoutRegistration = new CancellationTokenSource();
+            return _timeoutRegistration.Token;
         }
 
-        return null;
+        public abstract bool CanComplete(IResponseMessage response);
+
+        public abstract bool TryComplete(IResponseMessage response);
+
+        public abstract void Fail(Exception exception);
+
+        public abstract void Timeout(Guid correlationId);
+
+        protected void CancelAndDisposeTimeoutRegistration()
+        {
+            if (_timeoutRegistration is null)
+            {
+                return;
+            }
+
+            _timeoutRegistration.Cancel();
+            _timeoutRegistration.Dispose();
+            _timeoutRegistration = null;
+        }
+
+        protected void DisposeTimeoutRegistration()
+        {
+            _timeoutRegistration?.Dispose();
+            _timeoutRegistration = null;
+        }
     }
 
-    private static void CancelAndDisposeTimeoutRegistration(CancellationTokenSource? timeoutRegistration)
+    private sealed class PendingResponseEntry<TResponse> : PendingResponseEntry
+        where TResponse : IResponseMessage
     {
-        if (timeoutRegistration is null)
+        private readonly TaskCompletionSource<TResponse> _responseTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<TResponse> ResponseTask => _responseTcs.Task;
+
+        public override bool CanComplete(IResponseMessage response)
         {
-            return;
+            return response is TResponse;
         }
 
-        timeoutRegistration.Cancel();
-        timeoutRegistration.Dispose();
-    }
-
-    private static void DisposeTimeoutRegistration(CancellationTokenSource? timeoutRegistration)
-    {
-        timeoutRegistration?.Dispose();
-    }
-
-    private static bool TrySetResponseResult(object pending, IResponseMessage response)
-    {
-        var pendingType = pending.GetType();
-        if (!pendingType.IsGenericType || pendingType.GetGenericTypeDefinition() != typeof(TaskCompletionSource<>))
+        public bool TryCompleteTyped(TResponse response)
         {
-            return false;
+            CancelAndDisposeTimeoutRegistration();
+            return _responseTcs.TrySetResult(response);
         }
 
-        var responseType = pendingType.GetGenericArguments()[0];
-        if (!responseType.IsInstanceOfType(response))
+        public override bool TryComplete(IResponseMessage response)
         {
-            return false;
+            return response is TResponse typedResponse && TryCompleteTyped(typedResponse);
         }
 
-        var trySetResult = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetResult));
-        return trySetResult is not null && (bool)(trySetResult.Invoke(pending, new object[] { response }) ?? false);
-    }
-
-    private static bool TrySetPendingException(object pending, Exception exception)
-    {
-        var pendingType = pending.GetType();
-        if (!pendingType.IsGenericType || pendingType.GetGenericTypeDefinition() != typeof(TaskCompletionSource<>))
+        public override void Fail(Exception exception)
         {
-            return false;
+            ArgumentNullException.ThrowIfNull(exception);
+            CancelAndDisposeTimeoutRegistration();
+            _responseTcs.TrySetException(exception);
         }
 
-        var trySetException = pendingType.GetMethod(nameof(TaskCompletionSource<IResponseMessage>.TrySetException), new[] { typeof(Exception) });
-        return trySetException is not null && (bool)(trySetException.Invoke(pending, new object[] { exception }) ?? false);
+        public override void Timeout(Guid correlationId)
+        {
+            DisposeTimeoutRegistration();
+            _responseTcs.TrySetException(new TimeoutException($"Timed out waiting for response to correlation '{correlationId}'."));
+        }
     }
 }

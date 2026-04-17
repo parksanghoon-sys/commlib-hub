@@ -2037,17 +2037,29 @@ public sealed class ConnectionManagerTests
     /// </summary>
     private sealed class RecordingConnectionEventSink : IConnectionEventSink
     {
+        private readonly object _syncRoot = new();
+        private readonly List<string> _events = new();
+
         /// <summary>
         /// Events 값을 가져옵니다.
         /// </summary>
-        public List<string> Events { get; } = new();
+        public IReadOnlyList<string> Events
+        {
+            get
+            {
+                lock (_syncRoot)
+                {
+                    return _events.ToArray();
+                }
+            }
+        }
 
         /// <summary>
         /// OnConnectAttempt 작업을 수행합니다.
         /// </summary>
         public void OnConnectAttempt(string deviceId, int attemptNumber, int totalAttempts)
         {
-            Events.Add($"attempt:{deviceId}:{attemptNumber}/{totalAttempts}");
+            Record($"attempt:{deviceId}:{attemptNumber}/{totalAttempts}");
         }
 
         /// <summary>
@@ -2055,7 +2067,7 @@ public sealed class ConnectionManagerTests
         /// </summary>
         public void OnConnectRetryScheduled(string deviceId, int attemptNumber, TimeSpan delay, Exception exception)
         {
-            Events.Add($"retry:{deviceId}:{attemptNumber}:{delay.TotalMilliseconds:0}:{exception.Message}");
+            Record($"retry:{deviceId}:{attemptNumber}:{delay.TotalMilliseconds:0}:{exception.Message}");
         }
 
         /// <summary>
@@ -2063,7 +2075,7 @@ public sealed class ConnectionManagerTests
         /// </summary>
         public void OnConnectSucceeded(string deviceId, int attemptNumber)
         {
-            Events.Add($"success:{deviceId}:{attemptNumber}");
+            Record($"success:{deviceId}:{attemptNumber}");
         }
 
         /// <summary>
@@ -2071,12 +2083,20 @@ public sealed class ConnectionManagerTests
         /// </summary>
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
-            Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
+            Record($"failure:{deviceId}:{operation}:{exception.Message}");
         }
 
         public void OnInboundBackpressure(string deviceId, int queueCapacity)
         {
-            Events.Add($"backpressure:{deviceId}:{queueCapacity}");
+            Record($"backpressure:{deviceId}:{queueCapacity}");
+        }
+
+        private void Record(string entry)
+        {
+            lock (_syncRoot)
+            {
+                _events.Add(entry);
+            }
         }
     }
 

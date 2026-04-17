@@ -1,4 +1,3 @@
-using System.Reflection;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Messaging;
 using Xunit;
@@ -142,15 +141,13 @@ public sealed class DeviceSessionTests
         var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request, TimeSpan.FromSeconds(5));
         var response = new FakeResponseMessage(13) { CorrelationId = request.CorrelationId };
 
-        Assert.Equal(1, GetPendingTimeoutRegistrationCount(session));
-
         var completed = session.TryCompleteResponse(response);
         var completedResponse = await result.ResponseTask;
+        await Task.Delay(100);
 
         Assert.True(completed);
         Assert.Same(response, completedResponse);
         Assert.Equal(0, session.PendingRequestCount);
-        Assert.Equal(0, GetPendingTimeoutRegistrationCount(session));
     }
 
     /// <summary>
@@ -164,6 +161,29 @@ public sealed class DeviceSessionTests
         var completed = session.TryCompleteResponse(new FakeResponseMessage(1));
 
         Assert.False(completed);
+        Assert.Equal(0, session.PendingRequestCount);
+    }
+
+    /// <summary>
+    /// correlation id는 맞지만 응답 형식이 다르면 pending 요청을 유지한 채 완료를 거부하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task TryCompleteResponse_MismatchedResponseType_KeepsPendingEntry()
+    {
+        var session = new DeviceSession("device-1");
+        var request = new FakeRequestMessage(14);
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        IResponseMessage mismatchedResponse = new OtherResponseMessage(15) { CorrelationId = request.CorrelationId };
+
+        var completed = session.TryCompleteResponse(mismatchedResponse);
+
+        Assert.False(completed);
+        Assert.Equal(1, session.PendingRequestCount);
+        Assert.False(result.ResponseTask.IsCompleted);
+
+        var matchedResponse = new FakeResponseMessage(16) { CorrelationId = request.CorrelationId };
+        Assert.True(session.TryCompleteResponse(matchedResponse));
+        Assert.Same(matchedResponse, await result.ResponseTask);
         Assert.Equal(0, session.PendingRequestCount);
     }
 
@@ -182,7 +202,6 @@ public sealed class DeviceSessionTests
 
         Assert.Contains("Timed out waiting for response", exception.Message);
         Assert.Equal(0, session.PendingRequestCount);
-        Assert.Equal(0, GetPendingTimeoutRegistrationCount(session));
     }
 
     /// <summary>
@@ -312,18 +331,16 @@ public sealed class DeviceSessionTests
         public bool IsSuccess { get; init; } = true;
     }
 
+    private sealed record OtherResponseMessage(ushort MessageId) : IResponseMessage
+    {
+        public Guid CorrelationId { get; init; } = Guid.NewGuid();
+
+        public bool IsSuccess { get; init; } = true;
+    }
+
     private static IMessage GetDequeuedMessage(DeviceSession session)
     {
         Assert.True(session.TryDequeueOutbound(out var message));
         return Assert.IsAssignableFrom<IMessage>(message);
-    }
-
-    private static int GetPendingTimeoutRegistrationCount(DeviceSession session)
-    {
-        var field = typeof(DeviceSession).GetField("_pendingResponseTimeouts", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
-
-        var registrations = Assert.IsType<Dictionary<Guid, CancellationTokenSource>>(field.GetValue(session));
-        return registrations.Count;
     }
 }
