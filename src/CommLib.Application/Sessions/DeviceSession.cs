@@ -22,6 +22,7 @@ public sealed class DeviceSession : IDeviceSession
     /// <see cref="DeviceSession"/> 클래스의 새 인스턴스를 초기화합니다.
     /// </summary>
     /// <param name="deviceId">세션과 연결된 장치 식별자입니다.</param>
+    /// <param name="requestResponse">요청-응답 추적 제한과 기본 timeout 설정입니다.</param>
     public DeviceSession(string deviceId, RequestResponseOptions? requestResponse = null)
     {
         var options = requestResponse ?? new RequestResponseOptions();

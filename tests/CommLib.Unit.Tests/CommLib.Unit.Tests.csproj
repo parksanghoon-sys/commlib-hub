@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <Description>도메인, 애플리케이션, 인프라 계층의 단위 테스트를 한곳에서 관리하는 통합 테스트 프로젝트입니다.</Description>
+    <Description>Unit tests for CommLib application-layer, domain, and supporting behaviors.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration" />

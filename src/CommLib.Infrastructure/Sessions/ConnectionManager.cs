@@ -34,6 +34,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <param name="transportFactory">장치 전송을 생성하는 transport factory입니다.</param>
     /// <param name="protocolFactory">장치 프로토콜을 생성하는 protocol factory입니다.</param>
     /// <param name="serializerFactory">메시지 serializer를 생성하는 serializer factory입니다.</param>
+    /// <param name="eventSink">연결 수명주기 이벤트를 관찰할 선택적 sink입니다.</param>
     public ConnectionManager(
         ITransportFactory transportFactory,
         IProtocolFactory protocolFactory,

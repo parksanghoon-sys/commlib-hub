@@ -1,39 +1,414 @@
 # CHANGELOG_AGENT
 
-## 2026-04-16
+## 2026-04-13
+- Closed the git-delivery loop without widening the mixed worktree:
+  - kept `feat/runtime-hardening-clean-base` as the clean runtime review line and updated draft PR `#5`
+  - published draft PR `#7` for `feat/bitfield-endianness` against `main`
+  - published stacked draft PR `#6` for `feat/bitfield-schema-log-enrichment` against `feat/bitfield-endianness`
+  - preserved `feat/runtime-readiness-hardening` as local scratch instead of committing more mixed delivery history there
+- Reconciled project state with the clean runtime line:
+  - bounded unsolicited inbound buffering, connect-boundary validation, `DeviceBootstrapper.StartWithReportAsync()`, and hosting-level inbound queue capacity are already landed on `feat/runtime-hardening-clean-base`
+  - reviewed the next hosting/bootstrap question and kept `StartWithReportAsync()` as an application-level opt-in
+  - promoted queue-pressure signaling to the next runtime TODO instead of widening the hosting surface again
+- Revalidated the clean review lines with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "BitFieldCodecTests|BitFieldPayloadSchemaCodecTests|BitFieldPayloadSchemaValidatorTests|MessagePayloadFormatterTests" --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "BitFieldCodecTests|BitFieldPayloadSchemaCodecTests|BitFieldPayloadSchemaValidatorTests|OutboundMessageComposerTests|MessagePayloadFormatterTests|DeviceProfileValidatorTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "RawHexSerializerTests|SerializerFactoryTests|RawHexConnectionManagerRoundtripTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --filter "ConnectionManagerTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "ServiceCollectionExtensionsTests" --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "DeviceBootstrapperTests" --no-restore`
 
-- Created GitHub issue `#23` to track bootstrap validation/reporting as the next clean runtime slice stacked on top of the bounded-inbound branch.
-- Started `feat/issue-23-bootstrap-reporting` from `feat/issue-21-bounded-inbound-buffering` so the next runtime change could stay isolated and reviewable while `#22` remains open.
-- Ported the bootstrap validation/reporting slice only:
-  - validated `DeviceProfile` at the direct `ConnectionManager.ConnectAsync()` boundary before runtime factories or transport-open side effects run
-  - kept `DeviceBootstrapper.StartAsync()` fail-fast for invalid enabled profiles
-  - added `DeviceBootstrapper.StartWithReportAsync()` plus `DeviceBootstrapReport` / `DeviceBootstrapFailure`
-  - removed manual `DeviceProfileValidator` calls from the console and WinUI example connection paths so callers can rely on `ConnectAsync()` validation
-- Added focused regression coverage for the new bootstrap behavior:
-  - `StartAsync_WhenProfileIsInvalid_ThrowsBeforeConnectionManagerIsCalled`
-  - `StartWithReportAsync_WhenProfilesIncludeValidationAndConnectionFailures_ContinuesAndReturnsReport`
-  - `ConnectAsync_InvalidProfile_ThrowsBeforeRuntimeFactoriesRun`
+## 2026-04-08
+- Created branch `feat/runtime-readiness-hardening` from the current `feat/bitfield-endianness` worktree so runtime hardening can continue without shelving the in-progress bitfield/runtime changes.
+- Completed the first `ConnectionManager` hardening slice:
+  - consolidated active connection/session/sender/receiver/transport state into one per-device state object
+  - serialized same-device lifecycle operations with per-device gates
+  - removed the accidental second `OpenAsync()` call during `ConnectAsync()`
+  - changed background receive-pump failures to surface as `DeviceConnectionException(deviceId, "receive", ...)` and emit `IConnectionEventSink` failure events
+- Added focused infrastructure regression coverage for:
+  - single-open behavior during connect
+  - same-device concurrent connect serialization
+  - sticky receive-failure surfacing after the background receive pump dies
+- Verified the hardening slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- One earlier parallel validation attempt hit a transient `CommLib.Infrastructure.dll` file lock; rerunning the build sequentially resolved it.
+- Reconciled the new follow-up request with the current repo state and chose the smallest next runtime slice: config-backed WinUI session-log enrichment for `BitFieldSchema` rather than a schema editor or transport/protocol change.
+- Added the first real runtime `BitFieldSchema` consumer in the WinUI example:
+  - `MessageComposerAppSettings` now preserves an optional `BitFieldSchema`
+  - `DeviceLabSettingsViewModel` now carries that schema through load/save snapshots
+  - `MainViewModel.BuildProfile()` now threads the schema into the live `SerializerOptions`
+  - `DeviceLabSessionService` now appends decoded field summaries, or a non-fatal schema decode warning, to inbound/outbound log payload text
+- Extended `MessagePayloadFormatter` with `TryFormatBitFieldSummary()` so the schema-inspection/log-format seam stays reusable and testable outside the WinUI layer.
+- Strengthened endian-aware coverage instead of assuming the earlier tests were enough:
+  - added big-endian codec coverage for non-zero byte offsets
+  - added big-endian signed read coverage
+  - added mixed-endian schema compose/inspect coverage with big-endian offset fields and a signed big-endian field
+  - added formatter coverage for schema summaries plus safe schema/payload mismatch handling
+- Updated the WinUI README to document the new `messageComposer.bitFieldSchema` config-only seam and the current no-editor limitation.
+- Verification for this slice completed with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- One earlier parallel validation attempt hit a transient `CommLib.Domain.dll` file lock; rerunning the validation steps sequentially resolved it, so no code rollback was needed.
+- Re-ran repo verification during an industrial/runtime-readiness review:
+  - `dotnet build commlib-codex-full.sln --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`
+- Captured the review result as project state rather than widening implementation immediately:
+  - the repo is a strong foundation with good validation and boundary separation
+  - it is not yet a confident industrial/runtime-ready claim because `ConnectionManager` lifecycle state is unsynchronized, runtime reconnect/recovery semantics are not yet first-class, and hosting/ops/security integration remains intentionally thin
+
+## 2026-04-06
+- Rotated the ongoing raw-hex work off `feat/winui-localization-foundation` and onto the dedicated branch `feat/rawhex-compose-flow` after the feature scope clearly diverged from the already-merged WinUI localization line.
+- Reconciled the new user request with the current repo state and chose the smallest TDD-backed raw-hex implementation slice instead of widening immediately into WinUI UI work or future bitfield schema mapping.
+- Added failing tests first for:
+  - `MessagePayloadFormatter`
+  - `RawHexSerializer`
+  - `SerializerFactory` support for `RawHex`
+- Introduced the reusable binary payload groundwork in `CommLib.Domain`:
+  - added `IBinaryMessagePayload`
+  - added `BinaryMessageModel`, `BinaryRequestMessageModel`, and `BinaryResponseMessageModel`
+  - added `MessagePayloadFormatter` so logs/UI code can render binary messages as uppercase space-delimited hex
+- Added `RawHexSerializer` in `CommLib.Infrastructure.Protocol`:
+  - preserves the existing message/request/response metadata header shape
+  - appends raw payload bytes after the header
+  - accepts either direct binary payload messages or whitespace-tolerant outbound hex text bodies
+  - deserializes inbound payloads into binary-capable message models
+- Extended `SerializerFactory` so `SerializerOptions.Type = "RawHex"` resolves to the new serializer.
+- Updated the console example and WinUI session receive logging to use `MessagePayloadFormatter` instead of assuming `IMessageBody` is always present.
 - Verified the slice with:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
-  - `dotnet restore examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj`
-  - `dotnet restore examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore -nodeReuse:false -maxcpucount:1`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Continued the next WinUI-facing raw-hex slice in TDD:
+  - added `SerializerTypes`, `HexPayloadParser`, and `OutboundMessageComposer`
+  - added unit tests for serializer-driven outbound message composition
+  - persisted serializer selection in WinUI `MessageComposerAppSettings`
+  - added shared serializer choice state to `DeviceLabSettingsViewModel`
+  - added serializer selectors plus serializer-mode hint text to both `Device Lab` and `Settings`
+  - changed `IDeviceLabSessionService.SendAsync` to accept a composed `IMessage`
+  - changed outbound session logging to use `MessagePayloadFormatter`
+  - localized the WinUI raw-hex validation failure path
+  - updated the WinUI README/appsettings defaults for the new serializer selection
+- Verified the WinUI-facing slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Added a focused raw-hex TCP roundtrip validation slice in infrastructure tests:
+  - added `RawHexConnectionManagerRoundtripTests`
+  - exercised the real `ConnectionManager` + `TcpTransport` + `LengthPrefixedProtocol` + `RawHexSerializer` path instead of only unit-level serializer coverage
+  - covered both direct binary payload messages and the existing hex-text bridge path
+  - asserted that the echoed inbound payload still formats as uppercase spaced hex through `MessagePayloadFormatter`
+- Verified the transport/session roundtrip slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexConnectionManagerRoundtripTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- Ran a live `win-x64` WinUI raw-hex TCP validation pass through the in-app mock endpoint:
+  - temporarily pinned the runtime `appsettings.json` to English, TCP loopback, `RawHex`, message id `321`, and body `DE AD BE EF`
+  - launched the app, invoked `Start Mock`, `Connect`, and `Send` through UI Automation
+  - confirmed matching outbound and inbound `DE AD BE EF` log entries in the live log
+- Found and fixed a WinUI command-state regression during that live pass:
+  - after connect succeeded, `Send` stayed disabled because `MainViewModel` async command handlers resumed off the UI context after `ConfigureAwait(false)`
+  - the same UI-layer pattern existed in `SettingsViewModel` save/reload commands
+  - removed `ConfigureAwait(false)` from those WinUI async command handlers so observable state and command enablement resume on the UI context
+- Re-verified the fix with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - a repeated `win-x64` UI Automation raw-hex TCP roundtrip that reached outbound and inbound `DE AD BE EF`
+- Started the first bit-level foundation slice in TDD instead of jumping straight into serializer-setting or WinUI schema editing:
+  - added `BitFieldDefinition` as the named bit-range contract
+  - added `BitFieldCodec` for unsigned reads, signed reads, and unsigned in-place writes
+  - fixed the initial convention as `payload[0]` LSB = bit `0`
+  - covered single-bit reads, cross-byte reads, signed sign-extension, in-place writes, and bounds/value validation in `BitFieldCodecTests`
+- Verified the bitfield foundation slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~BitFieldCodecTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
 
-- Created GitHub issue `#21` to track bounded unsolicited inbound buffering as its own clean runtime slice after the earlier PR / issue lines were cleaned up.
-- Started `feat/issue-21-bounded-inbound-buffering` from the current `commlib-hub/main` so the next runtime change would stay isolated from preserved dirty worktrees.
-- Ported the bounded unsolicited inbound buffering slice only:
-  - added a default inbound queue capacity of `256` to `ConnectionManager`
-  - let the internal `ConnectionManager` constructor accept an explicit `inboundQueueCapacity`
-  - replaced the unsolicited inbound `Channel.CreateUnbounded` path with a bounded channel using `BoundedChannelFullMode.Wait`
-  - kept disconnect / reconnect cleanup correct even when the receive pump is blocked on a full inbound queue
-- Added focused infrastructure coverage for the new queueing behavior:
-  - `ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains`
-  - `DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect`
-- Verified the slice with:
-  - `dotnet restore tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj`
-  - `dotnet restore tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains|FullyQualifiedName~DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect"`
+## 2026-04-03
+- Reconciled `PROGRESS.md`, `AGENT.md`, `docs/current-plan.md`, recent commits, branch state, and the current WinUI example code.
+- Confirmed that the worktree was clean, the active branch name no longer matched the latest example-focused work, and no canonical root state files existed yet.
+- Initialized `CURRENT_PLAN.md`, `TODOS.md`, and `DECISIONS.md` so future sessions can resume from repo state instead of chat memory.
+- Rewrote `docs/current-plan.md` to reflect the WinUI follow-up scope instead of the earlier core-library bootstrap phase.
+- Created the branch `feat/winui-localization-foundation` before new example edits.
+- Added `AppLanguageMode`, `IAppLocalizer`, and `AppLocalizer`, then persisted language mode through the WinUI example settings file.
+- Localized the shell, Device Lab page, Settings page, transport/language choices, main status flow, and session-service connection/log output.
+- Updated the WinUI example README to document the persisted English/Korean mode.
+- Verified the localization change set with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a `win-x86` smoke run that stayed alive for 12 seconds (`RUNNING_OK`)
+- Added `PointerWheelScrollBridge` and attached it to page text inputs so `DeviceLabView` and `SettingsView` forward mouse-wheel events back to their parent `ScrollViewer`.
+- Verified the wheel-scroll patch with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a focused UI Automation smoke run that switched to `Settings` and moved the root scroll position from `0` to `40.7907907907908`
+- Tried to replay raw mouse-wheel input from the terminal for a stronger end-to-end proof, but the local automation path was not reliable enough; tracked manual pointer-device validation as follow-up instead of overstating confidence.
+- Re-ran the old `win-x64` crash investigation on the current branch state and could not reproduce the earlier `Microsoft.UI.Xaml.dll` startup fault:
+  - direct `win-x64` exe stayed alive for 12 seconds
+  - `dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj -r win-x64 --no-build` stayed alive for 12 seconds
+  - explicit `win-x86` also stayed alive for 12 seconds as a comparison path
+  - Application Error / Windows Error Reporting / .NET Runtime logs stayed empty during those runs
+- Restored the WinUI example default runtime from `win-x86` back to `win-x64` and updated the README to reflect the fresh evidence instead of the stale workaround note.
+- Re-validated the restored default runtime with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj -p:RuntimeIdentifier=win-x86`
+  - `dotnet test commlib-codex-full.sln`
+  - a 12-second default `win-x64` smoke run
+  - a 12-second explicit `win-x86` smoke run
+- Replaced the old immediate `Visibility` toggling in `AppShellView` with a conservative queued fade + horizontal slide transition that keeps the existing dual-host page layout intact.
+- Verified the transition change with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a direct `win-x64` smoke run that found the app window and survived a scripted page-switch button sequence
+  - a direct `win-x86` regression smoke run that also survived the same page-switch button sequence
+- Reworked the `DeviceLabView` live log so it no longer wraps or gets clipped inside the page flow:
+  - kept the existing `LogText` binding
+  - gave the read-only multiline log box its own horizontal/vertical scrollbars
+  - stopped forwarding live-log wheel input to the parent page `ScrollViewer`
+  - auto-followed the newest log entry by selecting the document end after each update
+- Verified the live-log change with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a `win-x64` UI Automation run against the local TCP echo endpoint on `127.0.0.1:7001`
+  - a post-send `TextPattern` check showing the log reached 20 lines and the visible range still ended at the newest entry
+- Wired `DeviceLabTheme` into the real WinUI view code path instead of leaving it as unused theme scaffolding:
+  - `AppShellView`, `DeviceLabView`, and `SettingsView` now read shared background/card/typography resources from `DeviceLabTheme.Shared`
+  - kept the hookup conservative by applying safe brush/text/border resources in the existing code-built views rather than forcing a wider templated-control style rollout
+  - debugged a startup regression caused by touching `Application.Resources` too early and by stale exe locks hiding newer builds during repeated smoke runs
+  - confirmed that eager templated-control style creation can fail on missing WinUI default keys such as `DefaultListViewStyle`, so that broader theme surface is now tracked as deferred follow-up instead of shipping half-proven
+- Verified the theme hookup with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a fresh direct `win-x64` launch that stayed alive
+  - UI Automation detection of the `CommLib 디바이스 랩` window and its first button set after startup
+  - no `.NET Runtime` / `Application Error` / `Windows Error Reporting` events since the current successful app start
+- Updated the WinUI README to point local manual transport verification back to the existing console example helpers.
+- Tried to append planning/progress notes to `PROGRESS.md`, but kept deferring the in-place edit because `apply_patch` rejects the file as non-UTF-8; tracked encoding cleanup as backlog instead of risking history loss.
+- Reworked the WinUI transport-editing surface so it no longer shows every preset at once:
+  - `DeviceLabView` and `SettingsView` now bind each transport panel visibility to the existing `Settings.IsTcpSelected` / `IsUdpSelected` / `IsMulticastSelected` / `IsSerialSelected` state through `BooleanToVisibilityConverter`
+  - kept the current transport selector as the single source of truth instead of adding duplicate checkbox/radio visibility state
+- Added an in-app local mock-peer path directly to `Device Lab`:
+  - introduced `ILocalMockEndpointService` / `LocalMockEndpointService`
+  - `MainViewModel` now exposes localized mock start/stop commands and mock status text
+  - `DeviceLabView` now includes a localized `Mock Endpoint` card
+  - TCP and UDP mock starts pin loopback-friendly settings and open local echo peers
+  - Multicast mock starts join the selected group locally and reply back to the sender port for one-machine testing
+  - Serial intentionally remains external-only for this path
+- Verified the transport-visibility + mock-peer change set with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a `win-x64` UI Automation smoke that found the localized app window, confirmed the default TCP screen hid the UDP-only `Local Port` label, invoked `Start Mock`, and completed a raw TCP echo roundtrip to `127.0.0.1:7001` with payload `mock-tcp-ping`
+- Strengthened the `DeviceLabView` live-log auto-follow so it no longer relies only on moving the text selection to the end:
+  - cache the log `TextBox` inner `ScrollViewer` once the control is loaded
+  - after each log text update, enqueue a follow-up that both selects the end of the text and explicitly scrolls the inner viewer to `ScrollableHeight`
+- Re-verified the stronger live-log follow behavior with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+  - a `win-x64` UI Automation smoke that started the local TCP mock, connected, sent 12 messages, and confirmed the live-log visible text range still reached the document end
+- Added Korean explanatory comments across the main WinUI example files:
+  - DI/bootstrap notes in `App.xaml.cs` and `MainWindow.xaml.cs`
+  - shell host / transition-queue rationale in `AppShellView.cs`
+  - wheel-forwarding intent in `PointerWheelScrollBridge.cs`
+  - session-state, dispatcher, and mock-peer reasoning in `MainViewModel.cs`, `DeviceLabSessionService.cs`, and `LocalMockEndpointService.cs`
+  - code-built view/localization/theme rationale in `DeviceLabView.cs`, `SettingsView.cs`, `DeviceLabTheme.cs`, and `AppLocalizer.cs`
+- Verified the comment-only pass with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test commlib-codex-full.sln`
+- Recorded the 2026-04-03 daily progress entry in `PROGRESS.md`:
+  - `apply_patch` still could not edit the file in place because the existing stream is not valid UTF-8
+  - appended the new dated section safely instead of rewriting older bytes
+  - kept full encoding normalization as deferred repo hygiene work
+- Centralized repo-wide package/build defaults:
+  - added `Directory.Build.props` for shared `Nullable` and `ImplicitUsings`
+  - added `Directory.Packages.props` with the package versions used across WinUI, hosting, console, infrastructure, and test projects
+  - removed inline package version declarations from the existing `.csproj` files so package references stay project-specific while versions live in one root file
+- Re-validated the repo after central package management with:
+  - `dotnet build commlib-codex-full.sln`
+  - `dotnet test commlib-codex-full.sln --no-build`
+- Added coverage collection support in the test layer only:
+  - added `coverlet.collector` to `Directory.Packages.props`
+  - referenced it from `CommLib.Unit.Tests` and `CommLib.Infrastructure.Tests` with `PrivateAssets=all`
+  - kept the package out of non-test projects because it is a test collector, not a runtime/library dependency
+- Verified coverage collection with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"`
+  - Cobertura XML outputs generated under each test project's `TestResults/.../coverage.cobertura.xml`
+- Published the WinUI follow-up branch and captured the delivery state:
+  - split the local work into `1601dbc` (`build(repo): centralize package versions and coverage tooling`), `f21d5dd` (`feat(examples): localize and streamline winui device lab`), and `bad9ee7` (`docs(agent): record winui follow-up state`)
+  - pushed `feat/winui-localization-foundation` to `commlib-hub`
+  - the GitHub connector could not open the PR directly because pull-request creation returned `403 Resource not accessible by integration`
+  - used `gh` CLI as fallback to open PR `#3` (`[codex] localize and streamline the WinUI device lab`)
+  - later confirmed via `gh pr view 3` that the PR is now merged into `main`
+- Reviewed the repo's current support for raw hex and bitfield-shaped payloads:
+  - confirmed that the live path stops at frame boundaries plus the text-oriented `AutoBinary` serializer, with no existing bit-mask/bit-shift payload decoder in `src/`
+  - designed the minimum safe direction as serializer/payload-codec work plus a small WinUI composer-mode addition rather than a transport/protocol rewrite
+  - recorded the implementation as deferred backlog, with raw-hex roundtrip support as the first slice and declarative bitfield schema mapping as a follow-up
+- Re-reviewed that design for longer-term extensibility:
+  - found that `SerializerOptions` / `ProtocolOptions` are currently flatter and more closed than `TransportOptions`, which would make future schema-specific settings awkward
+  - found that the real reuse seam is not only a new serializer, but also a binary payload representation plus display/formatting support so WinUI and logs stop assuming text-only bodies
+  - refined the backlog/decision notes toward a reusable binary-capable serializer/configuration path instead of a one-off `RawHex` bolt-on
+- Added the first schema-backed bitfield layer above the low-level raw-payload codec:
+  - introduced `BitFieldPayloadSchema`, `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldFieldAssignment`, and `BitFieldFieldValue`
+  - added `BitFieldPayloadSchemaValidator` for payload-length, overlap, duplicate-name, and scalar-kind checks
+  - added `BitFieldPayloadSchemaCodec` to compose raw payload bytes from named field values and inspect raw payload bytes back into named field values
+  - chose `decimal` as the first schema API value type so the layer can represent signed and unsigned 64-bit scalar values without adding a heavier numeric abstraction yet
+- Added the first serializer-adjacent settings seam for that schema layer:
+  - `SerializerOptions` now carries an optional `BitFieldSchema`
+  - `DeviceProfileValidator` now rejects invalid schema definitions and rejects schema usage unless the serializer type is currently `RawHex`
+  - `OutboundMessageComposer` now has a schema-based binary payload overload that stays above the transport/protocol layer
+- Added focused unit coverage for the new schema slice:
+  - `BitFieldPayloadSchemaValidatorTests`
+  - `BitFieldPayloadSchemaCodecTests`
+  - updated `OutboundMessageComposerTests`, `DeviceProfileMapperTests`, and `DeviceProfileValidatorTests`
+- Verified the schema-backed slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+- Created the feature branch `feat/bitfield-endianness` from `feat/rawhex-compose-flow` before changing the bitfield semantics again.
+- Extended the bitfield layer to carry explicit byte order:
+  - added `BitFieldEndianness`
+  - `BitFieldDefinition` and `BitFieldPayloadField` now carry endianness metadata
+  - `BitFieldCodec` still keeps `payload[0]` LSB = bit `0`, but now supports `BigEndian` for byte-aligned multi-byte fields with whole-byte lengths
+  - schema-backed compose/inspect now honors that endianness through `ToDefinition()`
+- Chose to keep this slice intentionally narrow:
+  - endianness means byte order for multi-byte fields
+  - it does not change bit numbering within a byte
+  - it does not yet support partial-byte big-endian multi-byte fields
+- Added focused tests for the new endianness behavior:
+  - `BitFieldCodecTests` now cover big-endian read/write and invalid partial-byte big-endian layout
+  - `BitFieldPayloadSchemaCodecTests` now cover big-endian schema compose/inspect
+  - `BitFieldPayloadSchemaValidatorTests` now reject invalid big-endian schema layout
+- Verified the endianness slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet build commlib-codex-full.sln --no-restore`
+
+## 2026-04-09
+
+- Aligned the protocol contract with the runtime we actually ship:
+  - removed inactive `UseCrc`, `Stx`, and `Etx` fields from `ProtocolOptions`
+  - kept `ProtocolOptions` focused on the active `LengthPrefixed` shape (`Type` + `MaxFrameLength`)
+  - taught `LengthPrefixedProtocol` to enforce `MaxFrameLength` on both encode and decode instead of ignoring the option
+  - updated `ProtocolFactory` to pass the configured frame limit into `LengthPrefixedProtocol` and accept the built-in protocol name case-insensitively
+  - updated `DeviceProfileValidator` to reject unsupported protocol types before connect-time runtime work begins
+- Cleaned sample/config surfaces so they no longer advertise unsupported framing behavior:
+  - removed inactive CRC/STX/ETX protocol settings from the root `appsettings.json`
+  - normalized the stale sample reconnect label from `FixedInterval` to the supported `Linear`
+  - updated the console example to reuse the same frame-length contract in its manual echo helper
+  - removed the dead `UseCrc` assignment from the WinUI live-profile builder
+- Added focused protocol tests for the new truthfulness boundary:
+  - `LengthPrefixedProtocolTests` now cover constructor guardrails plus oversize encode/decode rejection
+  - `ProtocolFactoryTests` now verify the configured `MaxFrameLength` reaches the concrete protocol instance and that the built-in protocol name is treated case-insensitively
+  - `DeviceProfileValidatorTests` now cover unsupported protocol-type rejection
+- Verified this slice sequentially to avoid the repo's earlier transient `dotnet` output-lock issue:
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- Locked down the runtime recovery boundary in `ConnectionManager` instead of widening into implicit auto-reconnect:
+  - chose terminal failed sessions inside the core library after a post-connect background receive failure
+  - made `SendAsync()` and `TryHandleInboundFrame()` rethrow the stored receive failure once the receive pump has died
+  - changed `GetSession()` to hide failed sessions until the caller explicitly disconnects or reconnects that device
+  - added `IDeviceSession.FailPendingResponses()` / `DeviceSession.FailPendingResponses()` so session shutdown can fail caller-held pending response tasks immediately
+- Extended the same terminal-session contract to explicit shutdown paths:
+  - `ConnectionManager` now fails pending response tasks immediately on background receive failure
+  - `DisconnectAsync()` now fails pending response tasks with a `DeviceConnectionException(..., "disconnect", ...)`
+  - same-device `ConnectAsync()` replacement now fails pending response tasks from the replaced session instead of leaving them hanging
+- Added focused runtime-hardening coverage for:
+  - send-after-failed-receive throwing the stored receive failure and hiding the session
+  - pending-request failure on background receive failure
+  - pending-request failure on explicit disconnect
+  - pending-request failure on same-device session replacement during reconnect
+  - direct `DeviceSession` pending-response failure/cleanup behavior
+- Verified the runtime recovery slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+- One initial parallel validation attempt hit a transient `CommLib.Domain.dll` file lock; rerunning the validation sequentially succeeded, so no implementation rollback was needed.
+- Re-ran the production-readiness review as a design/delivery review instead of widening implementation immediately:
+  - confirmed that the main remaining technical blockers are unbounded unsolicited inbound buffering, missing mandatory runtime connect-boundary validation / aggregate bootstrap validation, first-failure-stops-all bootstrap behavior, and a still-thin hosting / observability / secure-transport surface
+  - confirmed that draft PR `#4` is not yet a narrow runtime-hardening review unit because `feat/runtime-readiness-hardening` still sits on top of the earlier raw-hex / bitfield branch lineage
+  - shifted the next planned execution point toward delivery-base cleanup first, then bounded inbound buffering, then bootstrap/hosting hardening
+- Reconciled the stale planning docs against `PROGRESS.md` and local refs:
+  - confirmed `feat/runtime-hardening-clean-base` now exists locally/remotely as the clean runtime delivery line and that `PROGRESS.md` records replacement draft PR `#5`
+  - confirmed the current checkout still sits on the older mixed `feat/runtime-readiness-hardening` line, so future production slices should resume on the clean branch rather than on this dirty worktree
+- Designed the next runtime slice before coding:
+  - keep the first unsolicited-inbound hardening step inside `ConnectionManager`
+  - replace the unbounded inbound queue with a bounded queue and backpressure-first full behavior rather than silent drop semantics
+  - keep queue capacity internal for the first slice unless implementation evidence forces a public configuration surface
+
+## 2026-04-13
+
+- Reconciled the recorded runtime-hardening plan against the actual dirty worktree state:
+  - confirmed the current checkout `feat/runtime-readiness-hardening` still carries uncommitted serializer/composer follow-up work rather than the next `ConnectionManager` buffering slice
+  - confirmed the dirty code spans endian-aware bitfield support, WinUI `BitFieldSchema` persistence, schema-enriched session-log formatting, focused tests, and planning docs
+  - updated `CURRENT_PLAN.md`, `docs/current-plan.md`, and `TODOS.md` so today's first execution point is to finish or safely park that validated dirty slice before switching back to `feat/runtime-hardening-clean-base`
+- Validated the in-flight bitfield / WinUI slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "BitFieldCodecTests|BitFieldPayloadSchemaCodecTests|BitFieldPayloadSchemaValidatorTests|MessagePayloadFormatterTests" --no-restore`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+
+## 2026-04-14
+
+- Reorganized execution-tracking docs without changing product code:
+  - refreshed `TODOS.md` with an explicit execution-context section, current-worktree-vs-clean-branch guidance, and scan-friendly backlog category headers
+  - preserved the newly captured maintenance/runtime TODOs while clarifying that `_deviceOperationGates` cleanup and `DeviceSession` timeout-cancellation cleanup are the safe mixed-worktree fixes to tackle before resuming clean-branch runtime-surface work
+  - aligned `CURRENT_PLAN.md` so the next execution point now separates mixed-worktree maintenance fixes from clean-branch queue-pressure / hosted-service decisions
+- No build or test rerun was needed for this documentation-only update.
+- Completed the first promoted mixed-worktree maintenance fix in `ConnectionManager`:
+  - replaced the raw `SemaphoreSlim` gate registry with reference-counted per-device gate entries so disconnected devices no longer retain unused operation gates indefinitely
+  - updated `ConnectAsync()` / `DisconnectAsync()` gate release paths to drop leases safely after the last disconnected-device use
+  - added `DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates` to prove the internal gate map returns to zero across repeated distinct-device connect/disconnect cycles
+- Verified the runtime-maintenance slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- Added the missing Korean XML comments for the new gate-cleanup follow-up without changing behavior:
+  - documented the private `DeviceOperationGate` helper and the new gate acquire/release helpers in `ConnectionManager`
+  - documented the new distinct-device gate cleanup test and its internal gate-count helper
+- Re-verified after the comment-only follow-up with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- Expanded the Korean XML documentation pass from the earlier narrow follow-up into a repo-wide sweep across `src/`, `examples/`, and `tests`:
+  - added missing Korean XML summaries across source, example, and test declarations, including previously uncovered interface members and helper types
+  - rewrote comment-touched files with explicit UTF-8 encoding so Korean XML docs and existing Korean comments/strings remain readable
+  - repaired the temporary `AppLocalizer.cs` Korean literal corruption that surfaced during the first bulk-edit path, then re-cleaned the WinUI project before rebuilding
+- Verified the repo-wide documentation sweep with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj`
+- Noted one remaining environment-specific validation quirk:
+  - `dotnet build commlib-codex-full.sln` still intermittently fails inside WinUI `XamlCompiler.exe` even when the standalone WinUI project builds cleanly after a fresh clean
+
+## 2026-04-17
+
+- Raised the repository-level public-release baseline without changing the core runtime contract:
+  - replaced the root `README.md` with a public-facing overview and honest contract notes
+  - added central package metadata plus packed `README.md` wiring in `Directory.Build.props`
+  - added `.github/workflows/ci.yml` to validate the core libraries, both test projects, and the console example on Windows
+  - tightened `.gitignore` for local Codex/temp/build artifacts
+  - normalized the package/test project descriptions to clean English text
+  - clarified the console example README so it no longer implies post-connect auto-reconnect support
+- Reconciled the earlier XML-doc warning fallout from global `GenerateDocumentationFile`:
+  - scoped XML documentation output to the packable library projects under `src/`
+  - fixed the remaining live library XML issues in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`
+  - confirmed the package still emits the expected readme/repository metadata after the scoping change
+- Verified the public-ready slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`
+- Left the final publication blockers explicit instead of guessing:
+  - the repo still needs a maintainer-chosen root `LICENSE`
+  - the team still needs to decide whether the internal planning/continuity files should remain visible at the repo root
+  - `AGENT.md` is still mojibake/corrupted if it remains part of the public root layout
+- Reconciled the mixed-branch continuity files against the actual integrated repository state instead of trusting the older 2026-04-14 execution point.
+- Confirmed that `commlib-hub/main` already contains the runtime follow-up merges from PR `#18` (timeout cleanup), PR `#19` (Generic Host lifecycle wiring), PR `#20` (runtime contract hardening), PR `#22` (bounded inbound buffering), and PR `#24` (bootstrap validation/reporting).
+- Marked the stale mixed-branch "current" tasks accordingly so timeout cleanup and hosted-service wiring are no longer promoted as next work.
+- Chose the next safe, evidence-ready slice as internal `DeviceSession` cleanup:
+  - replace reflection-based pending-response completion/failure dispatch with a private typed pending-entry abstraction
+  - keep the work on `commlib-hub/main` (or a fresh branch from it) instead of reviving the preserved mixed branch as a delivery line
+- Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, and `DECISIONS.md` to reflect that new next execution point.
+- No build or test rerun was needed because this cycle intentionally performed planning/state synchronization only.

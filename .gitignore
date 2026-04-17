@@ -30,3 +30,9 @@ packages/
 
 # Logs
 *.log
+
+# Local diagnostics and agent scratch files
+temp-fusion-logs/
+wer/
+winui-build-diag.log
+.codex_tmp_issue_body.md
