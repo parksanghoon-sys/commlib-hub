@@ -1,5 +1,8 @@
 # CHANGELOG_AGENT
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## 2026-04-13
 - Closed the git-delivery loop without widening the mixed worktree:
   - kept `feat/runtime-hardening-clean-base` as the clean runtime review line and updated draft PR `#5`
@@ -384,6 +387,39 @@
 
 ## 2026-04-17
 
+- Created clean branch `chore/repo-finish` from `commlib-hub/main` after finding that the local `main` worktree was left in a conflicted merge state and was not safe to continue using for repository cleanup.
+- Reused the already-published `docs(repo): clarify internal root file policy` change by cherry-picking commit `8dbfd12` onto `chore/repo-finish` instead of re-editing the same root-facing documentation by hand.
+- Restored `.github/workflows/ci.yml` onto `chore/repo-finish` from the previously validated repo-polish commit history so the branch now carries the Windows CI workflow again.
+- Rechecked GitHub cleanup state and confirmed:
+  - issues `#21` and `#23` are now closed
+  - GitHub `main` still lacks `.github/workflows/ci.yml` until this branch lands
+- Verified the branch with the same commands the restored workflow runs:
+  - `dotnet restore commlib-codex-full.sln`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+- Tried both available publication paths and recorded the remaining blocker precisely:
+  - `git push -u commlib-hub chore/repo-finish` was rejected because the available PAT lacks `workflow` scope for updating `.github/workflows/ci.yml`
+  - the GitHub app integration returned `403 Resource not accessible by integration` when asked to create the remote `chore/repo-finish` branch
+- After this branch work, the remaining explicit blockers are:
+  - publish `chore/repo-finish` (or apply commit `5655677`) with workflow-file write permission
+- The maintainer then chose MIT, and this branch now also:
+  - adds the root `LICENSE`
+  - sets `PackageLicenseExpression` to `MIT` in `Directory.Build.props`
+  - updates the root README and continuity files so the remaining blocker is publication, not license choice
+- Verified the MIT packaging path with:
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
+- After the MIT follow-up, the only explicit blocker left is publishing `chore/repo-finish` with workflow-file write permission.
+- Created fresh branch `chore/repo-publication-policy` from `commlib-hub/main` instead of reviving the merged integration branch or the divergent local `main`.
+- Chose the least disruptive root publication policy for now:
+  - keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root
+  - mark them as internal development/continuity artifacts rather than product-facing contract files
+  - keep `src/`, package metadata, and example READMEs as the public-facing contract sources
+- Repaired the public/root messaging around those files:
+  - updated `README.md` repository notes to call out the internal root files explicitly
+  - added internal-artifact headers to `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, and `CHANGELOG_AGENT.md`
+  - left `PROGRESS.md` content untouched because its existing encoding-normalization backlog still makes in-place edits higher risk
+- No build or test rerun was needed because this slice only changes documentation/continuity files and branch hygiene.
 - Merged the outstanding integration batch into GitHub `main` as PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`):
   - pushed local branch `codex/integrate-outstanding-work`
   - opened and merged PR `#25`

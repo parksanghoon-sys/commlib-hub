@@ -1,50 +1,33 @@
 # TODOS
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## Execution Context
-- Active checkout: `codex/integrate-outstanding-work` (local branch only; its remote was deleted after merge because PR `#25` is already on `main`).
+- Active checkout: `chore/repo-finish` (clean branch created from `commlib-hub/main` to finish the remaining repository-publication cleanup without touching the conflicted local `main` worktree).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: remote feature/cleanup branches have already been deleted; the remaining cleanup work is GitHub metadata/permission-related, not branch-integration work.
-- Execution rule: start any new product work from `commlib-hub/main` (or a fresh branch from it), not from the preserved local integration branch.
+- Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Finalize the remaining public-release blockers for the repository root.
-  Scope: restore `.github/workflows/ci.yml` on `main`, close stale issues `#21` and `#23`, then return to the root `LICENSE` / root publication policy follow-up.
-  Objective: finish the last GitHub-side and repository-facing cleanup steps after PR `#25` merged the outstanding code/branch work into `main`.
-  Validation: `.github/workflows/ci.yml` exists on `main`, `is:issue is:open` no longer returns `#21`/`#23`, and the remaining root publication blockers stay recorded truthfully.
+  Scope: publish local branch `chore/repo-finish` so the restored `.github/workflows/ci.yml`, root `LICENSE`, and MIT package metadata reach `main`.
+  Objective: finish the last repository-facing cleanup step after PR `#25` merged the outstanding code/branch work into `main`, the stale GitHub issues were closed, and MIT was chosen.
+  Validation: `.github/workflows/ci.yml` exists on `main`, issues `#21` and `#23` remain closed, root `LICENSE` exists on `main`, and `Directory.Build.props` carries MIT package metadata truthfully.
 
 ## Deferred Backlog
 ### Repository Release & Hygiene
-### [P0_NOW] Unblock the final GitHub-side cleanup with a credential that can write issues and workflow files
-- What remains: restore `.github/workflows/ci.yml` onto `commlib-hub/main` and close stale issues `#21` and `#23`.
-- Why deferred: the available git/PAT credential can push normal code but cannot update workflow files, and both the GitHub app integration and PAT-backed `gh` issue/API calls returned `403 Resource not accessible`.
-- Objective: finish the repository cleanup that remained after PR `#25` merged and the remote feature branches were deleted.
-- Relevant context: PR `#25` merged the integrated runtime/messaging/repo-polish batch into `main`, and remote feature branches were then deleted successfully. The validated workflow content already exists locally, but publishing it still needs higher GitHub write permission.
-- Scope: GitHub issue state for `#21` and `#23`, `.github/workflows/ci.yml` on `main`, and any credential/setup note needed to explain the blocker.
-- Current status: open PRs are already at zero, remote branches are already cleaned, but issue/workflow writes are still blocked by credential scope.
-- Known blockers/open questions: which higher-scope credential or installation should be used for issue/workflow writes in this repo.
-- Most natural next step: use a token/app installation with issue-write and workflow/content-write permission, restore the workflow file, close the two stale issues, and rerun a quick GitHub state check.
-
-### [P0_NOW] Choose the repository license before calling the repo open-source ready
-- What remains: decide the project license and add the corresponding root `LICENSE` file.
-- Why deferred: license selection is a maintainer/legal decision; it is not safe to guess between MIT, Apache-2.0, or another policy just to make the repo look complete.
-- Objective: make the repository legally publishable and remove the clearest remaining blocker to public release.
-- Relevant context: the new root `README.md` now explicitly states that a repository license file is still required before calling the repo fully open-source ready.
-- Scope: root `LICENSE`, `README.md` if wording needs adjustment after the choice, and any package metadata that later wants a license expression.
-- Current status: no root `LICENSE` file exists yet.
-- Known blockers/open questions: which license the maintainer actually intends to publish under.
-- Most natural next step: choose the license intentionally, add the matching file, then re-run a quick package/readme sanity check.
-
-### [P1_SOON] Decide how internal planning/continuity files should appear in a public repo
-- What remains: choose whether `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` should stay at the repo root, move under an internal/docs folder, or remain present but explicitly marked as internal development artifacts.
-- Why deferred: the files are useful to the local workflow, but keeping them at the root affects first impressions for external users.
-- Objective: make the public root layout intentional instead of accidental.
-- Relevant context: the new root `README.md` already warns that the repository still contains internal planning and continuity files used during active development.
-- Scope: root layout, README repository notes, and any automation/local workflow that assumes those filenames/paths.
-- Current status: the files still live at the root and `AGENT.md` is still mojibake/corrupted.
-- Known blockers/open questions: whether moving these files would break current automation or whether the team prefers to keep this working style visible.
-- Most natural next step: decide the root-file policy first, then either normalize the files that stay public or move/retire the ones that should not stay at the root.
+### [P0_NOW] Publish the local workflow-restoration branch with credentials that can update workflow files
+- What remains: push or otherwise publish local branch `chore/repo-finish` so the prepared cleanup commits land on GitHub and restore `.github/workflows/ci.yml`, the MIT `LICENSE`, and MIT package metadata on `main`.
+- Why deferred: the available PAT can push normal refs but rejects workflow-file updates without `workflow` scope, and the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation in this repo.
+- Objective: finish the last GitHub-side repository cleanup that is now fully prepared and locally verified.
+- Relevant context: `chore/repo-finish` already contains commit `45892c4` (`docs(repo): clarify internal root file policy`), commit `5655677` (`chore(repo): restore ci publication cleanup`), and the MIT follow-up that adds the root `LICENSE` and `PackageLicenseExpression=MIT`. The branch was verified locally with `dotnet restore`, both `dotnet test` projects in `Release`, the console example `dotnet build`, and a `dotnet pack` check for MIT package metadata.
+- Scope: remote branch publication for `chore/repo-finish` (or equivalent application of commit `5655677`) and subsequent merge onto `main`.
+- Current status: the full fix exists locally and is cleanly committed, but it is not present on GitHub because both available write paths are under-scoped for workflow-file publication.
+- Known blockers/open questions: which credential should publish workflow-file changes in this repo; whether the maintainer wants to push the branch directly or cherry-pick commit `5655677` from a higher-scope environment.
+- Most natural next step: publish `chore/repo-finish` using a token/account with workflow-file write permission, then confirm `.github/workflows/ci.yml` and `LICENSE` both exist on `main`.
 
 ### Runtime Hardening & Correctness
 ### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
@@ -208,6 +191,9 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: created clean branch `chore/repo-finish` from `commlib-hub/main`, cherry-picked the root publication-policy doc pass, restored `.github/workflows/ci.yml` from the previously validated repo-polish commit history, verified the branch locally with `dotnet restore`, both `Release` test projects, and the console `Release` build, and confirmed GitHub issues `#21` and `#23` are now closed.
+- [x] 2026-04-17: maintainer chose MIT, so `chore/repo-finish` now adds the root `LICENSE`, sets `PackageLicenseExpression` to `MIT` in `Directory.Build.props`, updates the root README/status files accordingly, and verifies the package metadata path with `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`.
+- [x] 2026-04-17: chose the current root-file publication policy to keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root for now as explicitly marked internal development artifacts rather than moving paths that current workflow/automation depends on; updated the root `README.md` plus the main continuity files accordingly, and left `PROGRESS.md` banner normalization deferred behind its existing encoding-cleanup backlog.
 - [x] 2026-04-17: merged PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`) into `commlib-hub/main`, pruned the remote feature/cleanup branches so only `main` remains, and confirmed that open PRs are now zero; issue/workflow cleanup is still blocked by missing GitHub write scopes.
 - [x] 2026-04-17: upgraded the repo-facing public-release baseline by replacing the root `README.md` with a public-facing overview, adding central package metadata plus packed `README.md` wiring in `Directory.Build.props`, introducing a Windows CI workflow, tightening `.gitignore`, normalizing package/test project descriptions, and clarifying the console example README so it does not overstate reconnect behavior; verified with `dotnet restore commlib-codex-full.sln`, sequential unit/infrastructure test runs, a console build, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj`.
 - [x] 2026-04-17: scoped XML documentation generation to the packable library projects under `src/` instead of the entire repo, fixed the remaining live library XML warning gaps in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`, and re-verified cleanly with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`, `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`.

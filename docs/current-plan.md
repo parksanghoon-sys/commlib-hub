@@ -1,5 +1,8 @@
 # Current Plan
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## Date
 - 2026-04-17
 
@@ -11,24 +14,26 @@
 - PR `#25` merged the outstanding integration batch into `commlib-hub/main`.
 - Remote feature/cleanup branches have been deleted from `commlib-hub`; only `main` remains on the remote.
 - Open PR count is now zero.
-- The validated `.github/workflows/ci.yml` is still missing from `main` because the available credentials in this environment could not write workflow files.
-- Stale issues `#21` and `#23` are still open only because the available GitHub app/PAT could not update issue state.
+- Issues `#21` and `#23` are now closed because their work is already on `main`.
+- `.github/workflows/ci.yml` is still missing from GitHub `main`, but local branch `chore/repo-finish` restores the validated workflow content and verifies it successfully.
+- Publishing `chore/repo-finish` is still blocked in this environment because `git push` lacks workflow-file scope and the GitHub app integration cannot create/update refs in this repo.
+- MIT has now been chosen and this branch adds the root `LICENSE` file plus `PackageLicenseExpression=MIT`.
 - Root `README.md` is now a public-facing overview with honest contract notes.
 - Package metadata is centralized in `Directory.Build.props`, and `README.md` is packed into NuGet packages.
-- A Windows CI workflow has already been authored and validated locally; it still needs to be restored onto `main`.
+- A Windows CI workflow has already been restored on this branch; it still needs to land on `main`.
 - XML documentation output is enabled only for packable library projects under `src/`, not for tests/examples.
 - The remaining library XML warning gaps were fixed in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`.
-- Verification passed with:
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`
-  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`
-  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`
-- The repo is not fully publication-ready yet because `LICENSE` is still missing and the internal planning files remain exposed at the repo root.
+- Verification passed on this branch with:
+  - `dotnet restore commlib-codex-full.sln`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
+- The generated `CommLib.Domain.0.1.0-local-mit.nupkg` contains the expected MIT license expression, readme metadata, and repository metadata.
+- The repo is not fully publication-ready yet because `.github/workflows/ci.yml` is restored only on local branch `chore/repo-finish`.
 
 ## Next Work Unit
-1. Restore `.github/workflows/ci.yml` onto `main` with credentials that can write workflow files.
-2. Close stale issues `#21` and `#23` with credentials that can write issue state.
-3. Return to the remaining publication blockers: choose the root `LICENSE`, decide the root-file policy, and normalize or retire `AGENT.md` if needed.
+1. Publish local branch `chore/repo-finish` with credentials that can update workflow files on GitHub.
 
 ## Not In This Step
 - No new runtime/API hardening

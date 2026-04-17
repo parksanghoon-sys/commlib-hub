@@ -99,7 +99,10 @@ dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj
 
 ## Repository Notes
 
-- This repository still contains internal planning and continuity files used during active development.
-  Treat the runtime behavior in `src/` and the example READMEs as the real product-facing contract.
+- This repository keeps several development-workflow artifacts at the root during active maintenance:
+  `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md`.
+  They are internal planning/continuity files, not part of the public CommLib runtime or package contract.
+- Treat the runtime behavior in `src/`, package metadata, and the example READMEs as the real product-facing contract.
+- The repository is now licensed under MIT. See [LICENSE](LICENSE).
 - CI currently validates the core libraries, console example, and both test projects on Windows.
-- A repository license file is still required before calling the repo fully open-source ready.
+- The remaining publication blocker is still the unpublished workflow-restoration branch that carries `.github/workflows/ci.yml`.
