@@ -1,5 +1,8 @@
 # DECISIONS
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## 2026-04-13 - Deliver the validated bitfield / WinUI follow-up as stacked feature PRs, not on the mixed runtime branch
 - Context: the active `feat/runtime-readiness-hardening` worktree still carried validated but uncommitted serializer/composer, WinUI, and focused-test changes that belonged to the raw-hex / bitfield line rather than to the next runtime-hardening slice. A clean runtime branch and draft PR `#5` already existed, so committing more work here would have recreated the same mixed review problem.
 - Decision: preserve the mixed worktree as local scratch only, replay the validated feature files onto clean feature branches, and publish them as draft PR `#7` (`feat/bitfield-endianness` -> `main`) plus stacked draft PR `#6` (`feat/bitfield-schema-log-enrichment` -> `feat/bitfield-endianness`).
@@ -245,3 +248,33 @@
 - Decision: treat the remaining workflow/issue cleanup as a credential-scope problem, not as a product-code problem. Stop after the successful PR merge and remote-branch cleanup, and leave the final GitHub-side cleanup explicit for a later pass with the correct permissions.
 - Why: inventing more local branch churn or alternative code paths would not solve the actual blocker; the missing capability is GitHub write scope for workflow files and issue state.
 - Consequences: `main` now contains the integrated code and the remote branch list is clean, but `.github/workflows/ci.yml` still needs a higher-scope write path and issues `#21` / `#23` will stay open until that credential is available.
+
+## 2026-04-17 - Keep root continuity files in place for now, but mark them as internal development artifacts
+- Context: after PR `#25`, the remaining publication blockers included the missing `LICENSE` plus a decision about whether `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` should stay at the repository root, move elsewhere, or be retired. The repo workflow and continuity instructions still reference these paths directly, and `PROGRESS.md` still has its own encoding-cleanup backlog.
+- Decision: keep the existing root paths for now and make the policy explicit instead of moving files prematurely. Mark the continuity files as internal development artifacts in the root-facing docs/files, and defer any relocation until the workflow/automation boundary is intentionally redesigned.
+- Why: this is the smallest structurally correct publication cleanup that improves the public repo story without breaking the current local workflow, hook expectations, or continuity instructions.
+- Consequences: the repository root is now intentionally honest about which files are internal, public readers are pointed toward `src/`, package metadata, and example READMEs for the real product contract, and future relocation of these files remains possible once automation and encoding constraints are addressed.
+
+## 2026-04-17 - Finish the remaining repo-publication cleanup on a fresh branch from remote main, not on the conflicted local main worktree
+- Context: after the root publication-policy documentation pass was prepared on `chore/repo-publication-policy`, the user switched the primary worktree back to local `main`. That local `main` was later found to be in a conflicted, partially merged state and diverged significantly from `commlib-hub/main`, which made it unsafe to continue repository-cleanup work there.
+- Decision: create `chore/repo-finish` directly from `commlib-hub/main`, cherry-pick the already-reviewed root publication-policy commit onto it, and restore `.github/workflows/ci.yml` there instead of trying to salvage the conflicted local `main` index.
+- Why: this is the smallest safe path that protects the user's unresolved local `main` state while keeping the final repository-publication cleanup branch narrow and reviewable.
+- Consequences: the remaining publication cleanup is now isolated on a clean branch, GitHub `main` can receive the workflow restoration through a normal branch/PR flow, and the still-divergent local `main` worktree can be handled separately without blocking repository hygiene.
+
+## 2026-04-17 - Treat workflow publication as still blocked until a credential with workflow-file write capability is used
+- Context: `chore/repo-finish` now contains the restored `.github/workflows/ci.yml`, the root publication-policy documentation, and green local verification. However, publishing that branch from this environment failed through both available write paths.
+- Decision: keep the workflow restoration committed locally on `chore/repo-finish`, but record publication itself as the remaining blocker until a token/account with workflow-file write capability is used. Do not keep retrying the same under-scoped PAT or GitHub app integration from this environment.
+- Why: the code/doc work is complete, and repeated failed writes would not add value. The actual missing capability is permission to create/update workflow-file refs on GitHub.
+- Consequences: future work should start from the already-prepared local branch/commit (`5655677` on `chore/repo-finish`) and publish it from a higher-scope environment before addressing the still-separate `LICENSE` decision.
+
+## 2026-04-17 - Use MIT for the repository license and package metadata
+- Context: after the publication branch was fully prepared except for remote workflow-file publication, the remaining maintainer decision was which repository license to adopt.
+- Decision: use MIT, add the standard root `LICENSE` file, and set `PackageLicenseExpression` to `MIT` in `Directory.Build.props` so the NuGet package metadata stays truthful alongside the repo-level license.
+- Why: the maintainer explicitly chose MIT, and package metadata should match the repository license instead of leaving the published package surface ambiguous.
+- Consequences: the explicit license-choice blocker is now resolved locally, the remaining blocker is only publishing `chore/repo-finish`, and future package builds from this branch will carry MIT license metadata.
+
+## 2026-04-17 - Split publication into a pushable non-workflow branch and a separate local workflow-restoration branch
+- Context: `chore/repo-finish` contains the full repository-publication cleanup, including `.github/workflows/ci.yml`, but every available local publication path still resolves to a PAT that GitHub rejects for workflow-file updates. The GitHub app integration is also under-scoped for ref creation in this repo.
+- Decision: keep `chore/repo-finish` intact as the local source of truth for the validated workflow restoration, but create `chore/repo-finish-publishable` from `commlib-hub/main` and copy only the non-workflow cleanup onto it so the MIT license, package metadata, root-policy docs, and continuity updates can still be pushed immediately.
+- Why: this is the smallest safe way to publish the repo/license cleanup that does not depend on workflow-file write permission, while keeping the still-blocked workflow restoration explicit and reviewable.
+- Consequences: GitHub can receive most of the repo-publication cleanup now, but `.github/workflows/ci.yml` still requires a later publish from `chore/repo-finish` or an equivalent higher-scope cherry-pick.

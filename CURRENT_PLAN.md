@@ -1,5 +1,8 @@
 # Current Plan
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 Date: 2026-04-17
 
 ## Goal
@@ -9,41 +12,45 @@ Raise repository-level public/open-source readiness without changing the core ru
 - PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`) is now merged into `commlib-hub/main`.
 - The previously outstanding runtime/messaging/repo-polish slices are now on `main`; only GitHub-side cleanup blockers remain from this integration pass.
 - All remote feature/cleanup branches that were part of the older delivery lines have been deleted from `commlib-hub`; only `main` remains on the remote.
-- The GitHub Actions workflow file is not currently present on `main` because the available git/PAT credential could not update `.github/workflows/ci.yml`, and the GitHub app integration also returned `403 Resource not accessible by integration` for contents writes.
-- Stale issues `#21` and `#23` are still open on GitHub even though their work is already on `main`, because both the GitHub app and the available PAT lacked issue-write permission in this environment.
+- GitHub issues `#21` and `#23` are now closed because their work is already present on `main`.
+- `.github/workflows/ci.yml` is still missing from GitHub `main`, but local branch `chore/repo-finish` restores the validated workflow content and verifies it successfully.
+- This branch, `chore/repo-finish-publishable`, intentionally carries only the non-workflow subset of the repo-publication cleanup so it can still be pushed with the currently available credentials.
+- Publishing the full `chore/repo-finish` workflow-restoration branch is still blocked in this environment:
+  - `git push` rejects workflow-file updates because the available PAT lacks `workflow` scope
+  - the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation
 - The root `README.md` is now a public-facing overview instead of an internal scratch document.
+- The maintainer has now chosen MIT, and this branch adds the root `LICENSE` file plus `PackageLicenseExpression=MIT` in `Directory.Build.props`.
 - Repository/package polish is now in place:
   - central package metadata lives in `Directory.Build.props`
+  - package license metadata now uses `MIT`
   - `README.md` is packed into NuGet packages
-  - `.github/workflows/ci.yml` has already been authored and validated locally, but it still needs to be restored onto `main`
+  - `.github/workflows/ci.yml` has been restored on local branch `chore/repo-finish` and still needs to land on `main`
   - root/test project descriptions were normalized to clean English text
 - XML documentation generation is now scoped to the packable library projects under `src/` rather than the entire repo, which removed test/example warning noise while keeping library documentation output enabled.
 - The remaining library-side XML warnings were fixed in:
   - `src/CommLib.Application/Sessions/DeviceSession.cs`
   - `src/CommLib.Infrastructure/Protocol/LengthPrefixedProtocol.cs`
   - `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`
-- Verification completed successfully after the repo-polish updates:
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`
-  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`
-  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`
-  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`
-- The generated `CommLib.Domain.0.1.0-local5.nupkg` still contains the expected package metadata, including `<readme>README.md</readme>` and the repository URL.
+- Verification completed successfully on this branch with the workflow-aligned commands:
+  - `dotnet restore commlib-codex-full.sln`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+- Verification also confirms the MIT package metadata path:
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
+- The generated `CommLib.Domain.0.1.0-local-mit.nupkg` contains the expected package metadata, including `<license type="expression">MIT</license>`, `<readme>README.md</readme>`, and the repository URL.
 - The repo is closer to public-ready, but it is not fully publication-ready yet because:
-  - there is still no root `LICENSE`
-  - internal planning/continuity files still remain exposed at the repo root
-  - `AGENT.md` is still mojibake/corrupted, so it should either be normalized or kept out of the public-facing root policy
+  - `.github/workflows/ci.yml` is restored only on local branch `chore/repo-finish` and still cannot be published from this environment
+  - root internal planning/continuity files now remain by policy as explicitly marked development artifacts
 
 ## Next Work Unit
-1. Restore `.github/workflows/ci.yml` onto `commlib-hub/main` using credentials that have workflow/file-write permission.
-2. Close stale GitHub issues `#21` and `#23` using credentials that have issue-write permission.
-3. After the GitHub-side cleanup is unblocked, return to the remaining repository publication blockers: choose a root `LICENSE`, decide the root-file publication policy, and normalize or relocate `AGENT.md` accordingly.
+1. Publish the remaining workflow-restoration change from local branch `chore/repo-finish` with a credential that can update workflow files on GitHub after the non-workflow cleanup branch is landed.
 
 ## Next Slice Design
 1. Keep the next slice at repository/GitHub hygiene scope; do not reopen runtime or WinUI feature work.
-2. Treat the missing workflow and still-open issues as credential/permission blockers, not as product-code blockers.
-3. After a higher-scope credential is available, restore the validated workflow file first, close the stale issues second, then return to the license/root-doc policy decisions.
+2. Treat the remaining work as publication hygiene only: land the already-pushable MIT/root-policy cleanup first, then publish the prepared workflow-restoration branch with a higher-scope credential.
+3. Do not reopen root-file relocation, runtime cleanup, or WinUI follow-up work in this branch.
 
 ## Stop / Reassess Conditions
-- Do not invent a `LICENSE` without an explicit maintainer choice.
-- Do not attempt more git or API work on `.github/workflows/ci.yml` or issue state until credentials with the necessary scopes are available.
+- Do not attempt more `git push` or GitHub app branch/file writes for `.github/workflows/ci.yml` from this environment until credentials with workflow-file write capability are available.
 - If moving or renaming root internal files would break existing automation or local workflow, stop and document the chosen boundary before editing paths.
