@@ -278,3 +278,9 @@
 - Decision: keep `chore/repo-finish` intact as the local source of truth for the validated workflow restoration, but create `chore/repo-finish-publishable` from `commlib-hub/main` and copy only the non-workflow cleanup onto it so the MIT license, package metadata, root-policy docs, and continuity updates can still be pushed immediately.
 - Why: this is the smallest safe way to publish the repo/license cleanup that does not depend on workflow-file write permission, while keeping the still-blocked workflow restoration explicit and reviewable.
 - Consequences: GitHub can receive most of the repo-publication cleanup now, but `.github/workflows/ci.yml` still requires a later publish from `chore/repo-finish` or an equivalent higher-scope cherry-pick.
+
+## 2026-04-17 - Finish the last publication step on a minimal workflow-only branch
+- Context: after PR `#26` merged the MIT/license/root-policy subset into `main`, the only remaining live diff was the missing `.github/workflows/ci.yml`. Keeping the wider `chore/repo-finish` branch as the delivery vehicle would leave already-landed repo/documentation commits mixed back into the final step.
+- Decision: create `chore/restore-ci-workflow` directly from the updated `commlib-hub/main` and carry only the workflow restoration commit there.
+- Why: this keeps the final publication step minimal, reviewable, and easy to reason about while avoiding duplicate repo/doc churn on top of the already-merged `main`.
+- Consequences: once `chore/restore-ci-workflow` lands, repository-level publication cleanup is complete and the next work can return to the previously queued `DeviceSession` internal cleanup.
