@@ -1,5 +1,8 @@
 # Current Plan
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 Date: 2026-04-17
 
 ## Goal
@@ -30,18 +33,19 @@ Raise repository-level public/open-source readiness without changing the core ru
 - The generated `CommLib.Domain.0.1.0-local5.nupkg` still contains the expected package metadata, including `<readme>README.md</readme>` and the repository URL.
 - The repo is closer to public-ready, but it is not fully publication-ready yet because:
   - there is still no root `LICENSE`
-  - internal planning/continuity files still remain exposed at the repo root
-  - `AGENT.md` is still mojibake/corrupted, so it should either be normalized or kept out of the public-facing root policy
+  - `.github/workflows/ci.yml` is still missing from `main`
+  - stale issues `#21` and `#23` are still open on GitHub
+  - root internal planning/continuity files now remain by policy as explicitly marked development artifacts
 
 ## Next Work Unit
 1. Restore `.github/workflows/ci.yml` onto `commlib-hub/main` using credentials that have workflow/file-write permission.
 2. Close stale GitHub issues `#21` and `#23` using credentials that have issue-write permission.
-3. After the GitHub-side cleanup is unblocked, return to the remaining repository publication blockers: choose a root `LICENSE`, decide the root-file publication policy, and normalize or relocate `AGENT.md` accordingly.
+3. Choose the repository `LICENSE` with an explicit maintainer decision and add the matching root file.
 
 ## Next Slice Design
 1. Keep the next slice at repository/GitHub hygiene scope; do not reopen runtime or WinUI feature work.
 2. Treat the missing workflow and still-open issues as credential/permission blockers, not as product-code blockers.
-3. After a higher-scope credential is available, restore the validated workflow file first, close the stale issues second, then return to the license/root-doc policy decisions.
+3. After a higher-scope credential is available, restore the validated workflow file first, close the stale issues second, then return to the remaining license blocker.
 
 ## Stop / Reassess Conditions
 - Do not invent a `LICENSE` without an explicit maintainer choice.

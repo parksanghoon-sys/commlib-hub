@@ -1,5 +1,8 @@
 # DECISIONS
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## 2026-04-13 - Deliver the validated bitfield / WinUI follow-up as stacked feature PRs, not on the mixed runtime branch
 - Context: the active `feat/runtime-readiness-hardening` worktree still carried validated but uncommitted serializer/composer, WinUI, and focused-test changes that belonged to the raw-hex / bitfield line rather than to the next runtime-hardening slice. A clean runtime branch and draft PR `#5` already existed, so committing more work here would have recreated the same mixed review problem.
 - Decision: preserve the mixed worktree as local scratch only, replay the validated feature files onto clean feature branches, and publish them as draft PR `#7` (`feat/bitfield-endianness` -> `main`) plus stacked draft PR `#6` (`feat/bitfield-schema-log-enrichment` -> `feat/bitfield-endianness`).
@@ -245,3 +248,9 @@
 - Decision: treat the remaining workflow/issue cleanup as a credential-scope problem, not as a product-code problem. Stop after the successful PR merge and remote-branch cleanup, and leave the final GitHub-side cleanup explicit for a later pass with the correct permissions.
 - Why: inventing more local branch churn or alternative code paths would not solve the actual blocker; the missing capability is GitHub write scope for workflow files and issue state.
 - Consequences: `main` now contains the integrated code and the remote branch list is clean, but `.github/workflows/ci.yml` still needs a higher-scope write path and issues `#21` / `#23` will stay open until that credential is available.
+
+## 2026-04-17 - Keep root continuity files in place for now, but mark them as internal development artifacts
+- Context: after PR `#25`, the remaining publication blockers included the missing `LICENSE` plus a decision about whether `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` should stay at the repository root, move elsewhere, or be retired. The repo workflow and continuity instructions still reference these paths directly, and `PROGRESS.md` still has its own encoding-cleanup backlog.
+- Decision: keep the existing root paths for now and make the policy explicit instead of moving files prematurely. Mark the continuity files as internal development artifacts in the root-facing docs/files, and defer any relocation until the workflow/automation boundary is intentionally redesigned.
+- Why: this is the smallest structurally correct publication cleanup that improves the public repo story without breaking the current local workflow, hook expectations, or continuity instructions.
+- Consequences: the repository root is now intentionally honest about which files are internal, public readers are pointed toward `src/`, package metadata, and example READMEs for the real product contract, and future relocation of these files remains possible once automation and encoding constraints are addressed.

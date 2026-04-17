@@ -1,5 +1,8 @@
 # Current Plan
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## Date
 - 2026-04-17
 
@@ -23,12 +26,12 @@
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`
   - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`
-- The repo is not fully publication-ready yet because `LICENSE` is still missing and the internal planning files remain exposed at the repo root.
+- The repo is not fully publication-ready yet because `LICENSE` is still missing, `.github/workflows/ci.yml` is still absent from `main`, and issues `#21` / `#23` are still open.
 
 ## Next Work Unit
 1. Restore `.github/workflows/ci.yml` onto `main` with credentials that can write workflow files.
 2. Close stale issues `#21` and `#23` with credentials that can write issue state.
-3. Return to the remaining publication blockers: choose the root `LICENSE`, decide the root-file policy, and normalize or retire `AGENT.md` if needed.
+3. Return to the remaining publication blocker: choose the root `LICENSE` and add the matching file.
 
 ## Not In This Step
 - No new runtime/API hardening

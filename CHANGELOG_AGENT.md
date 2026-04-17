@@ -1,5 +1,8 @@
 # CHANGELOG_AGENT
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## 2026-04-13
 - Closed the git-delivery loop without widening the mixed worktree:
   - kept `feat/runtime-hardening-clean-base` as the clean runtime review line and updated draft PR `#5`
@@ -384,6 +387,16 @@
 
 ## 2026-04-17
 
+- Created fresh branch `chore/repo-publication-policy` from `commlib-hub/main` instead of reviving the merged integration branch or the divergent local `main`.
+- Chose the least disruptive root publication policy for now:
+  - keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root
+  - mark them as internal development/continuity artifacts rather than product-facing contract files
+  - keep `src/`, package metadata, and example READMEs as the public-facing contract sources
+- Repaired the public/root messaging around those files:
+  - updated `README.md` repository notes to call out the internal root files explicitly
+  - added internal-artifact headers to `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, and `CHANGELOG_AGENT.md`
+  - left `PROGRESS.md` content untouched because its existing encoding-normalization backlog still makes in-place edits higher risk
+- No build or test rerun was needed because this slice only changes documentation/continuity files and branch hygiene.
 - Merged the outstanding integration batch into GitHub `main` as PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`):
   - pushed local branch `codex/integrate-outstanding-work`
   - opened and merged PR `#25`

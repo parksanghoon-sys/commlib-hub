@@ -1,18 +1,21 @@
 # TODOS
 
+> Internal development continuity file for active repository maintenance.
+> Not part of the public CommLib runtime or package contract.
+
 ## Execution Context
-- Active checkout: `codex/integrate-outstanding-work` (local branch only; its remote was deleted after merge because PR `#25` is already on `main`).
+- Active checkout: `chore/repo-publication-policy` (fresh local branch created from `commlib-hub/main` for the remaining repository-publication cleanup).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: remote feature/cleanup branches have already been deleted; the remaining cleanup work is GitHub metadata/permission-related, not branch-integration work.
-- Execution rule: start any new product work from `commlib-hub/main` (or a fresh branch from it), not from the preserved local integration branch.
+- Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Finalize the remaining public-release blockers for the repository root.
-  Scope: restore `.github/workflows/ci.yml` on `main`, close stale issues `#21` and `#23`, then return to the root `LICENSE` / root publication policy follow-up.
+  Scope: restore `.github/workflows/ci.yml` on `main`, close stale issues `#21` and `#23`, then finish the remaining root `LICENSE` blocker.
   Objective: finish the last GitHub-side and repository-facing cleanup steps after PR `#25` merged the outstanding code/branch work into `main`.
-  Validation: `.github/workflows/ci.yml` exists on `main`, `is:issue is:open` no longer returns `#21`/`#23`, and the remaining root publication blockers stay recorded truthfully.
+  Validation: `.github/workflows/ci.yml` exists on `main`, `is:issue is:open` no longer returns `#21`/`#23`, and the remaining license blocker stays recorded truthfully.
 
 ## Deferred Backlog
 ### Repository Release & Hygiene
@@ -35,16 +38,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Current status: no root `LICENSE` file exists yet.
 - Known blockers/open questions: which license the maintainer actually intends to publish under.
 - Most natural next step: choose the license intentionally, add the matching file, then re-run a quick package/readme sanity check.
-
-### [P1_SOON] Decide how internal planning/continuity files should appear in a public repo
-- What remains: choose whether `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` should stay at the repo root, move under an internal/docs folder, or remain present but explicitly marked as internal development artifacts.
-- Why deferred: the files are useful to the local workflow, but keeping them at the root affects first impressions for external users.
-- Objective: make the public root layout intentional instead of accidental.
-- Relevant context: the new root `README.md` already warns that the repository still contains internal planning and continuity files used during active development.
-- Scope: root layout, README repository notes, and any automation/local workflow that assumes those filenames/paths.
-- Current status: the files still live at the root and `AGENT.md` is still mojibake/corrupted.
-- Known blockers/open questions: whether moving these files would break current automation or whether the team prefers to keep this working style visible.
-- Most natural next step: decide the root-file policy first, then either normalize the files that stay public or move/retire the ones that should not stay at the root.
 
 ### Runtime Hardening & Correctness
 ### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
@@ -208,6 +201,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: chose the current root-file publication policy to keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root for now as explicitly marked internal development artifacts rather than moving paths that current workflow/automation depends on; updated the root `README.md` plus the main continuity files accordingly, and left `PROGRESS.md` banner normalization deferred behind its existing encoding-cleanup backlog.
 - [x] 2026-04-17: merged PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`) into `commlib-hub/main`, pruned the remote feature/cleanup branches so only `main` remains, and confirmed that open PRs are now zero; issue/workflow cleanup is still blocked by missing GitHub write scopes.
 - [x] 2026-04-17: upgraded the repo-facing public-release baseline by replacing the root `README.md` with a public-facing overview, adding central package metadata plus packed `README.md` wiring in `Directory.Build.props`, introducing a Windows CI workflow, tightening `.gitignore`, normalizing package/test project descriptions, and clarifying the console example README so it does not overstate reconnect behavior; verified with `dotnet restore commlib-codex-full.sln`, sequential unit/infrastructure test runs, a console build, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj`.
 - [x] 2026-04-17: scoped XML documentation generation to the packable library projects under `src/` instead of the entire repo, fixed the remaining live library XML warning gaps in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`, and re-verified cleanly with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`, `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`.

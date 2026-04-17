@@ -1,4 +1,10 @@
-# AGENT.md
+﻿# AGENT.md
+
+> Internal development workflow policy for active repository maintenance.
+> This file is not part of the public CommLib runtime or package contract.
+>
+> 이 문서는 저장소 내부 개발 워크플로우를 위한 정책 파일이며,
+> 공개 API/패키지 계약 문서가 아니다.
 
 ## 목적
 
