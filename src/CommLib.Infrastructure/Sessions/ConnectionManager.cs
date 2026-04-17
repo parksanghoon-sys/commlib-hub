@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.Threading.Channels;
+using CommLib.Application.Configuration;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
