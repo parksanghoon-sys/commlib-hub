@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <Description>인프라 계층 구현에 대한 작은 단위 테스트를 관리하는 프로젝트입니다.</Description>
+    <Description>Infrastructure integration and runtime-behavior tests for CommLib.</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace CommLib.Domain.Configuration;
 
@@ -32,7 +32,7 @@ public sealed class DeviceProfileRaw
     /// </summary>
     public SerializerOptions Serializer { get; init; } = new();
     /// <summary>
-    /// 재연결 설정 섹션을 가져옵니다.
+    /// <c>ConnectAsync()</c> 초기 연결 재시도에 사용할 설정 섹션을 가져옵니다.
     /// </summary>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>

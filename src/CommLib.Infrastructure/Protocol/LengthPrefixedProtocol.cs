@@ -40,7 +40,6 @@ public sealed class LengthPrefixedProtocol : IProtocol
     public string Name => "LengthPrefixed";
 
     /// <summary>
-    /// <summary>
     /// 현재 인스턴스가 허용하는 최대 인코딩 프레임 길이를 가져옵니다.
     /// </summary>
     public int MaxFrameLength => _maxFrameLength;

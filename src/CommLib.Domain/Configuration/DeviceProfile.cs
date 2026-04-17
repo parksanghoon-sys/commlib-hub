@@ -1,4 +1,4 @@
-namespace CommLib.Domain.Configuration;
+﻿namespace CommLib.Domain.Configuration;
 
 /// <summary>
 /// 단일 장치 엔드포인트에 대한 검증된 런타임 설정을 나타냅니다.
@@ -30,7 +30,7 @@ public sealed class DeviceProfile
     /// </summary>
     public required SerializerOptions Serializer { get; init; }
     /// <summary>
-    /// 끊어진 연결을 복구할 때 사용할 재연결 정책을 가져옵니다.
+    /// <c>ConnectAsync()</c> 초기 연결 단계에서만 적용할 재시도 설정을 가져옵니다.
     /// </summary>
     public ReconnectOptions Reconnect { get; init; } = new();
     /// <summary>

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <Description>공통 통신 라이브러리의 핵심 도메인 계약, 메시지 모델, 구성 모델을 정의하는 프로젝트입니다.</Description>
+    <Description>Core contracts and configuration models for CommLib transports, protocols, messages, and request-response flows.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

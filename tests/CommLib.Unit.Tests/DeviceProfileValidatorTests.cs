@@ -1,5 +1,6 @@
 using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 using Xunit;
 
 namespace CommLib.Unit.Tests;
@@ -180,6 +181,64 @@ public sealed class DeviceProfileValidatorTests
         });
 
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_BitFieldSchemaWithAutoBinarySerializer_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03bb", displayName: "TCP 03BB", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = new SerializerOptions
+            {
+                Type = SerializerTypes.AutoBinary,
+                BitFieldSchema = CreateValidBitFieldSchema()
+            },
+            Reconnect = profile.Reconnect,
+            RequestResponse = profile.RequestResponse
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+
+        Assert.Contains("RawHex", exception.Message);
+    }
+
+    [Fact]
+    public void Validate_InvalidBitFieldSchema_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-03bc", displayName: "TCP 03BC", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = profile.Transport,
+            Protocol = profile.Protocol,
+            Serializer = new SerializerOptions
+            {
+                Type = SerializerTypes.RawHex,
+                BitFieldSchema = new BitFieldPayloadSchema
+                {
+                    PayloadLengthBytes = 1,
+                    Fields = new[]
+                    {
+                        new BitFieldPayloadField { Name = "mode", BitOffset = 0, BitLength = 6 },
+                        new BitFieldPayloadField { Name = "status", BitOffset = 4, BitLength = 4 }
+                    }
+                }
+            },
+            Reconnect = profile.Reconnect,
+            RequestResponse = profile.RequestResponse
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+
+        Assert.Contains("BitFieldSchema", exception.Message);
     }
 
     [Fact]
@@ -562,6 +621,19 @@ public sealed class DeviceProfileValidatorTests
             Serializer = profile.Serializer,
             Reconnect = reconnect,
             RequestResponse = profile.RequestResponse
+        };
+    }
+
+    private static BitFieldPayloadSchema CreateValidBitFieldSchema()
+    {
+        return new BitFieldPayloadSchema
+        {
+            PayloadLengthBytes = 2,
+            Fields = new[]
+            {
+                new BitFieldPayloadField { Name = "mode", BitOffset = 0, BitLength = 3 },
+                new BitFieldPayloadField { Name = "delta", BitOffset = 4, BitLength = 12, ScalarKind = BitFieldScalarKind.Signed }
+            }
         };
     }
 

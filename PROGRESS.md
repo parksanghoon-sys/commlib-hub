@@ -434,3 +434,122 @@
 - [ ] 실행 중인 `win-x64` WinUI 앱에서 Multicast in-app mock 흐름을 손으로 검증하고, self-echo 중복 로그 UX 설명이 더 필요한지 판단
 - [ ] 실제 마우스 포인터 기준으로 `Device Lab` / `Settings` transport 전환 시 현재 transport 설정만 보이는지, 텍스트 입력 위 휠 스크롤이 자연스러운지 점검
 - [ ] 필요하면 README 또는 UI copy에 `Serial`은 외부 peer 필요, `Multicast`는 단일 머신에서 로그가 중복될 수 있다는 점을 더 분명히 남길지 결정
+
+### 4. 추가 업데이트
+- [x] `Directory.Build.props`, `Directory.Packages.props`를 추가해 공통 `Nullable` / `ImplicitUsings`와 NuGet 버전을 repo 루트에서 중앙 관리하도록 정리
+- [x] `coverlet.collector`를 `CommLib.Unit.Tests`, `CommLib.Infrastructure.Tests`에만 연결하고, 비테스트 프로젝트에는 넣지 않는 구조로 정리
+- [x] 오늘 WinUI follow-up 변경을 기능 단위 커밋 3개(`1601dbc`, `f21d5dd`, `bad9ee7`)로 분리 정리
+- [x] `feat/winui-localization-foundation` 브랜치를 원격 `commlib-hub`에 push하고 GitHub CLI fallback으로 PR #3을 생성
+- [x] 이후 GitHub 기준으로 PR #3 `[codex] localize and streamline the WinUI device lab` 이 `main`에 merge된 상태를 확인
+
+### 5. 추가 검증
+- [x] `dotnet build commlib-codex-full.sln` 통과
+- [x] `dotnet test commlib-codex-full.sln --no-build` 통과
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --collect:"XPlat Code Coverage"` 통과 및 Cobertura 산출물 생성 확인
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --collect:"XPlat Code Coverage"` 통과 및 Cobertura 산출물 생성 확인
+
+### 6. 후속 메모
+- [ ] 남은 UDP / Multicast manual validation과 transport panel 실포인터 점검은 merge 이후 기준으로 `main` 동기화 또는 새 작업 브랜치 정리 후 이어서 진행
+- [ ] `PROGRESS.md` 인코딩 정규화는 append-only 기록이 가능해진 현재도 여전히 별도 hygiene 작업으로 남아 있음
+
+## 2026-04-06
+
+### 1. 추가 업데이트
+- [x] raw-hex / bitfield 후속 작업을 merged 브랜치와 분리하기 위해 작업 브랜치를 `feat/rawhex-compose-flow`로 회전
+- [x] `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `SerializerFactory` `RawHex` 분기를 추가해 text-only 가정을 깨고 raw payload 기반을 마련
+- [x] WinUI 예제에 serializer 선택 저장/연결 경로와 `OutboundMessageComposer`를 붙여 `Device Lab` / `Settings`에서 `RawHex` compose 경로를 실제 세션 전송으로 연결
+- [x] `RawHexConnectionManagerRoundtripTests`를 추가해 실제 `ConnectionManager` + `TcpTransport` + `LengthPrefixedProtocol` + `RawHexSerializer` 경로에서 direct binary payload와 hex-text bridge roundtrip을 고정
+- [x] `win-x64` WinUI `Device Lab`에서 in-app mock TCP peer로 live raw-hex roundtrip을 확인하고, 연결 후 `Send`가 비활성으로 남던 회귀를 `MainViewModel`, `SettingsViewModel`의 UI-context continuation 복구로 수정
+- [x] `BitFieldDefinition`, `BitFieldCodec`, `BitFieldCodecTests`를 추가해 `payload[0]` LSB = bit `0` 규약의 bit-range read/write foundation을 TDD로 고정
+
+### 2. 추가 검증
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~MessagePayloadFormatterTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexSerializerTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~SerializerFactoryTests"`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore --filter "FullyQualifiedName~RawHexConnectionManagerRoundtripTests"`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore --filter "FullyQualifiedName~BitFieldCodecTests"`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- [x] `win-x64` UI Automation smoke에서 `Start Mock -> Connect -> Send`를 실행해 `Outbound message: id=321, body="DE AD BE EF"`와 `Inbound message: id=321, body="DE AD BE EF"`를 live log로 확인
+
+### 3. 후속 메모
+- [ ] `BitFieldDefinition` / `BitFieldCodec` 위에 schema-backed compose/inspect slice를 얹어 feature-level bitfield flow를 만들기
+- [ ] raw-hex / bitfield slice가 한 단계 더 정리된 뒤 UDP / Multicast / real-pointer WinUI manual validation을 재개하기
+- [ ] later device 계약이 pressure를 주기 전까지는 alternate bit numbering, richer scalar types, schema editor UI는 defer 유지
+- [ ] `PROGRESS.md`는 이번에도 기존 인코딩 혼합 위험 때문에 append-only로 기록했고, 별도 hygiene 작업으로 UTF-8 normalization이 필요
+
+## 2026-04-08
+
+### 1. Update
+- [x] Added the first real runtime `BitFieldSchema` consumer through config-backed WinUI session-log enrichment, keeping the work above the existing `RawHex` payload path and out of transport/protocol code.
+- [x] Extended the bitfield validation surface with big-endian offset/signed coverage plus formatter coverage for schema summaries and safe schema/payload mismatch handling.
+- [x] Reviewed the library from an industrial/runtime-readiness angle and recorded the main gaps: `ConnectionManager` lifecycle correctness, protocol-option truthfulness, runtime recovery semantics, and thin hosting/ops/security integration.
+- [x] Created branch `feat/runtime-readiness-hardening` from the current dirty worktree and completed the first runtime hardening slice in `ConnectionManager`.
+- [x] Consolidated per-device runtime state into one connection-state object.
+- [x] Serialized same-device `ConnectAsync` / `DisconnectAsync` operations with per-device gates.
+- [x] Removed the accidental second `OpenAsync()` call during connect.
+- [x] Surfaced background receive-pump failures as `DeviceConnectionException(deviceId, "receive", ...)` with `IConnectionEventSink` failure events.
+
+### 2. Verification
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- [x] `dotnet build src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --no-restore`
+- [x] `dotnet build commlib-codex-full.sln --no-restore`
+- [x] Added infrastructure regression coverage for single-open connect behavior, same-device concurrent connect serialization, and sticky receive-failure surfacing.
+- [x] Hit one transient output-file lock while running `dotnet` commands in parallel, then re-ran the affected validation sequentially and confirmed the code itself was fine.
+
+### 3. Follow-up
+- [ ] Align `ProtocolOptions` with the actual `LengthPrefixedProtocol` runtime contract so unsupported settings such as `UseCrc`, `Stx`, and `Etx` do not look active.
+- [ ] Decide the runtime recovery policy after a post-connect receive failure: terminal failure, automatic reconnect, or explicit delegation to a higher orchestration layer.
+- [ ] Run one live WinUI `RawHex` session with config-backed `messageComposer.bitFieldSchema` to judge whether the current operator-facing field summary wording is good enough.
+- [ ] Keep `PROGRESS.md` append-only for now; the file still needs a separate UTF-8 normalization pass before normal in-place editing is fully safe.
+- [ ] The worktree is intentionally still dirty because it includes both the in-progress bitfield/runtime consumer changes and the new runtime-hardening branch work.
+## 2026-04-09
+
+### 1. Update
+- [x] Re-ran the production-readiness review against the current runtime core and confirmed the next non-trivial blockers are unbounded unsolicited inbound buffering, missing connect/bootstrap validation policy, fail-fast bootstrap semantics, and the still-thin hosting / observability / secure-transport surface.
+- [x] Completed the `ProtocolOptions` truthfulness slice by removing inactive CRC / STX / ETX settings, enforcing `MaxFrameLength` inside `LengthPrefixedProtocol`, passing that limit through `ProtocolFactory`, and rejecting unsupported protocol types up front in `DeviceProfileValidator`.
+- [x] Completed the runtime recovery slice by making post-connect receive failure terminal inside `ConnectionManager`, hiding failed sessions from `GetSession()`, and failing pending response tasks immediately on receive failure, explicit disconnect, and same-device session replacement.
+- [x] Reviewed the Git delivery shape and confirmed draft PR `#4` was too broad because `feat/runtime-readiness-hardening` sat on top of the raw-hex / bitfield lineage instead of a clean `main` base.
+- [x] Created a clean delivery branch `feat/runtime-hardening-clean-base` from `commlib-hub/main`, replayed the runtime-hardening slice there, pushed it, opened replacement draft PR `#5`, and closed superseded draft PR `#4`.
+- [x] Updated the project state files (`CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`) so the next runtime slice and the delivery cleanup decision are recorded in-repo.
+
+### 2. Verification
+- [x] `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- [x] In the clean worktree, `dotnet restore commlib-codex-full.sln` was required once before the `--no-restore` validation set because the new worktree had no `project.assets.json` yet.
+- [x] Verified the clean delivery branch diff is now narrow against `main` and no longer carries the earlier raw-hex / bitfield commits in the PR scope.
+
+### 3. Follow-up
+- [ ] Replace the unbounded unsolicited inbound queue in `ConnectionManager` with a bounded queue and an explicit overflow / backpressure policy.
+- [ ] Enforce profile validation at the runtime connect/bootstrap boundary and decide whether startup should stop on the first connection failure or continue and report partial startup.
+- [ ] Decide whether `ReconnectOptions` / `DeviceProfile.Reconnect` naming should stay as the current connect-time retry contract or move to a clearer alias / rename path later.
+- [ ] Revisit hosting diagnostics, health, and secure transport concerns only after runtime memory behavior and startup semantics are explicit.
+- [ ] The original `feat/runtime-readiness-hardening` worktree is still intentionally dirty because it continues to carry unrelated in-progress bitfield / WinUI changes outside the clean runtime PR line.
+## 2026-04-13
+
+### 1. Update
+- [x] Split the remaining mixed-worktree bitfield / WinUI follow-up into three local session commits on `feat/runtime-readiness-hardening` instead of leaving it as one large dirty diff.
+- [x] Created `68ddf81` `feat(messaging): add bitfield endianness support` for the payload-layer byte-order foundation.
+- [x] Created `40a84a0` `feat(examples): enrich RawHex logs with bitfield schema summaries` for the first config-backed WinUI/session-log consumer.
+- [x] Created `8c5d988` `docs(agent): sync mixed worktree state` so the preserved mixed branch records the new clean delivery truth.
+- [x] Kept the mixed branch as local preserved context only; delivery remains on clean review lines (`#7`, `#6`, `#5`) rather than pushing this branch again.
+
+### 2. Verification
+- [x] `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --filter "BitFieldCodecTests|BitFieldPayloadSchemaCodecTests|BitFieldPayloadSchemaValidatorTests|MessagePayloadFormatterTests" --no-restore`
+- [x] Focused unit coverage passed: 30 tests, 0 failed.
+- [x] `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`
+- [x] WinUI example build passed with 0 warnings and 0 errors.
+- [x] `git status --short --branch` now shows `feat/runtime-readiness-hardening` clean and only `ahead 3` versus `commlib-hub/feat/runtime-readiness-hardening`.
+
+### 3. Follow-up
+- [ ] Keep this mixed branch unpushed unless we deliberately decide to use it for local archive/reference only; the actual review/delivery lines are already split cleanly.
+- [ ] Continue runtime production-hardening only on `feat/runtime-hardening-clean-base`, starting from the queue-pressure signaling decision already recorded in `CURRENT_PLAN.md`.
+- [ ] If this preserved mixed branch stops being useful, recreate or retire it instead of adding new delivery work on top of it.
+- [ ] Keep `PROGRESS.md` append-only until the deferred UTF-8 normalization pass is handled safely.

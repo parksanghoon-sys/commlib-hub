@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using CommLib.Application.Messaging;
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 using CommLib.Examples.WinUI.Models;
 using CommLib.Examples.WinUI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -41,6 +43,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
     private object[] _mockEndpointStatusDetailArgs = [];
     private bool _usesRawMockEndpointDetail;
     private string _rawMockEndpointDetail = string.Empty;
+    private string? _activeSerializerType;
     private LocalMockEndpointBinding? _activeMockEndpoint;
 
     public MainViewModel(
@@ -169,7 +172,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     public string ProtocolBadgeText => "LengthPrefixed";
 
-    public string SerializerBadgeText => "AutoBinary";
+    public string SerializerBadgeText => _activeSerializerType is null
+        ? Settings.SelectedSerializerTitle
+        : _localizer.GetSerializerLabel(_activeSerializerType);
 
     public string RuntimePolicyText => "Strict MVVM + DI + JSON";
 
@@ -222,7 +227,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var profile = BuildProfile();
-            await _sessionService.ConnectAsync(profile).ConfigureAwait(false);
+            await _sessionService.ConnectAsync(profile);
+            _activeSerializerType = profile.Serializer.Type;
+            OnPropertyChanged(nameof(SerializerBadgeText));
         }
         catch (Exception exception)
         {
@@ -246,7 +253,9 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
-            await _sessionService.DisconnectAsync().ConfigureAwait(false);
+            await _sessionService.DisconnectAsync();
+            _activeSerializerType = null;
+            OnPropertyChanged(nameof(SerializerBadgeText));
         }
         catch (Exception exception)
         {
@@ -270,7 +279,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
-            await _sessionService.SendAsync(ParseMessageId(), Settings.OutboundBody).ConfigureAwait(false);
+            await _sessionService.SendAsync(BuildOutboundMessage());
             ApplyViewStatus("main.status.connected", "main.detail.readyNextMessage");
         }
         catch (Exception exception)
@@ -299,7 +308,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             // mock peer는 현재 UI 설정을 그대로 읽되,
             // 실제 loopback 테스트에 필요한 최소 보정은 요청 생성 단계에서 함께 반영한다.
             var request = BuildMockEndpointRequest();
-            var binding = await _mockEndpointService.StartAsync(request).ConfigureAwait(false);
+            var binding = await _mockEndpointService.StartAsync(request);
             _activeMockEndpoint = binding;
             IsMockEndpointRunning = true;
             ApplyRunningMockEndpointStatus(binding);
@@ -333,7 +342,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
         try
         {
-            await _mockEndpointService.StopAsync().ConfigureAwait(false);
+            await _mockEndpointService.StopAsync();
             _activeMockEndpoint = null;
             IsMockEndpointRunning = false;
             RefreshMockEndpointStatus();
@@ -394,7 +403,7 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             },
             Serializer = new SerializerOptions
             {
-                Type = "AutoBinary"
+                Type = Settings.SelectedSerializer.Type
             },
             Reconnect = new ReconnectOptions
             {
@@ -446,6 +455,20 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         return messageId;
     }
 
+    private IMessage BuildOutboundMessage()
+    {
+        var serializerType = _activeSerializerType ?? Settings.SelectedSerializer.Type;
+
+        try
+        {
+            return OutboundMessageComposer.Compose(serializerType, ParseMessageId(), Settings.OutboundBody);
+        }
+        catch (FormatException) when (string.Equals(serializerType, SerializerTypes.RawHex, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(_localizer.Get("composer.error.invalidRawHex"));
+        }
+    }
+
     private void NotifyCommandStateChanged()
     {
         ConnectCommand.NotifyCanExecuteChanged();
@@ -483,6 +506,12 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _statusOwner = StatusOwner.Service;
             IsConnected = snapshot.IsConnected;
+            if (!snapshot.IsConnected)
+            {
+                _activeSerializerType = null;
+                OnPropertyChanged(nameof(SerializerBadgeText));
+            }
+
             StatusText = snapshot.StatusText;
             StatusDetail = snapshot.StatusDetail;
         });
@@ -511,6 +540,14 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
+        if (args.PropertyName is nameof(DeviceLabSettingsViewModel.SelectedSerializer))
+        {
+            if (_activeSerializerType is null)
+            {
+                OnPropertyChanged(nameof(SerializerBadgeText));
+            }
+        }
+
         if (args.PropertyName is nameof(DeviceLabSettingsViewModel.SelectedTransport))
         {
             if (!IsMockEndpointRunning)

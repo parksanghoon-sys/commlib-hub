@@ -1,3 +1,5 @@
+using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 using CommLib.Examples.WinUI.Models;
 using CommLib.Examples.WinUI.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -13,7 +15,9 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
     private string _maxPendingRequests = "8";
     private string _outboundMessageId = "100";
     private string _outboundBody = "hello from the mvvm winui lab";
+    private BitFieldPayloadSchema? _bitFieldSchema;
     private LanguageChoiceViewModel _selectedLanguage = null!;
+    private SerializerChoiceViewModel _selectedSerializer = null!;
     private TransportChoiceViewModel _selectedTransport = null!;
 
     public DeviceLabSettingsViewModel(
@@ -35,6 +39,12 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
             new LanguageChoiceViewModel(AppLanguageMode.Korean, _localizer)
         ];
 
+        SerializerChoices =
+        [
+            new SerializerChoiceViewModel(SerializerTypes.AutoBinary, _localizer),
+            new SerializerChoiceViewModel(SerializerTypes.RawHex, _localizer)
+        ];
+
         TransportChoices =
         [
             new TransportChoiceViewModel(TransportKind.Tcp, _localizer),
@@ -44,11 +54,14 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
         ];
 
         _selectedLanguage = LanguageChoices[0];
+        _selectedSerializer = SerializerChoices[0];
         _selectedTransport = TransportChoices[0];
         _localizer.LanguageChanged += OnLanguageChanged;
     }
 
     public IReadOnlyList<LanguageChoiceViewModel> LanguageChoices { get; }
+
+    public IReadOnlyList<SerializerChoiceViewModel> SerializerChoices { get; }
 
     public IReadOnlyList<TransportChoiceViewModel> TransportChoices { get; }
 
@@ -96,6 +109,12 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
         set => SetProperty(ref _outboundBody, value);
     }
 
+    public BitFieldPayloadSchema? BitFieldSchema
+    {
+        get => _bitFieldSchema;
+        set => SetProperty(ref _bitFieldSchema, value);
+    }
+
     public LanguageChoiceViewModel SelectedLanguage
     {
         get => _selectedLanguage;
@@ -106,6 +125,21 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
             if (SetProperty(ref _selectedLanguage, value))
             {
                 _localizer.CurrentLanguage = value.Mode;
+            }
+        }
+    }
+
+    public SerializerChoiceViewModel SelectedSerializer
+    {
+        get => _selectedSerializer;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (SetProperty(ref _selectedSerializer, value))
+            {
+                OnPropertyChanged(nameof(SelectedSerializerTitle));
+                OnPropertyChanged(nameof(SelectedSerializerSubtitle));
             }
         }
     }
@@ -141,6 +175,10 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
 
     public string SelectedTransportSubtitle => SelectedTransport.Subtitle;
 
+    public string SelectedSerializerTitle => SelectedSerializer.Label;
+
+    public string SelectedSerializerSubtitle => SelectedSerializer.Subtitle;
+
     public DeviceLabAppSettings CreateSnapshot()
     {
         return new DeviceLabAppSettings
@@ -159,6 +197,8 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
             },
             MessageComposer = new MessageComposerAppSettings
             {
+                SerializerType = SelectedSerializer.Type,
+                BitFieldSchema = BitFieldSchema,
                 OutboundMessageId = OutboundMessageId,
                 OutboundBody = OutboundBody
             },
@@ -208,6 +248,8 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
         DisplayName = settings.Session.DisplayName;
         DefaultTimeoutMs = settings.Session.DefaultTimeoutMs;
         MaxPendingRequests = settings.Session.MaxPendingRequests;
+        SelectedSerializer = ResolveSerializerChoice(settings.MessageComposer.SerializerType);
+        BitFieldSchema = settings.MessageComposer.BitFieldSchema;
         OutboundMessageId = settings.MessageComposer.OutboundMessageId;
         OutboundBody = settings.MessageComposer.OutboundBody;
 
@@ -250,6 +292,11 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
         return TransportChoices.FirstOrDefault(choice => choice.Kind == kind) ?? TransportChoices[0];
     }
 
+    private SerializerChoiceViewModel ResolveSerializerChoice(string type)
+    {
+        return SerializerChoices.FirstOrDefault(choice => choice.Type == type) ?? SerializerChoices[0];
+    }
+
     private LanguageChoiceViewModel ResolveLanguageChoice(AppLanguageMode mode)
     {
         return LanguageChoices.FirstOrDefault(choice => choice.Mode == mode) ?? LanguageChoices[0];
@@ -257,6 +304,8 @@ public sealed class DeviceLabSettingsViewModel : ObservableObject
 
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
+        OnPropertyChanged(nameof(SelectedSerializerTitle));
+        OnPropertyChanged(nameof(SelectedSerializerSubtitle));
         OnPropertyChanged(nameof(SelectedTransportTitle));
         OnPropertyChanged(nameof(SelectedTransportSubtitle));
     }

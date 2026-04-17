@@ -1,5 +1,6 @@
 using System.Net;
 using CommLib.Domain.Configuration;
+using CommLib.Domain.Messaging;
 
 namespace CommLib.Application.Configuration;
 
@@ -36,6 +37,7 @@ public static class DeviceProfileValidator
             throw new InvalidOperationException($"[{profile.DeviceId}] MaxPendingRequests must be greater than 0.");
         }
 
+        ValidateSerializerOptions(profile);
         ValidateReconnectOptions(profile);
 
         switch (profile.Transport)
@@ -169,6 +171,28 @@ public static class DeviceProfileValidator
         {
             throw new InvalidOperationException(
                 $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+        }
+    }
+
+    private static void ValidateSerializerOptions(DeviceProfile profile)
+    {
+        if (profile.Serializer.BitFieldSchema is null)
+        {
+            return;
+        }
+
+        if (!string.Equals(profile.Serializer.Type, SerializerTypes.RawHex, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] BitFieldSchema requires the RawHex serializer.");
+        }
+
+        try
+        {
+            BitFieldPayloadSchemaValidator.ValidateAndThrow(profile.Serializer.BitFieldSchema);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Invalid BitFieldSchema: {exception.Message}", exception);
         }
     }
     private static void ValidateReconnectOptions(DeviceProfile profile)

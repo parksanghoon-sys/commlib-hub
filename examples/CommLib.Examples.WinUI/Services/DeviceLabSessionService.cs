@@ -21,6 +21,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
     private CancellationTokenSource? _receiveLoopCts;
     private Task? _receiveLoopTask;
     private string? _connectedDeviceId;
+    private BitFieldPayloadSchema? _activeBitFieldSchema;
     private bool _hasState;
     private bool _isConnectedState;
     private string _statusTextKey = "session.state.disconnected";
@@ -72,6 +73,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
 
             _manager = manager;
             _connectedDeviceId = profile.DeviceId;
+            _activeBitFieldSchema = profile.Serializer.BitFieldSchema;
             _receiveLoopCts = new CancellationTokenSource();
             // 실제 수신은 백그라운드 루프가 담당하고, 결과만 log/state 이벤트로 ViewModel에 흘려보낸다.
             _receiveLoopTask = Task.Run(() => ReceiveLoopAsync(profile.DeviceId, _receiveLoopCts.Token));
@@ -118,7 +120,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
         }
     }
 
-    public async Task SendAsync(ushort messageId, string body, CancellationToken cancellationToken = default)
+    public async Task SendAsync(IMessage message, CancellationToken cancellationToken = default)
     {
         await _sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -129,13 +131,13 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
                 throw new InvalidOperationException(_localizer.Get("session.error.noActiveSession"));
             }
 
-            var message = new MessageModel(messageId, body);
             await _manager.SendAsync(_connectedDeviceId, message, cancellationToken).ConfigureAwait(false);
+            var body = FormatMessageBodyForLog(message);
             EmitLocalizedLog(
                 LogSeverity.Info,
                 "session.log.outbound.title",
                 "session.log.outbound.message",
-                messageId,
+                message.MessageId,
                 body);
         }
         finally
@@ -173,7 +175,7 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
                 }
 
                 var message = await manager.ReceiveAsync(deviceId, cancellationToken).ConfigureAwait(false);
-                var body = message is IMessageBody bodyMessage ? bodyMessage.Body : string.Empty;
+                var body = FormatMessageBodyForLog(message);
                 EmitLocalizedLog(
                     LogSeverity.Success,
                     "session.log.inbound.title",
@@ -247,11 +249,13 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
             {
                 _manager = null;
                 _connectedDeviceId = null;
+                _activeBitFieldSchema = null;
             }
         }
         else
         {
             _connectedDeviceId = null;
+            _activeBitFieldSchema = null;
         }
 
         if (emitOfflineState)
@@ -273,6 +277,23 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
     private void EmitLocalizedLog(LogSeverity severity, string titleKey, string messageKey, params object?[] args)
     {
         EmitLog(severity, _localizer.Get(titleKey), _localizer.Format(messageKey, args));
+    }
+
+    private string FormatMessageBodyForLog(IMessage message)
+    {
+        var body = MessagePayloadFormatter.FormatBody(message);
+
+        if (MessagePayloadFormatter.TryFormatBitFieldSummary(message, _activeBitFieldSchema, out var summary, out var error))
+        {
+            return AppendPayloadSuffix(body, _localizer.Format("session.payload.fieldsSuffix", summary));
+        }
+
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            return AppendPayloadSuffix(body, _localizer.Format("session.payload.schemaErrorSuffix", error));
+        }
+
+        return body;
     }
 
     private void SetState(
@@ -318,6 +339,18 @@ public sealed class DeviceLabSessionService : IDeviceLabSessionService
             SerialTransportOptions serial => ("transport.detail.serial", [serial.PortName ?? string.Empty, serial.BaudRate]),
             _ => ("transport.detail.generic", [transport.Type ?? string.Empty])
         };
+    }
+
+    private static string AppendPayloadSuffix(string body, string suffix)
+    {
+        if (string.IsNullOrWhiteSpace(suffix))
+        {
+            return body;
+        }
+
+        return string.IsNullOrEmpty(body)
+            ? suffix
+            : $"{body} | {suffix}";
     }
 
     private sealed class SessionConnectionEventSink(DeviceLabSessionService owner) : IConnectionEventSink

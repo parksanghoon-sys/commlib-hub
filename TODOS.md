@@ -1,85 +1,245 @@
 # TODOS
 
 ## Execution Context
-- Active branch: `feat/issue-23-bootstrap-reporting`
-- Tracking issue: `#23`
-- Parent baseline: `feat/issue-21-bounded-inbound-buffering` / draft PR `#22`
-- Branch rule: keep this branch limited to bootstrap validation/reporting, direct `ConnectAsync()` validation, example cleanup, focused tests, and continuity updates
+- Active checkout: `feat/runtime-readiness-hardening` (`preserved mixed context only`; do not treat it as the delivery branch for new runtime-surface work).
+- Authoritative runtime baseline: `commlib-hub/main`, which already contains merged runtime follow-ups from PR `#18`, `#19`, `#20`, `#22`, and `#24`.
+- Truth note: this mixed checkout does not contain those later code changes locally, so old "current" tasks from this branch must be reconciled against the integrated baseline before promotion.
+- Execution rule: start the next runtime/application follow-up from `commlib-hub/main` (or a fresh feature branch from it), not from this mixed checkout.
 
 ## Current TODOs
-- [ ] Publish issue `#23` as a stacked draft PR on top of `feat/issue-21-bounded-inbound-buffering`.
-  Scope: `DeviceBootstrapper`, `ConnectionManager`, bootstrap result types, focused tests, and only the example cleanup needed to remove manual validator calls.
-  Validation: attach the unit/infrastructure test runs plus the console/WinUI example builds to the stacked PR.
+Order note: keep exactly one evidence-ready next execution slice promoted at a time.
+
+- [ ] Finalize the remaining public-release blockers for the repository root.
+  Scope: root `LICENSE`, root publication notes in `README.md`, and the exposure policy for `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md`.
+  Objective: remove the last repository-facing blockers before calling the repo open-source ready, without guessing on legal or automation-sensitive decisions.
+  Validation: a chosen license file exists at the repo root, the README stays truthful about the repository layout, and the selected policy for internal planning files is reflected consistently in the root layout/docs.
 
 ## Deferred Backlog
+### Repository Release & Hygiene
+### [P0_NOW] Choose the repository license before calling the repo open-source ready
+- What remains: decide the project license and add the corresponding root `LICENSE` file.
+- Why deferred: license selection is a maintainer/legal decision; it is not safe to guess between MIT, Apache-2.0, or another policy just to make the repo look complete.
+- Objective: make the repository legally publishable and remove the clearest remaining blocker to public release.
+- Relevant context: the new root `README.md` now explicitly states that a repository license file is still required before calling the repo fully open-source ready.
+- Scope: root `LICENSE`, `README.md` if wording needs adjustment after the choice, and any package metadata that later wants a license expression.
+- Current status: no root `LICENSE` file exists yet.
+- Known blockers/open questions: which license the maintainer actually intends to publish under.
+- Most natural next step: choose the license intentionally, add the matching file, then re-run a quick package/readme sanity check.
+
+### [P1_SOON] Decide how internal planning/continuity files should appear in a public repo
+- What remains: choose whether `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` should stay at the repo root, move under an internal/docs folder, or remain present but explicitly marked as internal development artifacts.
+- Why deferred: the files are useful to the local workflow, but keeping them at the root affects first impressions for external users.
+- Objective: make the public root layout intentional instead of accidental.
+- Relevant context: the new root `README.md` already warns that the repository still contains internal planning and continuity files used during active development.
+- Scope: root layout, README repository notes, and any automation/local workflow that assumes those filenames/paths.
+- Current status: the files still live at the root and `AGENT.md` is still mojibake/corrupted.
+- Known blockers/open questions: whether moving these files would break current automation or whether the team prefers to keep this working style visible.
+- Most natural next step: decide the root-file policy first, then either normalize the files that stay public or move/retire the ones that should not stay at the root.
 
 ### Runtime Hardening & Correctness
-### [P1_SOON] Decide whether queue-pressure should remain internal backpressure or become a public runtime / hosting signal
-- What remains: decide if bounded-queue pressure needs a surfaced event / metric / option beyond the current internal `Wait` behavior.
-- Why deferred: the bounded-queue slice proved correctness first and this bootstrap slice intentionally avoids widening the hosting/runtime surface again.
-- Objective: keep queue hardening observable and tunable without diluting the current bootstrap-focused review line.
-- Relevant context: `ConnectionManager` now applies bounded backpressure internally, but no public signal exists yet for operators or hosts.
-- Scope: `src/CommLib.Infrastructure/Sessions`, `src/CommLib.Hosting`, diagnostics hooks, and any follow-up tests/docs.
-- Current status: intentionally excluded from issues `#21` and `#23`.
-- Known blockers/open questions: whether production callers need a signal immediately or whether logs / metrics alone are sufficient.
-- Most natural next step: revisit after `#22` and this bootstrap slice are published cleanly.
-
-### [P1_SOON] Replace reflection-based `TrySetResponseResult` in `DeviceSession`
-- What remains: remove the runtime `GetMethod(...).Invoke(...)` path from `TrySetResponseResult()` by introducing a typed pending-entry abstraction or another non-reflection completion path.
-- Why deferred: it is orthogonal to bootstrap reporting and should stay a separate correctness/performance slice.
-- Objective: eliminate reflection from the hot response-completion path without widening the current branch.
-- Relevant context: the application layer still stores pending response completions as `object` in `_pendingResponses`, and the non-generic response completion path uses reflection.
-- Scope: `src/CommLib.Application/Sessions/DeviceSession.cs`, focused unit tests, and any internal helper abstraction that replaces the reflection path.
-- Current status: still pending after the timeout-cleanup work merged earlier today.
-- Known blockers/open questions: whether the replacement should stay as a private nested helper or become a reusable application-layer abstraction.
-- Most natural next step: design a private typed pending-entry wrapper and verify it through the existing `DeviceSessionTests`.
-
-### [P2_LATER] Revisit whether `DeviceProfileValidator` should move into `CommLib.Domain`
-- What remains: decide if validator ownership should move from `CommLib.Application.Configuration` to `CommLib.Domain.Configuration`.
-- Why deferred: issue `#23` keeps the validator in place so bootstrap/reporting can land without a namespace-churn side quest.
-- Objective: reduce conceptual coupling if configuration validation ownership becomes broader than the current bootstrap/runtime entry points.
-- Relevant context: `ConnectionManager` now enforces validation at the direct connect boundary, but `CommLib.Infrastructure` already references `CommLib.Application`, so the current placement is workable.
-- Scope: validator source file, validator tests/usings, examples, and any resulting project-boundary cleanup.
-- Current status: explicitly deferred by design in this branch.
-- Known blockers/open questions: whether the current placement causes enough confusion to justify extra churn.
-- Most natural next step: reconsider only if review feedback or a later configuration-surface refactor makes the move clearly worthwhile.
-
-### Production Integration & Hosting
-### [P1_SOON] Expose `IConnectionEventSink` through DI without coupling callers to `ConnectionManager` internals
-- What remains: give `AddCommLibCore()` a DI-friendly way to accept an `IConnectionEventSink` implementation.
-- Why deferred: this bootstrap slice is intentionally runtime/bootstrap focused and should not widen the hosting surface.
-- Objective: let production callers wire logging and metrics without reflection or internal constructor knowledge.
-- Relevant context: `ConnectionManager` already accepts an optional `IConnectionEventSink`, and later queue-pressure work may want the same seam.
-- Scope: `src/CommLib.Hosting`, `src/CommLib.Infrastructure/Sessions`, and any resulting interface-boundary adjustment.
-- Current status: still deferred outside the current stacked bootstrap line.
-- Known blockers/open questions: whether the sink should stay in infrastructure or move upward so hosting can reference it more cleanly.
-- Most natural next step: revisit after the runtime queue and bootstrap slices have landed cleanly.
+### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
+- What remains: decide whether the bounded inbound queue should keep pressure visibility internal-only or whether the hosting/runtime surface should expose queue-pressure events, counters, or diagnostics hooks.
+- Why deferred: queue capacity is now configurable through `CommLib.Hosting.CommLibRuntimeOptions`, but no concrete operator or deployment requirement has shown what a useful pressure signal should look like.
+- Objective: avoid inventing a weak or noisy observability contract while keeping a clear path if real deployments need queue-pressure insight.
+- Relevant context: `ConnectionManager` now uses a bounded unsolicited inbound queue with `BoundedChannelFullMode.Wait`, and `AddCommLibCore(Action<CommLibRuntimeOptions>)` can override `InboundQueueCapacity` without widening `DeviceProfile`.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, `src/CommLib.Hosting`, `IConnectionEventSink`, and any docs that describe runtime/hosting options.
+- Current status: queue pressure currently manifests only as transport backpressure; there is no first-class event or diagnostic surface for it.
+- Known blockers/open questions: whether consumers need a metric, log event, callback, health signal, or nothing at all; whether any signal should be best-effort or contractually guaranteed.
+- Most natural next step: gather operator/deployment requirements first, then add only the smallest useful pressure signal to the hosting/runtime surface.
 
 ### API / Contract Truthfulness
-### [P1_SOON] Decide whether `ReconnectOptions` naming is still too broad for connect-time retry only
-- What remains: choose between doc-only clarification, a staged alias/deprecation path, or a later breaking rename.
-- Why deferred: reconnect wording is unrelated to bootstrap reporting and should not be bundled into issue `#23`.
-- Objective: keep the public configuration surface truthful without unnecessary compatibility churn.
-- Relevant context: receive-failure behavior is already explicit, but reconnect configuration still only covers connect-time retry semantics.
-- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `DeviceProfile`, docs, and any compatibility shim if a staged alias is chosen.
-- Current status: still pending as a later clean slice.
-- Known blockers/open questions: how much external dependency exists on the current property/type names.
-- Most natural next step: inventory references before changing names.
+### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
+- What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
+- Why deferred: the runtime policy is now explicit and tested, but the public naming still suggests broader live-session auto-reconnect semantics than the implementation actually provides; the branch/PR cleanup plus first memory/startup hardening slices are more urgent blockers.
+- Objective: keep configuration and API naming truthful without breaking existing consumers unnecessarily.
+- Relevant context: `ConnectionManager` now treats post-connect receive failure as terminal, hides failed sessions, and fails pending requests immediately on receive failure, explicit disconnect, and same-device session replacement; `ReconnectOptions` currently only affects connect-time `OpenAsync()` retry behavior inside `CreateOpenedTransportAsync()`.
+- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, `src/CommLib.Domain/Configuration/DeviceProfileValidator.cs`, config/docs samples, and any compatibility shim that becomes necessary.
+- Current status: the code comment and state docs now call out the connect-time-only semantics, but the public type/property names remain `ReconnectOptions` and `Reconnect`.
+- Known blockers/open questions: whether external consumers already depend on the current JSON/property names, whether a doc-only clarification is sufficient for now, and whether a rename is worth the churn before a stable external package surface exists.
+- Most natural next step: inventory repo/external references and choose between doc-only clarification, a staged alias, or a later breaking rename.
+
+### Production Integration & Hosting
+### [P1_SOON] Expose `IConnectionEventSink` through DI so callers can wire logging and metrics without coupling to `ConnectionManager` internals
+- What remains: register `IConnectionEventSink` as a singleton in `AddCommLibCore()` so application code can supply a custom sink via DI instead of needing an internal constructor or direct `ConnectionManager` cast.
+- Why deferred: the current `NullConnectionEventSink` default is safe, but the DI-invisible optional parameter means production deployments can't observe connect/disconnect/failure events without reflection or internal access.
+- Objective: give production adopters a first-class, DI-friendly hook for structured logging and metrics without widening the core session contracts.
+- Relevant context: `ConnectionManager` already accepts `IConnectionEventSink?` in its internal constructor; `AddCommLibCore()` in `ServiceCollectionExtensions.cs` does not register the sink interface at all today.
+- Scope: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Infrastructure/Sessions/IConnectionEventSink.cs`, `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`.
+- Current status: `IConnectionEventSink` is an internal infrastructure detail not reachable from the hosting layer.
+- Known blockers/open questions: whether the sink should be moved to the domain or application layer so `CommLib.Hosting` can reference it without taking a direct dependency on `CommLib.Infrastructure` internals.
+- Most natural next step: move `IConnectionEventSink` to `CommLib.Application` or expose it via a thin hosting adapter, then wire it into `AddCommLibCore()`.
+
+### Runtime Hardening & Correctness
+### [P2_LATER] Parallelize `DeviceBootstrapper.StartAsync` to reduce multi-device startup latency
+- What remains: replace the sequential `foreach / await ConnectAsync` loop with `Task.WhenAll` (or bounded concurrency via `SemaphoreSlim`) so devices that each have multi-second connect timeouts don't multiply startup time linearly.
+- Why deferred: startup latency is not critical until device counts grow or connect timeouts are tuned for slow links.
+- Objective: keep startup time proportional to the slowest single device rather than the sum of all device timeouts.
+- Relevant context: `DeviceBootstrapper.StartAsync()` currently awaits each `ConnectAsync` call before starting the next; with 10 devices at a 5 s timeout each, failure discovery takes up to 50 s.
+- Scope: `src/CommLib.Application/Bootstrap/DeviceBootstrapper.cs`.
+- Current status: sequential connect is correct but O(n) in the number of active devices.
+- Known blockers/open questions: whether partial-failure semantics should aggregate exceptions (`AggregateException`) or use the existing `StartWithReportAsync` report path.
+- Most natural next step: switch to `Task.WhenAll` inside `StartAsync`, propagate failures as `AggregateException`, and add a unit test with two slow-connect stubs to verify they run concurrently.
+
+### [P2_LATER] Remove or internalize the ambiguous `TryHandleInboundFrame` public method on `ConnectionManager`
+- What remains: decide whether `TryHandleInboundFrame` should be removed entirely or made `internal`, since the receive pump already processes all inbound frames autonomously and a public frame-injection path creates a dual-entry contract that is hard to reason about.
+- Why deferred: the method is not called from any current consumer; it doesn't actively cause harm today.
+- Objective: keep `ConnectionManager`'s public surface honest and free of dual-path inbound handling.
+- Relevant context: `ConnectionManager.RunReceivePumpAsync()` already handles all inbound frames via `TransportMessageReceiver`; `TryHandleInboundFrame` (line 264) is a separate public method that also calls `state.Receiver.TryDecode()` and `state.Session.TryCompleteResponse()`, creating an overlapping path that could be called concurrently with the pump.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs` - line 264 method and any tests that cover it.
+- Current status: the method exists as a public API but has no callers outside tests.
+- Known blockers/open questions: whether any planned consumer (e.g. a raw-inject test helper) requires this method, or whether tests should use the pump path instead.
+- Most natural next step: grep all callers, and if only test-internal, mark `internal` and add `[assembly: InternalsVisibleTo]` for the test project.
+
+### [P2_LATER] Consider core-library auto-reconnect only if a real deployment needs runtime reconnect orchestration
+- What remains: design a real runtime recovery/state-machine path only if a concrete deployment needs the core library itself to reopen transports and restore live sessions after a post-connect failure.
+- Why deferred: the current hardening pass intentionally chose terminal failed sessions plus immediate pending-request failure rather than widening into implicit reconnect orchestration without a proven requirement.
+- Objective: avoid half-designed recovery behavior in the core library while leaving a clear expansion path if a real deployment needs it.
+- Relevant context: `ConnectionManager` now keeps failed sessions terminal, `GetSession()` hides them until an explicit disconnect/reconnect, and `ReconnectOptions` remains connect-time retry only; any richer recovery would need clear decisions about pending requests, resend semantics, and session identity across reconnect boundaries.
+- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, connection/session state modeling, tests, hosting/orchestration boundaries, and possibly user-visible status surfaces.
+- Current status: the core runtime now has explicit terminal-session behavior rather than implicit or partial auto-reconnect.
+- Known blockers/open questions: who should own reconnect orchestration, whether requests survive or fail across reconnect, and whether a higher application/hosting layer is the better owner of recovery policy.
+- Most natural next step: wait for a concrete deployment requirement, then design reconnect semantics as a dedicated slice instead of mixing them into naming/docs cleanup.
+
+### API / Contract Truthfulness
+### [P2_LATER] Add a new framing family only when a concrete device contract requires non-length-prefixed behavior
+- What remains: design and implement a dedicated protocol family for CRC, STX/ETX delimiters, or other non-length-prefixed framing only if a real device contract requires it.
+- Why deferred: the current runtime now enforces a truthful `LengthPrefixed` contract, and this slice intentionally removed inactive knobs instead of pretending those semantics already exist.
+- Objective: preserve honest runtime/configuration contracts while keeping a clear expansion path for future framing requirements.
+- Relevant context: `ProtocolOptions` now carries only `Type` and `MaxFrameLength`, `LengthPrefixedProtocol` now enforces that frame limit directly, and the root sample config no longer advertises `UseCrc`, `Stx`, or `Etx`.
+- Scope: `src/CommLib.Domain/Configuration/ProtocolOptions.cs`, `src/CommLib.Domain/Protocol/IProtocol.cs`, `src/CommLib.Infrastructure/Factories/ProtocolFactory.cs`, `src/CommLib.Infrastructure/Protocol`, focused tests, and any config/docs samples that would expose the new framing family.
+- Current status: no delimited or CRC-backed framing implementation exists in the runtime library.
+- Known blockers/open questions: the actual target frame contract, checksum semantics, delimiter escaping rules, and whether framing should stay payload-agnostic under the current serializer boundary.
+- Most natural next step: wait for a concrete device/protocol contract, then design the new framing family as its own dedicated slice instead of mixing it into runtime recovery work.
+
+### Production Integration & Hosting
+### [P2_LATER] Decide the production integration surface for diagnostics, health, and secure network transport
+- What remains: decide whether the core library, the hosting package, or a future integration package should own structured logging, metrics, health checks, and TLS/certificate-aware transport options.
+- Why deferred: the current review established that these hooks are not first-class yet, but it did not establish the target deployment model strongly enough to justify widening the library immediately.
+- Objective: give production adopters a clear ops/security path without forcing every concern into the core transport/session package prematurely.
+- Relevant context: `AddCommLibCore()` currently registers only factories, `IConnectionManager`, and `DeviceBootstrapper`; `TcpTransport` currently uses raw `TcpClient`/`NetworkStream`; `IConnectionEventSink` is a useful seam, but nothing wires it to first-class logging/metrics/health integration by default.
+- Scope: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Infrastructure/Transport/TcpTransport.cs`, transport option models under `src/CommLib.Domain/Configuration`, and any future hosting/integration package boundaries.
+- Current status: the repo has useful validation and test coverage, but no built-in `ILogger`, metrics, health-check, or TLS/certificate surface in `src/`.
+- Known blockers/open questions: whether the intended deployments are controlled/air-gapped enough that TLS stays out of scope, and whether diagnostics should remain callback-based through `IConnectionEventSink` or grow into a stronger hosting integration story.
+- Most natural next step: pin down the expected deployment environment first, then add only the smallest production-facing diagnostics/security surface that materially supports it.
+
+### Examples & WinUI Follow-up
+### [P1_SOON] Resume the older UDP / Multicast / real-pointer WinUI validation pass after the raw-hex composer work
+- What remains: re-run the manual UDP and Multicast mock endpoint checks, step through TCP / UDP / Multicast / Serial panel switching on both `Device Lab` and `Settings`, and only re-check transition feel / wheel-scroll / live-log manual scrolling if that pass surfaces a concrete regression.
+- Why deferred: raw-hex TCP is now wired, covered by automated lower-stack tests, validated through a live WinUI roundtrip, and the active implementation priority has shifted to the first bitfield foundation slice.
+- Objective: close the remaining interactive WinUI confidence gaps without mixing them into the current serializer-layer implementation slice.
+- Relevant context: transport-panel collapsing, live-log auto-follow, in-app mock peers, and the earlier TCP automation smoke are already in place; the remaining gaps are real-pointer confirmation plus UDP/Multicast behavior in the live app.
+- Scope: `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`, `examples/CommLib.Examples.WinUI/Views/SettingsView.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, and any resulting docs/status text.
+- Current status: TCP mock flow already has earlier automation smoke coverage, the raw-hex TCP transport/session path now has focused infrastructure roundtrip coverage, and a live WinUI raw-hex TCP pass is complete. UDP / Multicast and real-pointer confirmation are still manual-only.
+- Known blockers/open questions: whether multicast still needs clearer UX copy once the broader live pass happens, and whether any real-pointer issue appears that did not show up in automation.
+- Most natural next step: run one live `Device Lab` session that focuses on UDP, Multicast, panel switching, and real-pointer behavior rather than repeating the now-covered raw-hex TCP path.
+
+### [P1_SOON] Clarify single-machine multicast mock UX if duplicate inbound lines feel confusing
+- What remains: decide whether the new in-app multicast mock flow needs stronger status/log copy, a dedicated note in the UI, or a small behavior tweak for one-machine validation sessions.
+- Why deferred: the implementation is in place and TCP has been smoke-validated, but the remaining manual multicast pass has not yet confirmed whether seeing both self loopback traffic and peer echo is intuitive enough.
+- Objective: make the multicast mock path understandable during local operator testing without overcomplicating the transport layer.
+- Relevant context: `LocalMockEndpointService` now joins the selected multicast group and replies back to the sender port so a single machine can act as both sender and mock peer; depending on socket loopback behavior, the live log may still show more than one inbound event per send.
+- Scope: `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/AppLocalizer.cs`, and `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`.
+- Current status: status text already warns about self traffic plus peer echo, but the UX has not been manually judged yet in the real app.
+- Known blockers/open questions: how the local NIC / multicast loopback behavior presents on this machine during a full WinUI send/receive session, and whether the current status text is enough.
+- Most natural next step: run the manual multicast mock validation from `Device Lab`, capture the exact live-log behavior, then either keep the current wording or tighten it with the smallest safe UI-only change.
+
+### [P2_LATER] Safely map full `DeviceLabTheme` templated-control styles before broad rollout
+- What remains: decide whether to prune the currently unused templated-control style helpers in `DeviceLabTheme` or reintroduce them with verified WinUI default-style keys and a startup-safe initialization path.
+- Why deferred: during this session, a broader theme rollout exposed startup failures when the theme dictionary eagerly created styles that depended on missing default resource keys such as `DefaultListViewStyle`.
+- Objective: either make the full theme surface safe and real for templated controls, or remove the dormant pieces so the theme stays aligned with the actual UI contract.
+- Relevant context: the current successful hookup uses `DeviceLabTheme.Shared` for live brush/text/border resources in `AppShellView`, `DeviceLabView`, and `SettingsView`; broad app-resource merging and eager templated-control style creation proved too risky for the current step.
+- Scope: `examples/CommLib.Examples.WinUI/Styles/DeviceLabTheme.cs` plus any future consumer updates in the WinUI views.
+- Current status: the app now runs successfully with the safe subset, but keys/methods for broader control styles still exist as future design-space rather than live behavior.
+- Known blockers/open questions: which default WinUI style keys are actually available in this app/runtime combination, and whether a code-built WinUI example should keep those style definitions at all.
+- Most natural next step: inventory the actual default style keys available at runtime, then either delete the dormant helpers or add back only the verified ones behind a small focused validation pass.
+
+### [P2_LATER] Add a reusable local WinUI transport validation helper
+- What remains: package the local TCP/UDP echo peer and multicast verification flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
+- Why deferred: the existing console example plus ad-hoc local echo commands are enough for immediate manual verification, but the setup is still more manual than it should be.
+- Objective: make WinUI transport validation repeatable without rediscovering local peer commands every session.
+- Relevant context: `examples/CommLib.Examples.Console` already provides `tcp-demo`, `udp-demo`, `multicast-send`, and `multicast-receive`; during this session we also used local TCP/UDP echo peers to support WinUI manual checks.
+- Scope: likely `examples/CommLib.Examples.Console`, WinUI README/docs, and possibly a small helper script under `scripts/` or `examples/`.
+- Current status: no dedicated helper exists yet; validation instructions are partly in chat and partly in example READMEs.
+- Known blockers/open questions: whether the best shape is a PowerShell script, extra console subcommands, or documentation-only guidance.
+- Most natural next step: after the current interactive validation pass, capture the exact repeatable commands that felt necessary and package only that minimal workflow.
 
 ### Repo Hygiene
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
-- What remains: rewrite `PROGRESS.md` into a stable UTF-8 form without losing history.
-- Why deferred: it is orthogonal to issue `#23`, and a careless rewrite could damage project memory.
-- Objective: make future progress updates safe for normal in-place editing.
-- Relevant context: some repo files still require deliberate encoding handling during edits.
+- What remains: identify the current mixed/non-UTF-8 encoding issue in `PROGRESS.md` and convert it to a stable encoding without losing prior history.
+- Why deferred: this does not block the product work itself, and a careless rewrite could damage an important project memory file.
+- Objective: make future automated updates to `PROGRESS.md` safe and tool-friendly.
+- Relevant context: `apply_patch` rejected an in-place `PROGRESS.md` update on 2026-04-03 because the file stream was not valid UTF-8; we were still able to append the `2026-04-03` daily log as new UTF-8 text without rewriting older bytes.
 - Scope: `PROGRESS.md` only.
-- Current status: still deferred.
-- Known blockers/open questions: the precise legacy encoding mix and the safest normalization path.
-- Most natural next step: back up the file and normalize it in one hygiene-focused branch.
+- Current status: append-only daily logging is workable, but some older/later sections still show encoding corruption depending on the reader and the file is not safe for normal in-place patching.
+- Known blockers/open questions: whether the file contains mixed UTF-8 and legacy code-page bytes, and what normalization path preserves the current readable Korean content best.
+- Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result so future updates can use normal in-place editing again.
+
+### Examples & WinUI Follow-up
+### [P1_SOON] Extend the binary-capable serializer path toward future bitfield schema support without rewriting the transport/protocol layers
+- What remains: run one focused live WinUI `RawHex` session using the new config-backed `messageComposer.bitFieldSchema` log-enrichment path, then decide from that concrete usage whether later phases truly need richer typed serializer/protocol options plus broader bitfield-aware schema mapping for byte/bit-oriented devices.
+- Why deferred: the repo now has a first real runtime consumer of `BitFieldSchema`, but the current branch priority shifted to runtime hardening before a live WinUI pass was completed.
+- Objective: support devices whose payload contract is defined in bytes and bit ranges while preserving the existing transport, session, and frame-boundary architecture.
+- Relevant context: `IProtocol` still owns frame boundaries only, which remains the intended boundary. The repo now has `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `OutboundMessageComposer`, persisted serializer selection in the WinUI example, `RawHexConnectionManagerRoundtripTests` covering both direct binary payloads and the hex-text bridge over the real TCP/session stack, `BitFieldDefinition`/`BitFieldCodec`, plus the new `BitFieldPayloadSchema` / `BitFieldPayloadSchemaValidator` / `BitFieldPayloadSchemaCodec` layer and optional `SerializerOptions.BitFieldSchema`.
+- Scope: `src/CommLib.Domain/Configuration/SerializerOptions.cs`, `src/CommLib.Domain/Configuration/ProtocolOptions.cs`, `src/CommLib.Domain/Messaging`, `src/CommLib.Application/Configuration/DeviceProfileMapper.cs`, `src/CommLib.Application/Configuration/DeviceProfileValidator.cs`, `src/CommLib.Infrastructure/Factories`, any future serializer/schema support under `src/CommLib.Infrastructure`, WinUI composer/settings files under `examples/CommLib.Examples.WinUI`, and focused tests/docs.
+- Current status: the repository now supports binary payload message representation, formatter-based binary display, `RawHex` serializer creation, outbound hex parsing, inbound binary message deserialization, persisted WinUI serializer choice, automated raw-hex TCP roundtrip coverage, a live WinUI raw-hex TCP proof, low-level bitfield read/write helpers, a validated fixed-length signed/unsigned schema-backed compose/inspect layer, and a config-backed WinUI session-log consumer for `BitFieldSchema`.
+- Known blockers/open questions: whether the current optional schema property is enough or will later pressure a richer typed serializer-options model, whether inbound raw payloads should stay formatter-based or gain richer UI treatment, and how much schema-editing UX the WinUI example should expose after the first live pass.
+- Most natural next step: run one live session against the current log-enrichment seam, then use that evidence before widening into additional consumers or UI work.
+
+### [P2_LATER] Consider alternate bit numbering and richer scalar types after the first schema-backed bitfield slice
+- What remains: evaluate whether later devices need MSB-first bit numbering, partial-byte big-endian multi-byte fields, scaled numeric fields, enums, floats, BCD, or packed string helpers beyond the current unsigned/signed integer foundation and the newly added whole-byte endianness support.
+- Why deferred: the current repo now has explicit little-endian and whole-byte big-endian support, but widening into broader bit-numbering and partial-byte byte-order semantics before a real consumer exists would add more ambiguity than value.
+- Objective: keep the first bitfield implementation small and reviewable while leaving a clear slot for broader device-specific field semantics later.
+- Relevant context: the current `BitFieldCodec` uses the convention `payload[0]` LSB = bit `0`, supports up to 64-bit scalar reads, writes unsigned scalar values in place, and now also supports `BigEndian` for byte-aligned multi-byte fields whose lengths are multiples of 8.
+- Scope: `src/CommLib.Domain/Messaging/BitFieldDefinition.cs`, `src/CommLib.Domain/Messaging/BitFieldCodec.cs`, any future schema/value-type files under `src/CommLib.Domain` or `src/CommLib.Application`, and focused tests/docs.
+- Current status: the low-level bitfield seam exists, schema-backed compose/inspect exists, and whole-byte endianness exists, but alternate numbering and richer value semantics are intentionally out of scope for this slice.
+- Known blockers/open questions: whether real target devices describe bits as LSB-first or MSB-first, whether any real schema needs partial-byte big-endian multi-byte fields, and which non-integer field types actually matter enough to justify first-class support.
+- Most natural next step: wait until the first runtime schema consumer lands and at least one real device contract pressures a broader numbering or value-type surface.
 
 ## Completed
-- [x] 2026-04-16: added bootstrap validation/reporting on `feat/issue-23-bootstrap-reporting`, including direct `ConnectAsync()` validation, `StartWithReportAsync()`, result types, example cleanup, and validation/build coverage.
-- [x] 2026-04-16: ported bounded unsolicited inbound buffering onto `feat/issue-21-bounded-inbound-buffering` with a bounded `Wait` channel, reconnect-safe cleanup, and focused/full validation.
-- [x] 2026-04-16: implemented the first split replacement slice for stale PR `#5` on top of `#19`, covering `LengthPrefixed` contract narrowing, max-frame enforcement, terminal receive failure handling, and matching focused/full validation.
-- [x] 2026-04-16: rebuilt the stale `#8` hosting line on a fresh `main` base with `AddCommLibCore(IConfiguration)`, `CommLibHostedService`, focused hosted-service tests, and green unit/infrastructure validation.
-- [x] 2026-04-16: merged PR `#18` for `DeviceSession` timeout cleanup and moved to the next runtime-facing line on a fresh branch.
+Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
+
+- [x] 2026-04-17: upgraded the repo-facing public-release baseline by replacing the root `README.md` with a public-facing overview, adding central package metadata plus packed `README.md` wiring in `Directory.Build.props`, introducing a Windows CI workflow, tightening `.gitignore`, normalizing package/test project descriptions, and clarifying the console example README so it does not overstate reconnect behavior; verified with `dotnet restore commlib-codex-full.sln`, sequential unit/infrastructure test runs, a console build, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj`.
+- [x] 2026-04-17: scoped XML documentation generation to the packable library projects under `src/` instead of the entire repo, fixed the remaining live library XML warning gaps in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`, and re-verified cleanly with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`, `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`.
+- [x] 2026-04-17: reconciled the continuity files against the integrated runtime baseline and recorded that the earlier `DeviceSession` timeout-cancellation cleanup already landed on `commlib-hub/main` through PR `#18`; do not schedule that fix again from the mixed branch.
+- [x] 2026-04-17: reconciled the continuity files against the integrated runtime baseline and recorded that Generic Host lifecycle wiring, bounded inbound buffering, and bootstrap validation/reporting already landed through PR `#19`, PR `#22`, and PR `#24`; future runtime/application follow-up work should branch from `commlib-hub/main` instead of reviving those tasks here.
+- [x] 2026-04-14: fixed the `_deviceOperationGates` leak in `ConnectionManager` by keeping per-device operation gates reference-counted and removing them once the last lease is released for a disconnected device; added `DisconnectAsync_DistinctDevices_ReleasesUnusedDeviceGates` coverage and verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`.
+- [x] 2026-04-14: added Korean XML documentation across the repo's C# source/example/test files, repaired the WinUI-localized `AppLocalizer.cs` string table after the first bulk-edit path corrupted Korean literals, and re-verified with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj`; solution-level `dotnet build commlib-codex-full.sln` still intermittently hits WinUI `XamlCompiler.exe` in this environment.
+- [x] 2026-04-13: published the validated bitfield / WinUI schema-log follow-up through clean review lines instead of adding more mixed-branch commits here: draft PR `#7` now carries `feat/bitfield-endianness` against `main`, and stacked draft PR `#6` now carries `feat/bitfield-schema-log-enrichment` against `feat/bitfield-endianness`; the original `feat/runtime-readiness-hardening` worktree remains preserved local context only.
+- [x] 2026-04-13: reviewed whether hosting/DI should surface `DeviceBootstrapper.StartWithReportAsync()` as a new bootstrap contract, decided to keep it as an application-level opt-in because `AddCommLibCore()` already registers `DeviceBootstrapper` for explicit DI resolution, and promoted queue-pressure signaling to the next current TODO.
+- [x] 2026-04-10: exposed inbound queue capacity through `CommLib.Hosting.CommLibRuntimeOptions`, kept `AddCommLibCore()` backward compatible while adding an override overload, added a thin public `ConnectionManager` constructor for hosting-only queue sizing, and verified the default/override wiring with focused unit tests.
+- [x] 2026-04-10: moved `DeviceProfileValidator` into `CommLib.Domain.Configuration`, enforced profile validation at the `ConnectionManager.ConnectAsync()` boundary before runtime factory/open work, kept `DeviceBootstrapper.StartAsync()` as the fail-fast compatibility path, and added `StartWithReportAsync()` plus `DeviceBootstrapReport` / `DeviceBootstrapFailure` for continue-and-report startup; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-10: replaced `ConnectionManager`'s unbounded unsolicited inbound queue with a bounded queue using backpressure-first full behavior, kept the first capacity choice internal (`256`), and added infrastructure coverage proving transport backpressure plus blocked-writer disconnect/reconnect cleanup; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-09: normalized the runtime-hardening delivery base by creating clean branch `feat/runtime-hardening-clean-base` from `commlib-hub/main`, replaying the runtime-hardening slice there, opening replacement draft PR `#5`, and superseding draft PR `#4`.
+- [x] 2026-04-09: reviewed the current production-readiness and delivery state, confirmed that draft PR `#4` is wider than intended because `feat/runtime-readiness-hardening` still includes raw-hex / bitfield branch ancestry, and translated the review into the next concrete blockers: delivery-base cleanup, bounded inbound buffering, then bootstrap/hosting hardening.
+- [x] 2026-04-09: made runtime recovery semantics explicit in `ConnectionManager` by treating background receive failure as terminal, hiding failed sessions from `GetSession()`, rethrowing stored receive failures on later send/manual-inbound calls, and failing pending response tasks immediately on receive failure, explicit disconnect, and same-device session replacement; also clarified in code/docs that `ReconnectOptions` currently means connect-time open retry only; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore` and `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`.
+- [x] 2026-04-09: aligned `ProtocolOptions` with the live `LengthPrefixedProtocol` contract by removing inactive `UseCrc` / `Stx` / `Etx` settings, enforcing `MaxFrameLength` during encode/decode, passing that limit through `ProtocolFactory`, rejecting unsupported protocol types up front in `DeviceProfileValidator`, and cleaning the repo samples so they no longer advertise unsupported framing or the stale `FixedInterval` reconnect label; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore`, `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore`, and `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`.
+- [x] 2026-04-08: created branch `feat/runtime-readiness-hardening` from the current `feat/bitfield-endianness` worktree and completed the first `ConnectionManager` hardening slice by consolidating per-device state, serializing same-device lifecycle operations, removing the accidental second `OpenAsync()` call during connect, and surfacing background receive failures as `DeviceConnectionException(..., "receive", ...)`; added infrastructure tests for single-open behavior, same-device concurrent connect serialization, and sticky receive-failure surfacing; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore`, `dotnet build src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-08: added the first real runtime consumer of `SerializerOptions.BitFieldSchema` by preserving an optional `BitFieldSchema` in WinUI `MessageComposerAppSettings`, threading it through `DeviceLabSettingsViewModel` and `MainViewModel.BuildProfile()`, and enriching `DeviceLabSessionService` inbound/outbound logs with decoded field summaries or non-fatal schema decode warnings; also added formatter tests plus big-endian offset/signed coverage; verified with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --no-restore`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-build`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-build`, and `dotnet build commlib-codex-full.sln --no-restore`.
+- [x] 2026-04-07: created branch `feat/bitfield-endianness` and added `BitFieldEndianness` support across `BitFieldDefinition`, `BitFieldPayloadField`, the low-level codec, and schema compose/inspect; kept `payload[0]` LSB = bit `0` as the numbering rule, added whole-byte `BigEndian` support, and intentionally deferred MSB-first / partial-byte big-endian semantics; verified with full unit tests, full infrastructure tests, and a solution build.
+- [x] 2026-04-07: added the first schema-backed bitfield slice with `BitFieldPayloadSchema`, `BitFieldPayloadField`, `BitFieldScalarKind`, `BitFieldPayloadSchemaValidator`, `BitFieldPayloadSchemaCodec`, optional `SerializerOptions.BitFieldSchema`, and schema-based `OutboundMessageComposer` support; validated with full unit tests, full infrastructure tests, and a solution build.
+- [x] 2026-04-06: added the first bitfield foundation slice with `BitFieldDefinition` and `BitFieldCodec`, covering unsigned reads, signed reads, and unsigned writes against named bit ranges using the `payload[0]` LSB = bit `0` convention; verified with focused `BitFieldCodecTests` plus full unit and infrastructure test runs.
+- [x] 2026-04-06: completed a live `win-x64` WinUI raw-hex TCP roundtrip through the in-app mock endpoint by launching the app in `RawHex` mode, invoking `Start Mock`, `Connect`, and `Send`, and confirming matching outbound/inbound `DE AD BE EF` log entries for message id `321`; fixed the UI command-state regression that had kept `Send` disabled after connect by removing `ConfigureAwait(false)` from WinUI async command handlers that update observable state.
+- [x] 2026-04-06: added `RawHexConnectionManagerRoundtripTests` to lock the real TCP `ConnectionManager`/`LengthPrefixedProtocol`/`RawHexSerializer` roundtrip for both direct binary payloads and the existing hex-text bridge; verified with the focused test filter and a full `CommLib.Infrastructure.Tests` run.
+- [x] 2026-04-06: wired serializer choice through the WinUI example by persisting `MessageComposer.SerializerType`, adding serializer choice state/UI on `Device Lab` and `Settings`, introducing `OutboundMessageComposer`, switching the session send path to composed `IMessage`, and surfacing localized raw-hex validation errors; verified with unit tests, infrastructure tests, and WinUI/console builds.
+- [x] 2026-04-06: established the first raw-hex foundation slice with `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `SerializerFactory` support for `RawHex`, and formatter-based binary payload rendering in WinUI session logs plus the console example; verified with unit tests, infrastructure tests, and example builds.
+- [x] 2026-04-03: split the day’s work into three local commits (`1601dbc`, `f21d5dd`, `bad9ee7`), pushed `feat/winui-localization-foundation`, created PR `#3`, and confirmed that GitHub now shows the PR as merged into `main`.
+- [x] 2026-04-03: added `coverlet.collector` to both test projects through `Directory.Packages.props` and verified `XPlat Code Coverage` output generation for unit and infrastructure tests.
+- [x] 2026-04-03: centralized shared MSBuild defaults into `Directory.Build.props` and moved package versions into `Directory.Packages.props`, removing inline package-version declarations from the project files.
+- [x] 2026-04-03: re-validated the repo after central package management with `dotnet build commlib-codex-full.sln` and `dotnet test commlib-codex-full.sln --no-build`.
+- [x] 2026-04-03: added Korean explanatory comments to the main WinUI example files, focusing on non-obvious DI/bootstrap, shell transition, wheel forwarding, live-log auto-follow, session-state, and local mock-peer paths instead of line-by-line boilerplate comments.
+- [x] 2026-04-03: strengthened the WinUI live-log auto-follow by caching the log `TextBox` inner `ScrollViewer`, forcing it to `ScrollableHeight` after each text update, and re-verifying with a `win-x64` automation pass that still reached the document end after 12 sends.
+- [x] 2026-04-03: collapsed the WinUI transport settings in both `DeviceLabView` and `SettingsView` so only the currently selected transport panel stays visible.
+- [x] 2026-04-03: added an in-app `Mock Endpoint` card plus `ILocalMockEndpointService` / `LocalMockEndpointService` so the WinUI example can start local TCP/UDP/Multicast peers without a second process.
+- [x] 2026-04-03: verified the new mock-peer path with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a `win-x64` UI Automation smoke that invoked `Start Mock`, confirmed the default TCP screen hid the UDP-only `Local Port` label, and completed a raw TCP echo roundtrip to `127.0.0.1:7001`.
+- [x] 2026-04-03: created the example-focused branch `feat/winui-localization-foundation`.
+- [x] 2026-04-03: introduced WinUI localization foundation with persisted `AppLanguageMode`, `IAppLocalizer`/`AppLocalizer`, and localized shell/page/transport/language choices.
+- [x] 2026-04-03: moved shell, Device Lab, Settings, and main connection/session status copy onto the localization path.
+- [x] 2026-04-03: verified the localization pass with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a 12-second `win-x86` smoke run.
+- [x] 2026-04-03: added `PointerWheelScrollBridge` and routed `TextBox` mouse-wheel input back to the page `ScrollViewer` in `DeviceLabView` and `SettingsView`.
+- [x] 2026-04-03: re-verified the wheel-scroll change with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and a focused UI Automation smoke run that confirmed `Settings` navigation plus root scroll movement.
+- [x] 2026-04-03: attempted to reproduce the earlier local `win-x64` startup crash, but direct `win-x64` launch and `dotnet run -r win-x64 --no-build` both stayed alive for 12 seconds with no Application Error / Windows Error Reporting / .NET Runtime events.
+- [x] 2026-04-03: restored the WinUI example default runtime from `win-x86` back to `win-x64`, updated the README note, and re-validated default `win-x64` plus explicit `win-x86` smoke runs.
+- [x] 2026-04-03: added a conservative `AppShellView` fade + horizontal slide transition for `Device Lab` <-> `Settings` while keeping the existing dual-host page structure.
+- [x] 2026-04-03: verified the transition change with `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj`, `dotnet test commlib-codex-full.sln`, and direct `win-x64` / `win-x86` page-switch smoke runs that kept the app alive.
+- [x] 2026-04-03: changed the `DeviceLabView` live log into a scrollable read-only multiline log surface with no-wrap lines and end-of-document auto-follow, then re-verified it with WinUI build/tests plus a local `win-x64` TCP echo automation pass that kept the visible log range pinned to the latest entry at 20 lines.
+- [x] 2026-04-03: turned `DeviceLabTheme` into a live shared source for WinUI backgrounds, card chrome, and typography in `AppShellView`, `DeviceLabView`, and `SettingsView`, then re-verified the example with build/tests plus a successful direct `win-x64` launch and UI Automation window detection.
