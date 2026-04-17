@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `cleanup/device-session-pending-entry` (fresh runtime-cleanup branch created from `commlib-hub/main` after the repository-publication baseline was finished).
+- Active checkout: `docs/quick-start-guide` (documentation-only branch created from `commlib-hub/main` after the repository-publication baseline and `DeviceSession` cleanup landed).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -170,6 +170,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: added `docs/quick-start.md` as the canonical root-linked getting-started guide, covering restore/build, workflow-aligned test commands, console/WinUI example entry points, and the basic Generic Host/manual `IConnectionManager` usage paths; linked it from `README.md` and kept the next promoted code task on `ConnectionManager.TryHandleInboundFrame`. No build/test rerun was needed because this slice only changed documentation/continuity files.
 - [x] 2026-04-17: replaced `DeviceSession`'s reflection-based pending-response completion/failure dispatch with a typed private pending-entry abstraction, removed the redundant `PendingRequestStore` plus separate timeout-registration dictionary, added coverage so mismatched response types no longer drop pending entries, and hardened the background backpressure event test helper to snapshot events thread-safely; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore` and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-17: finished the repository-level publication cleanup by merging PR `#26` for the MIT/license/root-policy subset, then restoring `.github/workflows/ci.yml` from the dedicated minimal branch `chore/restore-ci-workflow` so GitHub `main` now carries the Windows CI workflow too.
 - [x] 2026-04-17: created clean branch `chore/repo-finish` from `commlib-hub/main`, cherry-picked the root publication-policy doc pass, restored `.github/workflows/ci.yml` from the previously validated repo-polish commit history, verified the branch locally with `dotnet restore`, both `Release` test projects, and the console `Release` build, and confirmed GitHub issues `#21` and `#23` are now closed.

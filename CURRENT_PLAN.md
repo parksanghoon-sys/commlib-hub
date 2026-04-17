@@ -38,6 +38,11 @@ Resume the highest-priority runtime/application follow-up work from a truthful, 
 - The repository-level public/open-source readiness cleanup is complete:
   - `main` now has the MIT license, truthful package metadata, and the Windows CI workflow
   - root internal planning/continuity files remain by policy as explicitly marked development artifacts
+- A new root-linked quick guide now exists at `docs/quick-start.md` and consolidates:
+  - restore/build commands
+  - workflow-aligned test commands
+  - console/WinUI example entry points
+  - basic Generic Host and manual `IConnectionManager` usage paths
 - `DeviceSession` pending-response tracking is now internally simplified on branch `cleanup/device-session-pending-entry`:
   - reflection-based completion/exception dispatch is replaced with typed pending entries
   - redundant `PendingRequestStore` and separate timeout-registration dictionary are removed
@@ -52,7 +57,8 @@ Resume the highest-priority runtime/application follow-up work from a truthful, 
 ## Next Slice Design
 1. Keep the next slice code-local and evidence-ready; do not reopen repository-publication work unless the live GitHub state drifts again.
 2. Prefer removing or shrinking dead/ambiguous internal runtime paths before widening into hosting, diagnostics, or WinUI follow-up work.
-3. Continue to branch fresh from `commlib-hub/main`, not from preserved mixed or publication branches.
+3. Keep `docs/quick-start.md` as the canonical getting-started/test-run entry point instead of scattering more duplicate command blocks across root docs.
+4. Continue to branch fresh from `commlib-hub/main`, not from preserved mixed or publication branches.
 
 ## Stop / Reassess Conditions
 - If new runtime follow-up work starts touching hosting, observability, or public API boundaries more widely than `ConnectionManager` inbound handling, stop and reassess whether the slice should be split.

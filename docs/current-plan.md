@@ -31,6 +31,7 @@
   - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
 - The generated `CommLib.Domain.0.1.0-local-mit.nupkg` contains the expected MIT license expression, readme metadata, and repository metadata.
 - The repository-level public/open-source readiness cleanup is now complete.
+- `docs/quick-start.md` now provides the single root-linked quick guide for restore/build, test runs, example entry points, and baseline host/manual usage.
 - `DeviceSession` pending-response tracking is now simplified on branch `cleanup/device-session-pending-entry`:
   - typed pending entries replaced reflection-based completion/exception dispatch
   - redundant pending-store and timeout-registry state were removed

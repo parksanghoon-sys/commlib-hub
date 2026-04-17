@@ -44,6 +44,12 @@ tests/
   CommLib.Infrastructure.Tests
 ```
 
+## Quick Start
+
+- Start with [docs/quick-start.md](docs/quick-start.md) for the fastest path through restore, test, example runs, and basic host/manual integration.
+- Use [examples/CommLib.Examples.Console/README.md](examples/CommLib.Examples.Console/README.md) for loopback-friendly CLI demos.
+- Use [examples/CommLib.Examples.WinUI/README.md](examples/CommLib.Examples.WinUI/README.md) for the Windows Device Lab workflow.
+
 ## Sample Configuration
 
 The repository includes a root `appsettings.json` with example device definitions.
@@ -91,6 +97,8 @@ dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj
 dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj
 dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj
 ```
+
+For the workflow-aligned `Release` commands and focused test filters, see [docs/quick-start.md](docs/quick-start.md).
 
 ## Examples
 

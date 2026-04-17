@@ -489,3 +489,9 @@
 - Verified the cleanup with:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+- Added a root-linked quick-start path for the repo without widening product scope:
+  - created `docs/quick-start.md` as the canonical getting-started guide
+  - consolidated restore/build commands, workflow-aligned test commands, example run entry points, and baseline host/manual integration examples there
+  - linked the new guide from `README.md` instead of duplicating more command detail inline at the root
+- Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, and `DECISIONS.md` so the next promoted execution point remains the `ConnectionManager.TryHandleInboundFrame` cleanup after this documentation-only slice.
+- No build or test rerun was needed because this slice only changed documentation/continuity files.
