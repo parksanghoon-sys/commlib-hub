@@ -30,6 +30,9 @@ public sealed class ConnectionManagerTests
         Assert.Same(profile.Transport, transportFactory.LastOptions);
     }
 
+    /// <summary>
+    /// 잘못된 프로필은 runtime factory가 동작하기 전에 검증 단계에서 중단되는지 확인합니다.
+    /// </summary>
     [Fact]
     public async Task ConnectAsync_InvalidProfile_ThrowsBeforeRuntimeFactoriesRun()
     {
@@ -40,7 +43,23 @@ public sealed class ConnectionManagerTests
             transportFactory: transportFactory,
             protocolFactory: protocolFactory,
             serializerFactory: serializerFactory);
-        var profile = CreateInvalidTcpProfile();
+        var profile = CreateTcpProfile();
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Enabled = profile.Enabled,
+            Transport = new TcpClientTransportOptions
+            {
+                Type = "TcpClient",
+                Host = string.Empty,
+                Port = 502
+            },
+            Protocol = profile.Protocol,
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.ConnectAsync(profile));
 
@@ -267,6 +286,80 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// bounded inbound queue가 가득 차면 transport 수신도 추가로 진행되지 않고 대기하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, transportFactory.Transport.ReceiveCount);
+
+        var first = await manager.ReceiveAsync(profile.DeviceId);
+        Assert.Equal((ushort)41, first.MessageId);
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount == 3);
+
+        var second = await manager.ReceiveAsync(profile.DeviceId);
+        var third = await manager.ReceiveAsync(profile.DeviceId);
+
+        Assert.Equal((ushort)42, second.MessageId);
+        Assert.Equal((ushort)43, third.MessageId);
+    }
+
+    [Fact]
+    public async Task ReceivePump_WithBoundedInboundQueue_EmitsBackpressureSignalOncePerPressureEpisode()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var eventSink = new RecordingConnectionEventSink();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            eventSink: eventSink,
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
+        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
+
+        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+
+        _ = await manager.ReceiveAsync(profile.DeviceId);
+
+        await WaitForAsync(
+            () => eventSink.Events.Count(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)) == 2);
+
+        Assert.Equal(
+            new[]
+            {
+                "backpressure:device-1:1",
+                "backpressure:device-1:1"
+            },
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
     /// transport 수신 응답 메시지는 pending 요청 완료까지 연결되는지 확인합니다.
     /// </summary>
     [Fact]
@@ -318,41 +411,6 @@ public sealed class ConnectionManagerTests
         Assert.Equal(
             "request|7|11111111-1111-1111-1111-111111111111|",
             System.Text.Encoding.UTF8.GetString(transportFactory.Transport.LastFrame, 4, transportFactory.Transport.LastFrame.Length - 4));
-    }
-
-    /// <summary>
-    /// bounded inbound queue가 가득 차면 transport 수신도 추가로 진행되지 않고 대기하는지 확인합니다.
-    /// </summary>
-    [Fact]
-    public async Task ReceivePump_WithBoundedInboundQueue_BackpressuresTransportUntilConsumerDrains()
-    {
-        var transportFactory = new FakeTransportFactory();
-        var manager = CreateManager(
-            transportFactory: transportFactory,
-            protocolFactory: new ProtocolFactory(),
-            inboundQueueCapacity: 1);
-        var profile = CreateTcpProfile();
-        await manager.ConnectAsync(profile);
-
-        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(41));
-        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(42));
-        transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
-
-        await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
-        await Task.Delay(150);
-
-        Assert.Equal(2, transportFactory.Transport.ReceiveCount);
-
-        var first = await manager.ReceiveAsync(profile.DeviceId);
-        Assert.Equal((ushort)41, first.MessageId);
-
-        await WaitForAsync(() => transportFactory.Transport.ReceiveCount == 3);
-
-        var second = await manager.ReceiveAsync(profile.DeviceId);
-        var third = await manager.ReceiveAsync(profile.DeviceId);
-
-        Assert.Equal((ushort)42, second.MessageId);
-        Assert.Equal((ushort)43, third.MessageId);
     }
 
     /// <summary>
@@ -941,6 +999,41 @@ public sealed class ConnectionManagerTests
     }
 
     /// <summary>
+    /// queue pressure로 writer가 막힌 상태에서도 disconnect가 receive pump를 정리하고 재연결을 허용하는지 확인합니다.
+    /// </summary>
+    [Fact]
+    public async Task DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect()
+    {
+        var transportFactory = new FreshTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            inboundQueueCapacity: 1);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+
+        var firstTransport = transportFactory.Transports[0];
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(51));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(52));
+        firstTransport.EnqueueInboundFrame(CreateInboundFrame(53));
+
+        await WaitForAsync(() => firstTransport.ReceiveCount >= 2);
+        await Task.Delay(150);
+
+        Assert.Equal(2, firstTransport.ReceiveCount);
+
+        await manager.DisconnectAsync(profile.DeviceId);
+
+        Assert.Null(manager.GetSession(profile.DeviceId));
+        Assert.True(firstTransport.IsClosed);
+
+        await manager.ConnectAsync(profile);
+
+        Assert.NotNull(manager.GetSession(profile.DeviceId));
+        Assert.Equal(2, transportFactory.Transports.Count);
+    }
+
+    /// <summary>
     /// 연결되지 않은 장치를 해제하려 하면 예외를 발생시키는지 확인합니다.
     /// </summary>
     [Fact]
@@ -989,41 +1082,6 @@ public sealed class ConnectionManagerTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => manager.SendAsync(profile.DeviceId, new FakeMessage(1)));
 
         Assert.Contains(profile.DeviceId, exception.Message);
-    }
-
-    /// <summary>
-    /// queue pressure로 writer가 막힌 상태에서도 disconnect가 receive pump를 정리하고 재연결을 허용하는지 확인합니다.
-    /// </summary>
-    [Fact]
-    public async Task DisconnectAsync_WhenReceivePumpIsBackpressured_CleansUpBlockedWriterAndAllowsReconnect()
-    {
-        var transportFactory = new FreshTransportFactory();
-        var manager = CreateManager(
-            transportFactory: transportFactory,
-            protocolFactory: new ProtocolFactory(),
-            inboundQueueCapacity: 1);
-        var profile = CreateTcpProfile();
-        await manager.ConnectAsync(profile);
-
-        var firstTransport = transportFactory.Transports[0];
-        firstTransport.EnqueueInboundFrame(CreateInboundFrame(51));
-        firstTransport.EnqueueInboundFrame(CreateInboundFrame(52));
-        firstTransport.EnqueueInboundFrame(CreateInboundFrame(53));
-
-        await WaitForAsync(() => firstTransport.ReceiveCount >= 2);
-        await Task.Delay(150);
-
-        Assert.Equal(2, firstTransport.ReceiveCount);
-
-        await manager.DisconnectAsync(profile.DeviceId);
-
-        Assert.Null(manager.GetSession(profile.DeviceId));
-        Assert.True(firstTransport.IsClosed);
-
-        await manager.ConnectAsync(profile);
-
-        Assert.NotNull(manager.GetSession(profile.DeviceId));
-        Assert.Equal(2, transportFactory.Transports.Count);
     }
 
     /// <summary>
@@ -1227,30 +1285,6 @@ public sealed class ConnectionManagerTests
             {
                 Type = "TcpClient",
                 Host = "127.0.0.1",
-                Port = port
-            },
-            Protocol = new ProtocolOptions
-            {
-                Type = "LengthPrefixed"
-            },
-            Serializer = new SerializerOptions
-            {
-                Type = "AutoBinary"
-            }
-        };
-    }
-
-    private static DeviceProfile CreateInvalidTcpProfile(string deviceId = "device-1", int port = 502)
-    {
-        return new DeviceProfile
-        {
-            DeviceId = deviceId,
-            DisplayName = deviceId,
-            Enabled = true,
-            Transport = new TcpClientTransportOptions
-            {
-                Type = "TcpClient",
-                Host = string.Empty,
                 Port = port
             },
             Protocol = new ProtocolOptions
@@ -1601,6 +1635,11 @@ public sealed class ConnectionManagerTests
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
             Events.Add($"failure:{deviceId}:{operation}:{exception.Message}");
+        }
+
+        public void OnInboundBackpressure(string deviceId, int queueCapacity)
+        {
+            Events.Add($"backpressure:{deviceId}:{queueCapacity}");
         }
     }
 

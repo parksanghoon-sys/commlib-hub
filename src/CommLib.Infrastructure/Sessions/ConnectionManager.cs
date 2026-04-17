@@ -1,6 +1,5 @@
-using System.Threading.Channels;
 using System.Runtime.ExceptionServices;
-using CommLib.Application.Configuration;
+using System.Threading.Channels;
 using CommLib.Application.Sessions;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
@@ -12,7 +11,7 @@ using CommLib.Infrastructure.Transport;
 namespace CommLib.Infrastructure.Sessions;
 
 /// <summary>
-/// 연결된 장치에 대한 전송 생성과 인메모리 세션 등록을 관리합니다.
+/// 장치별 연결 생성, 세션 등록, 수신 펌프 수명주기를 관리합니다.
 /// </summary>
 public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 {
@@ -30,7 +29,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     private bool _disposeRequested;
 
     /// <summary>
-    /// <see cref="ConnectionManager"/> 클래스의 새 인스턴스를 초기화합니다.
+    /// <see cref="ConnectionManager"/> 인스턴스를 초기화합니다.
     /// </summary>
     /// <param name="transportFactory">장치 전송을 생성하는 transport factory입니다.</param>
     /// <param name="protocolFactory">장치 프로토콜을 생성하는 protocol factory입니다.</param>
@@ -95,16 +94,18 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// 지정한 장치 프로필에 대한 전송을 만들고 세션 및 송신기를 등록합니다.
+    /// 지정한 장치 프로필로 연결을 만들고 세션 및 수신 펌프를 등록합니다.
     /// </summary>
     /// <param name="profile">연결할 장치 프로필입니다.</param>
     /// <param name="cancellationToken">연결 작업 취소 토큰입니다.</param>
-    /// <returns>등록 작업입니다.</returns>
+    /// <returns>연결 등록 작업입니다.</returns>
     public async Task ConnectAsync(DeviceProfile profile, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(profile);
         cancellationToken.ThrowIfCancellationRequested();
         ThrowIfDisposeRequested();
+
+        // 직접 IConnectionManager를 호출하는 경로도 bootstrap과 같은 검증 규칙을 강제합니다.
         DeviceProfileValidator.ValidateAndThrow(profile);
 
         var deviceGate = await AcquireDeviceGateAsync(profile.DeviceId, cancellationToken).ConfigureAwait(false);
@@ -138,6 +139,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 
             if (existingState is not null)
             {
+                // 같은 장치를 다시 연결할 때는 이전 세션의 pending 작업을 명시적으로 종료시킵니다.
                 await CloseTransportAsync(profile.DeviceId, existingState.Transport, "disconnect", cancellationToken).ConfigureAwait(false);
                 existingState.Session.FailPendingResponses(CreatePendingResponseTerminationException(profile.DeviceId, "disconnect"));
             }
@@ -171,7 +173,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// 지정한 장치 식별자의 연결 리소스와 수신 수명주기를 정리합니다.
+    /// 지정한 장치의 연결 리소스와 수신 수명주기를 정리합니다.
     /// </summary>
     /// <param name="deviceId">연결 해제할 장치 식별자입니다.</param>
     /// <param name="cancellationToken">연결 해제 취소 토큰입니다.</param>
@@ -240,9 +242,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// 장치 식별자로 활성 세션을 조회합니다.
+    /// 지정한 장치 식별자로 활성 세션을 조회합니다.
     /// </summary>
-    /// <param name="deviceId">조회할 장치 세션 식별자입니다.</param>
+    /// <param name="deviceId">조회할 장치 식별자입니다.</param>
     /// <returns>활성 세션이 있으면 반환하고, 없으면 <see langword="null"/>을 반환합니다.</returns>
     public IDeviceSession? GetSession(string deviceId)
     {
@@ -253,7 +255,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     }
 
     /// <summary>
-    /// 활성 장치 연결과 수신 수명주기를 모두 정리합니다.
+    /// 활성 연결과 수신 수명주기를 모두 정리합니다.
     /// </summary>
     /// <returns>비동기 정리 작업입니다.</returns>
     public async ValueTask DisposeAsync()
@@ -356,12 +358,18 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
                     continue;
                 }
 
-                await inboundWriter.WriteAsync(new InboundEnvelope(message, null), cancellationToken).ConfigureAwait(false);
+                // 큐가 가득 차면 writer가 대기하므로 추가 transport 수신도 함께 backpressure를 받습니다.
+                await WriteInboundEnvelopeAsync(
+                        deviceId,
+                        state,
+                        inboundWriter,
+                        new InboundEnvelope(message, null),
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // 큐가 가득 차면 writer가 대기하므로 추가 transport 수신도 함께 backpressure를 받습니다.
         }
         catch (Exception exception)
         {
@@ -371,6 +379,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             _eventSink.OnOperationFailed(deviceId, "receive", wrapped);
             await TryCloseTransportAsync(state.Transport).ConfigureAwait(false);
 
+            // 대기 중인 ReceiveAsync 호출이 있다면 동일한 실패를 즉시 관측할 수 있게 합니다.
             if (!inboundWriter.TryWrite(new InboundEnvelope(null, wrapped)))
             {
                 inboundWriter.TryComplete(wrapped);
@@ -380,6 +389,43 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         {
             inboundWriter.TryComplete();
         }
+    }
+
+    private async Task WriteInboundEnvelopeAsync(
+        string deviceId,
+        DeviceConnectionState state,
+        ChannelWriter<InboundEnvelope> inboundWriter,
+        InboundEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        if (inboundWriter.TryWrite(envelope))
+        {
+            return;
+        }
+
+        SignalInboundBackpressure(deviceId, state);
+
+        try
+        {
+            // queue가 꽉 찬 동안에는 receive pump가 여기서 대기하고,
+            // 그만큼 추가 transport 수신도 자연스럽게 backpressure를 받습니다.
+            await inboundWriter.WriteAsync(envelope, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            state.InboundBackpressureSignaled = false;
+        }
+    }
+
+    private void SignalInboundBackpressure(string deviceId, DeviceConnectionState state)
+    {
+        if (state.InboundBackpressureSignaled)
+        {
+            return;
+        }
+
+        state.InboundBackpressureSignaled = true;
+        _eventSink.OnInboundBackpressure(deviceId, _inboundQueueCapacity);
     }
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
@@ -430,16 +476,19 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         public Task ReceivePumpTask { get; set; } = Task.CompletedTask;
 
         public volatile Exception? ReceivePumpFailure;
+
+        public bool InboundBackpressureSignaled { get; set; }
     }
 
     private static void DropPendingInbound(Channel<InboundEnvelope> inboundQueue)
     {
+        // 이전 연결의 잔여 inbound를 제거해 재연결 후 새 세션으로 섞여 들어오지 않게 합니다.
         inboundQueue.Writer.TryComplete();
         while (inboundQueue.Reader.TryRead(out _))
         {
         }
     }
-    // 이전 연결의 잔여 inbound를 제거해 재연결 후 새 세션으로 섞여 들어오지 않게 합니다.
+
     private static async Task TryCloseTransportAsync(ITransport transport)
     {
         try
