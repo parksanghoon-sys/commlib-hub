@@ -14,7 +14,8 @@ Raise repository-level public/open-source readiness without changing the core ru
 - All remote feature/cleanup branches that were part of the older delivery lines have been deleted from `commlib-hub`; only `main` remains on the remote.
 - GitHub issues `#21` and `#23` are now closed because their work is already present on `main`.
 - `.github/workflows/ci.yml` is still missing from GitHub `main`, but local branch `chore/repo-finish` restores the validated workflow content and verifies it successfully.
-- Publishing `chore/repo-finish` is still blocked in this environment:
+- This branch, `chore/repo-finish-publishable`, intentionally carries only the non-workflow subset of the repo-publication cleanup so it can still be pushed with the currently available credentials.
+- Publishing the full `chore/repo-finish` workflow-restoration branch is still blocked in this environment:
   - `git push` rejects workflow-file updates because the available PAT lacks `workflow` scope
   - the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation
 - The root `README.md` is now a public-facing overview instead of an internal scratch document.
@@ -23,7 +24,7 @@ Raise repository-level public/open-source readiness without changing the core ru
   - central package metadata lives in `Directory.Build.props`
   - package license metadata now uses `MIT`
   - `README.md` is packed into NuGet packages
-  - `.github/workflows/ci.yml` has been restored on this branch and still needs to land on `main`
+  - `.github/workflows/ci.yml` has been restored on local branch `chore/repo-finish` and still needs to land on `main`
   - root/test project descriptions were normalized to clean English text
 - XML documentation generation is now scoped to the packable library projects under `src/` rather than the entire repo, which removed test/example warning noise while keeping library documentation output enabled.
 - The remaining library-side XML warnings were fixed in:
@@ -43,11 +44,11 @@ Raise repository-level public/open-source readiness without changing the core ru
   - root internal planning/continuity files now remain by policy as explicitly marked development artifacts
 
 ## Next Work Unit
-1. Publish local branch `chore/repo-finish` or commits `5655677` and `a58daa3` plus the MIT follow-up from a credential that can update workflow files on GitHub.
+1. Publish the remaining workflow-restoration change from local branch `chore/repo-finish` with a credential that can update workflow files on GitHub after the non-workflow cleanup branch is landed.
 
 ## Next Slice Design
 1. Keep the next slice at repository/GitHub hygiene scope; do not reopen runtime or WinUI feature work.
-2. Treat the remaining work as publication hygiene only: publish the already-prepared branch with a higher-scope credential.
+2. Treat the remaining work as publication hygiene only: land the already-pushable MIT/root-policy cleanup first, then publish the prepared workflow-restoration branch with a higher-scope credential.
 3. Do not reopen root-file relocation, runtime cleanup, or WinUI follow-up work in this branch.
 
 ## Stop / Reassess Conditions

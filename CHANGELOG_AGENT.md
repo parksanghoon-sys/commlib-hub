@@ -410,6 +410,15 @@
 - Verified the MIT packaging path with:
   - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
 - After the MIT follow-up, the only explicit blocker left is publishing `chore/repo-finish` with workflow-file write permission.
+- Tried every locally available publication path for `chore/repo-finish` and confirmed they all still resolve to an under-scoped PAT for workflow-file writes:
+  - default `git push`
+  - `git push` with `gh auth git-credential`
+  - `gh auth refresh --scopes workflow`
+  - Git Credential Manager browser re-login
+- Chose a safe split-publication fallback instead of leaving all repo cleanup local-only:
+  - created `chore/repo-finish-publishable` from `commlib-hub/main`
+  - copied the non-workflow subset from `chore/repo-finish` so MIT license, package metadata, root publication-policy docs, and continuity updates can still be pushed now
+  - left `.github/workflows/ci.yml` only on local branch `chore/repo-finish` as the one remaining unpublished blocker
 - Created fresh branch `chore/repo-publication-policy` from `commlib-hub/main` instead of reviving the merged integration branch or the divergent local `main`.
 - Chose the least disruptive root publication policy for now:
   - keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root

@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `chore/repo-finish` (clean branch created from `commlib-hub/main` to finish the remaining repository-publication cleanup without touching the conflicted local `main` worktree).
+- Active checkout: `chore/repo-finish-publishable` (clean publishable subset branch created from `commlib-hub/main` so the non-workflow repository cleanup can be pushed without touching the conflicted local `main` worktree).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: remote feature/cleanup branches have already been deleted; the remaining cleanup work is GitHub metadata/permission-related, not branch-integration work.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -13,21 +13,21 @@
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Finalize the remaining public-release blockers for the repository root.
-  Scope: publish local branch `chore/repo-finish` so the restored `.github/workflows/ci.yml`, root `LICENSE`, and MIT package metadata reach `main`.
+  Scope: land the already-pushable MIT/root-policy cleanup from `chore/repo-finish-publishable`, then publish the remaining local workflow-restoration branch `chore/repo-finish`.
   Objective: finish the last repository-facing cleanup step after PR `#25` merged the outstanding code/branch work into `main`, the stale GitHub issues were closed, and MIT was chosen.
-  Validation: `.github/workflows/ci.yml` exists on `main`, issues `#21` and `#23` remain closed, root `LICENSE` exists on `main`, and `Directory.Build.props` carries MIT package metadata truthfully.
+  Validation: root `LICENSE` exists on GitHub, `Directory.Build.props` carries MIT package metadata truthfully, issues `#21` and `#23` remain closed, and `.github/workflows/ci.yml` eventually exists on `main`.
 
 ## Deferred Backlog
 ### Repository Release & Hygiene
 ### [P0_NOW] Publish the local workflow-restoration branch with credentials that can update workflow files
-- What remains: push or otherwise publish local branch `chore/repo-finish` so the prepared cleanup commits land on GitHub and restore `.github/workflows/ci.yml`, the MIT `LICENSE`, and MIT package metadata on `main`.
-- Why deferred: the available PAT can push normal refs but rejects workflow-file updates without `workflow` scope, and the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation in this repo.
-- Objective: finish the last GitHub-side repository cleanup that is now fully prepared and locally verified.
-- Relevant context: `chore/repo-finish` already contains commit `45892c4` (`docs(repo): clarify internal root file policy`), commit `5655677` (`chore(repo): restore ci publication cleanup`), and the MIT follow-up that adds the root `LICENSE` and `PackageLicenseExpression=MIT`. The branch was verified locally with `dotnet restore`, both `dotnet test` projects in `Release`, the console example `dotnet build`, and a `dotnet pack` check for MIT package metadata.
-- Scope: remote branch publication for `chore/repo-finish` (or equivalent application of commit `5655677`) and subsequent merge onto `main`.
-- Current status: the full fix exists locally and is cleanly committed, but it is not present on GitHub because both available write paths are under-scoped for workflow-file publication.
+- What remains: publish local branch `chore/repo-finish` so the prepared workflow commit lands on GitHub and restores `.github/workflows/ci.yml` on `main`.
+- Why deferred: the available PAT can push normal refs but rejects workflow-file updates without `workflow` scope, and the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation in this repo. As a result, this cycle split the pushable non-workflow cleanup into `chore/repo-finish-publishable`.
+- Objective: finish the last GitHub-side repository cleanup that remains after the MIT/license/root-policy cleanup is publishable separately.
+- Relevant context: `chore/repo-finish` already contains commit `45892c4` (`docs(repo): clarify internal root file policy`), commit `5655677` (`chore(repo): restore ci publication cleanup`), and the MIT follow-up that adds the root `LICENSE` and `PackageLicenseExpression=MIT`. `chore/repo-finish-publishable` carries the same repo/license/policy cleanup except for `.github/workflows/ci.yml`, so it can be pushed now while the workflow restoration stays local.
+- Scope: remote publication for the remaining workflow-restoration branch `chore/repo-finish` (or equivalent application of commit `5655677`) and subsequent merge onto `main`.
+- Current status: the MIT license, package metadata, and root-policy cleanup now have a pushable branch, but the workflow-file publication itself is still blocked by credential scope.
 - Known blockers/open questions: which credential should publish workflow-file changes in this repo; whether the maintainer wants to push the branch directly or cherry-pick commit `5655677` from a higher-scope environment.
-- Most natural next step: publish `chore/repo-finish` using a token/account with workflow-file write permission, then confirm `.github/workflows/ci.yml` and `LICENSE` both exist on `main`.
+- Most natural next step: push `chore/repo-finish-publishable`, then publish `chore/repo-finish` using a token/account with workflow-file write permission and confirm `.github/workflows/ci.yml` exists on `main`.
 
 ### Runtime Hardening & Correctness
 ### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal

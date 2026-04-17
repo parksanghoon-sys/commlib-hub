@@ -272,3 +272,9 @@
 - Decision: use MIT, add the standard root `LICENSE` file, and set `PackageLicenseExpression` to `MIT` in `Directory.Build.props` so the NuGet package metadata stays truthful alongside the repo-level license.
 - Why: the maintainer explicitly chose MIT, and package metadata should match the repository license instead of leaving the published package surface ambiguous.
 - Consequences: the explicit license-choice blocker is now resolved locally, the remaining blocker is only publishing `chore/repo-finish`, and future package builds from this branch will carry MIT license metadata.
+
+## 2026-04-17 - Split publication into a pushable non-workflow branch and a separate local workflow-restoration branch
+- Context: `chore/repo-finish` contains the full repository-publication cleanup, including `.github/workflows/ci.yml`, but every available local publication path still resolves to a PAT that GitHub rejects for workflow-file updates. The GitHub app integration is also under-scoped for ref creation in this repo.
+- Decision: keep `chore/repo-finish` intact as the local source of truth for the validated workflow restoration, but create `chore/repo-finish-publishable` from `commlib-hub/main` and copy only the non-workflow cleanup onto it so the MIT license, package metadata, root-policy docs, and continuity updates can still be pushed immediately.
+- Why: this is the smallest safe way to publish the repo/license cleanup that does not depend on workflow-file write permission, while keeping the still-blocked workflow restoration explicit and reviewable.
+- Consequences: GitHub can receive most of the repo-publication cleanup now, but `.github/workflows/ci.yml` still requires a later publish from `chore/repo-finish` or an equivalent higher-scope cherry-pick.

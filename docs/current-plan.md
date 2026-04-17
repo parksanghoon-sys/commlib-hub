@@ -16,7 +16,8 @@
 - Open PR count is now zero.
 - Issues `#21` and `#23` are now closed because their work is already on `main`.
 - `.github/workflows/ci.yml` is still missing from GitHub `main`, but local branch `chore/repo-finish` restores the validated workflow content and verifies it successfully.
-- Publishing `chore/repo-finish` is still blocked in this environment because `git push` lacks workflow-file scope and the GitHub app integration cannot create/update refs in this repo.
+- `chore/repo-finish-publishable` intentionally carries only the non-workflow subset of the repo-publication cleanup so the MIT/license/root-policy changes can still be pushed now.
+- Publishing the full `chore/repo-finish` branch is still blocked in this environment because `git push` lacks workflow-file scope and the GitHub app integration cannot create/update refs in this repo.
 - MIT has now been chosen and this branch adds the root `LICENSE` file plus `PackageLicenseExpression=MIT`.
 - Root `README.md` is now a public-facing overview with honest contract notes.
 - Package metadata is centralized in `Directory.Build.props`, and `README.md` is packed into NuGet packages.
@@ -33,7 +34,7 @@
 - The repo is not fully publication-ready yet because `.github/workflows/ci.yml` is restored only on local branch `chore/repo-finish`.
 
 ## Next Work Unit
-1. Publish local branch `chore/repo-finish` with credentials that can update workflow files on GitHub.
+1. Land the pushable non-workflow cleanup branch, then publish local branch `chore/repo-finish` with credentials that can update workflow files on GitHub.
 
 ## Not In This Step
 - No new runtime/API hardening
