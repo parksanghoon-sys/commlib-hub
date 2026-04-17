@@ -480,3 +480,12 @@
   - keep the work on `commlib-hub/main` (or a fresh branch from it) instead of reviving the preserved mixed branch as a delivery line
 - Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, and `DECISIONS.md` to reflect that new next execution point.
 - No build or test rerun was needed because this cycle intentionally performed planning/state synchronization only.
+- Completed the `DeviceSession` internal cleanup on fresh branch `cleanup/device-session-pending-entry`:
+  - replaced reflection-based pending-response result/exception dispatch with typed private pending entries
+  - removed the redundant `PendingRequestStore` and separate timeout-registration dictionary from `DeviceSession`
+  - fixed the non-generic response path so a correlation-id match with the wrong response type no longer drops the pending entry silently
+  - updated `DeviceSessionTests` to validate behavior directly instead of reflecting into the old timeout-registration field
+- Hardened the backpressure event test helper in `ConnectionManagerTests` so snapshot-based event reads do not race with background receive-pump writes during assertions.
+- Verified the cleanup with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`

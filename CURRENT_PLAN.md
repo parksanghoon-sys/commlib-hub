@@ -38,15 +38,22 @@ Resume the highest-priority runtime/application follow-up work from a truthful, 
 - The repository-level public/open-source readiness cleanup is complete:
   - `main` now has the MIT license, truthful package metadata, and the Windows CI workflow
   - root internal planning/continuity files remain by policy as explicitly marked development artifacts
+- `DeviceSession` pending-response tracking is now internally simplified on branch `cleanup/device-session-pending-entry`:
+  - reflection-based completion/exception dispatch is replaced with typed pending entries
+  - redundant `PendingRequestStore` and separate timeout-registration dictionary are removed
+  - mismatched response types no longer drop pending entries silently
+- Verification for this cleanup passed with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
 
 ## Next Work Unit
-1. Resume the `DeviceSession` internal pending-response cleanup from a fresh branch created from `commlib-hub/main`.
+1. Reassess `ConnectionManager.TryHandleInboundFrame` and remove or internalize the ambiguous dual-entry inbound path if no real external caller depends on it.
 
 ## Next Slice Design
 1. Keep the next slice code-local and evidence-ready; do not reopen repository-publication work unless the live GitHub state drifts again.
-2. Start from the already-recorded `DeviceSession` pending-response abstraction cleanup instead of widening immediately into hosting, diagnostics, or WinUI follow-up work.
+2. Prefer removing or shrinking dead/ambiguous internal runtime paths before widening into hosting, diagnostics, or WinUI follow-up work.
 3. Continue to branch fresh from `commlib-hub/main`, not from preserved mixed or publication branches.
 
 ## Stop / Reassess Conditions
-- If new runtime follow-up work starts touching hosting, observability, or public API boundaries more widely than `DeviceSession`, stop and reassess whether the slice should be split.
+- If new runtime follow-up work starts touching hosting, observability, or public API boundaries more widely than `ConnectionManager` inbound handling, stop and reassess whether the slice should be split.
 - If moving or renaming root internal files would break existing automation or local workflow, stop and document the chosen boundary before editing paths.

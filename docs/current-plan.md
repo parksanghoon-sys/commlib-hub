@@ -31,9 +31,13 @@
   - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
 - The generated `CommLib.Domain.0.1.0-local-mit.nupkg` contains the expected MIT license expression, readme metadata, and repository metadata.
 - The repository-level public/open-source readiness cleanup is now complete.
+- `DeviceSession` pending-response tracking is now simplified on branch `cleanup/device-session-pending-entry`:
+  - typed pending entries replaced reflection-based completion/exception dispatch
+  - redundant pending-store and timeout-registry state were removed
+  - focused unit and infrastructure tests pass after the cleanup
 
 ## Next Work Unit
-1. Resume the `DeviceSession` pending-response abstraction cleanup from a fresh branch off `commlib-hub/main`.
+1. Reassess `ConnectionManager.TryHandleInboundFrame` and remove or internalize the ambiguous dual-entry inbound path if no real external caller depends on it.
 
 ## Not In This Step
 - No new runtime/API hardening
