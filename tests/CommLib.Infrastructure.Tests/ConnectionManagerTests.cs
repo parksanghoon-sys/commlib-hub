@@ -376,12 +376,14 @@ public sealed class ConnectionManagerTests
         transportFactory.Transport.EnqueueInboundFrame(CreateInboundFrame(43));
 
         await WaitForAsync(() => transportFactory.Transport.ReceiveCount >= 2);
+        await WaitForAsync(
+            () => eventSink.Events.Count(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)) == 1);
         Assert.Equal(
             new[]
             {
                 "backpressure:device-1:1"
             },
-            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)).ToArray());
 
         _ = await manager.ReceiveAsync(profile.DeviceId);
 
@@ -394,7 +396,7 @@ public sealed class ConnectionManagerTests
                 "backpressure:device-1:1",
                 "backpressure:device-1:1"
             },
-            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)));
+            eventSink.Events.Where(static entry => entry.StartsWith("backpressure:", StringComparison.Ordinal)).ToArray());
     }
 
     /// <summary>
