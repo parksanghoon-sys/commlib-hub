@@ -1,21 +1,31 @@
 # TODOS
 
 ## Execution Context
-- Active checkout: `feat/runtime-readiness-hardening` (`preserved mixed context only`; do not treat it as the delivery branch for new runtime-surface work).
-- Authoritative runtime baseline: `commlib-hub/main`, which already contains merged runtime follow-ups from PR `#18`, `#19`, `#20`, `#22`, and `#24`.
-- Truth note: this mixed checkout does not contain those later code changes locally, so old "current" tasks from this branch must be reconciled against the integrated baseline before promotion.
-- Execution rule: start the next runtime/application follow-up from `commlib-hub/main` (or a fresh feature branch from it), not from this mixed checkout.
+- Active checkout: `codex/integrate-outstanding-work` (local branch only; its remote was deleted after merge because PR `#25` is already on `main`).
+- Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
+- Truth note: remote feature/cleanup branches have already been deleted; the remaining cleanup work is GitHub metadata/permission-related, not branch-integration work.
+- Execution rule: start any new product work from `commlib-hub/main` (or a fresh branch from it), not from the preserved local integration branch.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Finalize the remaining public-release blockers for the repository root.
-  Scope: root `LICENSE`, root publication notes in `README.md`, and the exposure policy for `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md`.
-  Objective: remove the last repository-facing blockers before calling the repo open-source ready, without guessing on legal or automation-sensitive decisions.
-  Validation: a chosen license file exists at the repo root, the README stays truthful about the repository layout, and the selected policy for internal planning files is reflected consistently in the root layout/docs.
+  Scope: restore `.github/workflows/ci.yml` on `main`, close stale issues `#21` and `#23`, then return to the root `LICENSE` / root publication policy follow-up.
+  Objective: finish the last GitHub-side and repository-facing cleanup steps after PR `#25` merged the outstanding code/branch work into `main`.
+  Validation: `.github/workflows/ci.yml` exists on `main`, `is:issue is:open` no longer returns `#21`/`#23`, and the remaining root publication blockers stay recorded truthfully.
 
 ## Deferred Backlog
 ### Repository Release & Hygiene
+### [P0_NOW] Unblock the final GitHub-side cleanup with a credential that can write issues and workflow files
+- What remains: restore `.github/workflows/ci.yml` onto `commlib-hub/main` and close stale issues `#21` and `#23`.
+- Why deferred: the available git/PAT credential can push normal code but cannot update workflow files, and both the GitHub app integration and PAT-backed `gh` issue/API calls returned `403 Resource not accessible`.
+- Objective: finish the repository cleanup that remained after PR `#25` merged and the remote feature branches were deleted.
+- Relevant context: PR `#25` merged the integrated runtime/messaging/repo-polish batch into `main`, and remote feature branches were then deleted successfully. The validated workflow content already exists locally, but publishing it still needs higher GitHub write permission.
+- Scope: GitHub issue state for `#21` and `#23`, `.github/workflows/ci.yml` on `main`, and any credential/setup note needed to explain the blocker.
+- Current status: open PRs are already at zero, remote branches are already cleaned, but issue/workflow writes are still blocked by credential scope.
+- Known blockers/open questions: which higher-scope credential or installation should be used for issue/workflow writes in this repo.
+- Most natural next step: use a token/app installation with issue-write and workflow/content-write permission, restore the workflow file, close the two stale issues, and rerun a quick GitHub state check.
+
 ### [P0_NOW] Choose the repository license before calling the repo open-source ready
 - What remains: decide the project license and add the corresponding root `LICENSE` file.
 - Why deferred: license selection is a maintainer/legal decision; it is not safe to guess between MIT, Apache-2.0, or another policy just to make the repo look complete.
@@ -198,6 +208,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: merged PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`) into `commlib-hub/main`, pruned the remote feature/cleanup branches so only `main` remains, and confirmed that open PRs are now zero; issue/workflow cleanup is still blocked by missing GitHub write scopes.
 - [x] 2026-04-17: upgraded the repo-facing public-release baseline by replacing the root `README.md` with a public-facing overview, adding central package metadata plus packed `README.md` wiring in `Directory.Build.props`, introducing a Windows CI workflow, tightening `.gitignore`, normalizing package/test project descriptions, and clarifying the console example README so it does not overstate reconnect behavior; verified with `dotnet restore commlib-codex-full.sln`, sequential unit/infrastructure test runs, a console build, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj`.
 - [x] 2026-04-17: scoped XML documentation generation to the packable library projects under `src/` instead of the entire repo, fixed the remaining live library XML warning gaps in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`, and re-verified cleanly with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --no-restore -v minimal`, `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --no-restore -v minimal`, `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --no-restore -v minimal`, and `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --no-restore -p:PackageVersion=0.1.0-local5 -o artifacts/pack -v minimal`.
 - [x] 2026-04-17: reconciled the continuity files against the integrated runtime baseline and recorded that the earlier `DeviceSession` timeout-cancellation cleanup already landed on `commlib-hub/main` through PR `#18`; do not schedule that fix again from the mixed branch.

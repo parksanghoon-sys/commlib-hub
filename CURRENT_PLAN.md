@@ -6,11 +6,16 @@ Date: 2026-04-17
 Raise repository-level public/open-source readiness without changing the core runtime contract in `src/`.
 
 ## Confirmed Facts
+- PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`) is now merged into `commlib-hub/main`.
+- The previously outstanding runtime/messaging/repo-polish slices are now on `main`; only GitHub-side cleanup blockers remain from this integration pass.
+- All remote feature/cleanup branches that were part of the older delivery lines have been deleted from `commlib-hub`; only `main` remains on the remote.
+- The GitHub Actions workflow file is not currently present on `main` because the available git/PAT credential could not update `.github/workflows/ci.yml`, and the GitHub app integration also returned `403 Resource not accessible by integration` for contents writes.
+- Stale issues `#21` and `#23` are still open on GitHub even though their work is already on `main`, because both the GitHub app and the available PAT lacked issue-write permission in this environment.
 - The root `README.md` is now a public-facing overview instead of an internal scratch document.
 - Repository/package polish is now in place:
   - central package metadata lives in `Directory.Build.props`
   - `README.md` is packed into NuGet packages
-  - `.github/workflows/ci.yml` now validates the core libraries, both test projects, and the console example on Windows
+  - `.github/workflows/ci.yml` has already been authored and validated locally, but it still needs to be restored onto `main`
   - root/test project descriptions were normalized to clean English text
 - XML documentation generation is now scoped to the packable library projects under `src/` rather than the entire repo, which removed test/example warning noise while keeping library documentation output enabled.
 - The remaining library-side XML warnings were fixed in:
@@ -29,16 +34,16 @@ Raise repository-level public/open-source readiness without changing the core ru
   - `AGENT.md` is still mojibake/corrupted, so it should either be normalized or kept out of the public-facing root policy
 
 ## Next Work Unit
-1. Choose and add the repository license instead of guessing one automatically.
-2. Decide the publication policy for internal root files such as `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md`.
-3. If those files stay public, normalize `AGENT.md` and any remaining root-facing internal docs so they are at least readable; otherwise move or retire them deliberately.
+1. Restore `.github/workflows/ci.yml` onto `commlib-hub/main` using credentials that have workflow/file-write permission.
+2. Close stale GitHub issues `#21` and `#23` using credentials that have issue-write permission.
+3. After the GitHub-side cleanup is unblocked, return to the remaining repository publication blockers: choose a root `LICENSE`, decide the root-file publication policy, and normalize or relocate `AGENT.md` accordingly.
 
 ## Next Slice Design
-1. Keep the next slice at repository/release hygiene scope; do not widen it into new runtime or WinUI feature work.
-2. Treat license choice as a maintainer/legal decision, not an implementation guess.
-3. After the license/root-doc policy is settled, rerun the README/CI/package sanity check and update the root repository notes if the exposure policy changes.
+1. Keep the next slice at repository/GitHub hygiene scope; do not reopen runtime or WinUI feature work.
+2. Treat the missing workflow and still-open issues as credential/permission blockers, not as product-code blockers.
+3. After a higher-scope credential is available, restore the validated workflow file first, close the stale issues second, then return to the license/root-doc policy decisions.
 
 ## Stop / Reassess Conditions
 - Do not invent a `LICENSE` without an explicit maintainer choice.
+- Do not attempt more git or API work on `.github/workflows/ci.yml` or issue state until credentials with the necessary scopes are available.
 - If moving or renaming root internal files would break existing automation or local workflow, stop and document the chosen boundary before editing paths.
-- Do not reopen runtime follow-up work from this mixed checkout while repository publication blockers remain unresolved.

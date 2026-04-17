@@ -239,3 +239,9 @@
 - Decision: do not auto-add MIT, Apache-2.0, or any other license just to make the repo look complete. Record the missing license as an explicit blocker that requires a maintainer choice.
 - Why: license selection is a legal/project-governance decision, not a safe code-only default.
 - Consequences: the repository can continue improving technically, but it should not be described as fully open-source ready until the maintainer chooses and adds the intended license.
+
+## 2026-04-17 - Finish GitHub-side cleanup only through credentials that can actually write issue state and workflow files
+- Context: PR `#25` merged the outstanding integration work into `main`, and normal git pushes were sufficient to publish the integration branch and delete remote branches. However, restoring `.github/workflows/ci.yml` and closing stale issues `#21` / `#23` both failed in this environment because the available GitHub app integration and PAT-backed `gh`/REST calls returned `403 Resource not accessible`.
+- Decision: treat the remaining workflow/issue cleanup as a credential-scope problem, not as a product-code problem. Stop after the successful PR merge and remote-branch cleanup, and leave the final GitHub-side cleanup explicit for a later pass with the correct permissions.
+- Why: inventing more local branch churn or alternative code paths would not solve the actual blocker; the missing capability is GitHub write scope for workflow files and issue state.
+- Consequences: `main` now contains the integrated code and the remote branch list is clean, but `.github/workflows/ci.yml` still needs a higher-scope write path and issues `#21` / `#23` will stay open until that credential is available.

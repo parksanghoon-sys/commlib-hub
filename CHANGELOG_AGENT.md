@@ -384,6 +384,17 @@
 
 ## 2026-04-17
 
+- Merged the outstanding integration batch into GitHub `main` as PR `#25` (`[codex] integrate outstanding runtime and repo follow-ups`):
+  - pushed local branch `codex/integrate-outstanding-work`
+  - opened and merged PR `#25`
+  - deleted the remote integration branch plus the older remote feature/cleanup branches after merge
+  - confirmed that open PR count is now zero
+- Hit two GitHub permission blockers while finishing repository cleanup:
+  - the available git/PAT credential can push normal code, but it cannot create or update `.github/workflows/ci.yml`
+  - both the GitHub app integration and PAT-backed `gh` issue/API paths returned `403 Resource not accessible` for closing stale issues `#21` and `#23`
+- Recorded the remaining GitHub-side cleanup truthfully instead of forcing a partial workaround:
+  - `.github/workflows/ci.yml` still needs to be restored onto `main` with a credential that can write workflow files
+  - issues `#21` and `#23` still need to be closed once issue-write permission is available
 - Raised the repository-level public-release baseline without changing the core runtime contract:
   - replaced the root `README.md` with a public-facing overview and honest contract notes
   - added central package metadata plus packed `README.md` wiring in `Directory.Build.props`
