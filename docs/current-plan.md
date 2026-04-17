@@ -7,21 +7,20 @@
 - 2026-04-17
 
 ## Current Scope
-- Finish the repository-level public-ready cleanup without changing the runtime contract in `src/`
-- Keep the work focused on GitHub cleanup, repo-facing docs, package metadata, and publication blockers
+- Resume the next runtime/application follow-up work from a truthful, publication-ready repository baseline
+- Keep the next work focused on a narrow code-local slice rather than more repo-publication cleanup
 
 ## Confirmed State
 - PR `#25` merged the outstanding integration batch into `commlib-hub/main`.
 - Remote feature/cleanup branches have been deleted from `commlib-hub`; only `main` remains on the remote.
 - Open PR count is now zero.
+- PR `#26` merged the MIT/license/root-policy cleanup into `main`.
 - Issues `#21` and `#23` are now closed because their work is already on `main`.
-- `.github/workflows/ci.yml` is still missing from GitHub `main`, but local branch `chore/repo-finish` restores the validated workflow content and verifies it successfully.
-- `chore/repo-finish-publishable` intentionally carries only the non-workflow subset of the repo-publication cleanup so the MIT/license/root-policy changes can still be pushed now.
-- Publishing the full `chore/repo-finish` branch is still blocked in this environment because `git push` lacks workflow-file scope and the GitHub app integration cannot create/update refs in this repo.
+- `.github/workflows/ci.yml` has now been restored on top of the updated `main` baseline through the dedicated minimal branch `chore/restore-ci-workflow`.
 - MIT has now been chosen and this branch adds the root `LICENSE` file plus `PackageLicenseExpression=MIT`.
 - Root `README.md` is now a public-facing overview with honest contract notes.
 - Package metadata is centralized in `Directory.Build.props`, and `README.md` is packed into NuGet packages.
-- A Windows CI workflow has already been restored on this branch; it still needs to land on `main`.
+- A Windows CI workflow is now part of the live `main` branch state.
 - XML documentation output is enabled only for packable library projects under `src/`, not for tests/examples.
 - The remaining library XML warning gaps were fixed in `DeviceSession`, `LengthPrefixedProtocol`, and `ConnectionManager`.
 - Verification passed on this branch with:
@@ -31,10 +30,10 @@
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
   - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`
 - The generated `CommLib.Domain.0.1.0-local-mit.nupkg` contains the expected MIT license expression, readme metadata, and repository metadata.
-- The repo is not fully publication-ready yet because `.github/workflows/ci.yml` is restored only on local branch `chore/repo-finish`.
+- The repository-level public/open-source readiness cleanup is now complete.
 
 ## Next Work Unit
-1. Land the pushable non-workflow cleanup branch, then publish local branch `chore/repo-finish` with credentials that can update workflow files on GitHub.
+1. Resume the `DeviceSession` pending-response abstraction cleanup from a fresh branch off `commlib-hub/main`.
 
 ## Not In This Step
 - No new runtime/API hardening

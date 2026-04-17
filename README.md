@@ -105,4 +105,3 @@ dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj
 - Treat the runtime behavior in `src/`, package metadata, and the example READMEs as the real product-facing contract.
 - The repository is now licensed under MIT. See [LICENSE](LICENSE).
 - CI currently validates the core libraries, console example, and both test projects on Windows.
-- The remaining publication blocker is still the unpublished workflow-restoration branch that carries `.github/workflows/ci.yml`.

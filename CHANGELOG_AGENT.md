@@ -419,6 +419,18 @@
   - created `chore/repo-finish-publishable` from `commlib-hub/main`
   - copied the non-workflow subset from `chore/repo-finish` so MIT license, package metadata, root publication-policy docs, and continuity updates can still be pushed now
   - left `.github/workflows/ci.yml` only on local branch `chore/repo-finish` as the one remaining unpublished blocker
+- Published the non-workflow cleanup subset successfully:
+  - pushed `chore/repo-finish-publishable`
+  - opened draft PR `#26`
+  - marked PR `#26` ready and merged it into `main`
+- Rebased the final workflow restoration onto the updated `main` baseline instead of reviving the wider publication branch:
+  - created the minimal branch `chore/restore-ci-workflow` from `commlib-hub/main`
+  - reapplied only `.github/workflows/ci.yml`
+  - kept the branch to a single workflow-focused commit so the final publish/merge stays narrow
+- This completes the repository-level publication cleanup:
+  - `main` now has MIT license metadata and the root `LICENSE`
+  - root continuity files remain explicitly marked as internal artifacts by policy
+  - the Windows GitHub Actions workflow is restored on `main`
 - Created fresh branch `chore/repo-publication-policy` from `commlib-hub/main` instead of reviving the merged integration branch or the divergent local `main`.
 - Chose the least disruptive root publication policy for now:
   - keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root

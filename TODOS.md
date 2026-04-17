@@ -4,31 +4,20 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `chore/repo-finish-publishable` (clean publishable subset branch created from `commlib-hub/main` so the non-workflow repository cleanup can be pushed without touching the conflicted local `main` worktree).
+- Active checkout: `chore/restore-ci-workflow` (dedicated minimal branch created from the updated `commlib-hub/main` baseline to restore the final missing workflow file without reopening the wider repo-publication branch).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
-- Truth note: remote feature/cleanup branches have already been deleted; the remaining cleanup work is GitHub metadata/permission-related, not branch-integration work.
+- Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
-- [ ] Finalize the remaining public-release blockers for the repository root.
-  Scope: land the already-pushable MIT/root-policy cleanup from `chore/repo-finish-publishable`, then publish the remaining local workflow-restoration branch `chore/repo-finish`.
-  Objective: finish the last repository-facing cleanup step after PR `#25` merged the outstanding code/branch work into `main`, the stale GitHub issues were closed, and MIT was chosen.
-  Validation: root `LICENSE` exists on GitHub, `Directory.Build.props` carries MIT package metadata truthfully, issues `#21` and `#23` remain closed, and `.github/workflows/ci.yml` eventually exists on `main`.
+- [ ] Resume the next evidence-ready runtime cleanup slice.
+  Scope: replace `DeviceSession`'s reflection-based pending-response completion/failure dispatch with a private typed pending-entry abstraction.
+  Objective: improve a hot internal path without widening into hosting, observability, or public API redesign.
+  Validation: focused `DeviceSession` unit coverage still passes and no public contract/documentation truth regresses.
 
 ## Deferred Backlog
-### Repository Release & Hygiene
-### [P0_NOW] Publish the local workflow-restoration branch with credentials that can update workflow files
-- What remains: publish local branch `chore/repo-finish` so the prepared workflow commit lands on GitHub and restores `.github/workflows/ci.yml` on `main`.
-- Why deferred: the available PAT can push normal refs but rejects workflow-file updates without `workflow` scope, and the GitHub app integration returns `403 Resource not accessible by integration` even for remote branch creation in this repo. As a result, this cycle split the pushable non-workflow cleanup into `chore/repo-finish-publishable`.
-- Objective: finish the last GitHub-side repository cleanup that remains after the MIT/license/root-policy cleanup is publishable separately.
-- Relevant context: `chore/repo-finish` already contains commit `45892c4` (`docs(repo): clarify internal root file policy`), commit `5655677` (`chore(repo): restore ci publication cleanup`), and the MIT follow-up that adds the root `LICENSE` and `PackageLicenseExpression=MIT`. `chore/repo-finish-publishable` carries the same repo/license/policy cleanup except for `.github/workflows/ci.yml`, so it can be pushed now while the workflow restoration stays local.
-- Scope: remote publication for the remaining workflow-restoration branch `chore/repo-finish` (or equivalent application of commit `5655677`) and subsequent merge onto `main`.
-- Current status: the MIT license, package metadata, and root-policy cleanup now have a pushable branch, but the workflow-file publication itself is still blocked by credential scope.
-- Known blockers/open questions: which credential should publish workflow-file changes in this repo; whether the maintainer wants to push the branch directly or cherry-pick commit `5655677` from a higher-scope environment.
-- Most natural next step: push `chore/repo-finish-publishable`, then publish `chore/repo-finish` using a token/account with workflow-file write permission and confirm `.github/workflows/ci.yml` exists on `main`.
-
 ### Runtime Hardening & Correctness
 ### [P1_SOON] Decide whether queue-pressure signaling should become a real hosting/runtime signal
 - What remains: decide whether the bounded inbound queue should keep pressure visibility internal-only or whether the hosting/runtime surface should expose queue-pressure events, counters, or diagnostics hooks.
@@ -191,6 +180,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: finished the repository-level publication cleanup by merging PR `#26` for the MIT/license/root-policy subset, then restoring `.github/workflows/ci.yml` from the dedicated minimal branch `chore/restore-ci-workflow` so GitHub `main` now carries the Windows CI workflow too.
 - [x] 2026-04-17: created clean branch `chore/repo-finish` from `commlib-hub/main`, cherry-picked the root publication-policy doc pass, restored `.github/workflows/ci.yml` from the previously validated repo-polish commit history, verified the branch locally with `dotnet restore`, both `Release` test projects, and the console `Release` build, and confirmed GitHub issues `#21` and `#23` are now closed.
 - [x] 2026-04-17: maintainer chose MIT, so `chore/repo-finish` now adds the root `LICENSE`, sets `PackageLicenseExpression` to `MIT` in `Directory.Build.props`, updates the root README/status files accordingly, and verifies the package metadata path with `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`.
 - [x] 2026-04-17: chose the current root-file publication policy to keep `AGENT.md`, `CURRENT_PLAN.md`, `TODOS.md`, `CHANGELOG_AGENT.md`, `DECISIONS.md`, and `PROGRESS.md` at the repository root for now as explicitly marked internal development artifacts rather than moving paths that current workflow/automation depends on; updated the root `README.md` plus the main continuity files accordingly, and left `PROGRESS.md` banner normalization deferred behind its existing encoding-cleanup backlog.
