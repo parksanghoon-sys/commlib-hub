@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `chore/restore-ci-workflow` (dedicated minimal branch created from the updated `commlib-hub/main` baseline to restore the final missing workflow file without reopening the wider repo-publication branch).
+- Active checkout: `cleanup/device-session-pending-entry` (fresh runtime-cleanup branch created from `commlib-hub/main` after the repository-publication baseline was finished).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -13,9 +13,9 @@
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Resume the next evidence-ready runtime cleanup slice.
-  Scope: replace `DeviceSession`'s reflection-based pending-response completion/failure dispatch with a private typed pending-entry abstraction.
-  Objective: improve a hot internal path without widening into hosting, observability, or public API redesign.
-  Validation: focused `DeviceSession` unit coverage still passes and no public contract/documentation truth regresses.
+  Scope: review `ConnectionManager.TryHandleInboundFrame` and either remove it or shrink it to an internal-only seam if no real external caller depends on the dual-entry inbound path.
+  Objective: keep the connection/session runtime surface honest by removing ambiguous internal/public code paths after the `DeviceSession` cleanup landed.
+  Validation: focused `ConnectionManager` coverage still passes and the resulting public/runtime contract stays truthful.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -61,16 +61,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Current status: sequential connect is correct but O(n) in the number of active devices.
 - Known blockers/open questions: whether partial-failure semantics should aggregate exceptions (`AggregateException`) or use the existing `StartWithReportAsync` report path.
 - Most natural next step: switch to `Task.WhenAll` inside `StartAsync`, propagate failures as `AggregateException`, and add a unit test with two slow-connect stubs to verify they run concurrently.
-
-### [P2_LATER] Remove or internalize the ambiguous `TryHandleInboundFrame` public method on `ConnectionManager`
-- What remains: decide whether `TryHandleInboundFrame` should be removed entirely or made `internal`, since the receive pump already processes all inbound frames autonomously and a public frame-injection path creates a dual-entry contract that is hard to reason about.
-- Why deferred: the method is not called from any current consumer; it doesn't actively cause harm today.
-- Objective: keep `ConnectionManager`'s public surface honest and free of dual-path inbound handling.
-- Relevant context: `ConnectionManager.RunReceivePumpAsync()` already handles all inbound frames via `TransportMessageReceiver`; `TryHandleInboundFrame` (line 264) is a separate public method that also calls `state.Receiver.TryDecode()` and `state.Session.TryCompleteResponse()`, creating an overlapping path that could be called concurrently with the pump.
-- Scope: `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs` - line 264 method and any tests that cover it.
-- Current status: the method exists as a public API but has no callers outside tests.
-- Known blockers/open questions: whether any planned consumer (e.g. a raw-inject test helper) requires this method, or whether tests should use the pump path instead.
-- Most natural next step: grep all callers, and if only test-internal, mark `internal` and add `[assembly: InternalsVisibleTo]` for the test project.
 
 ### [P2_LATER] Consider core-library auto-reconnect only if a real deployment needs runtime reconnect orchestration
 - What remains: design a real runtime recovery/state-machine path only if a concrete deployment needs the core library itself to reopen transports and restore live sessions after a post-connect failure.
@@ -180,6 +170,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-17: replaced `DeviceSession`'s reflection-based pending-response completion/failure dispatch with a typed private pending-entry abstraction, removed the redundant `PendingRequestStore` plus separate timeout-registration dictionary, added coverage so mismatched response types no longer drop pending entries, and hardened the background backpressure event test helper to snapshot events thread-safely; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore` and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-17: finished the repository-level publication cleanup by merging PR `#26` for the MIT/license/root-policy subset, then restoring `.github/workflows/ci.yml` from the dedicated minimal branch `chore/restore-ci-workflow` so GitHub `main` now carries the Windows CI workflow too.
 - [x] 2026-04-17: created clean branch `chore/repo-finish` from `commlib-hub/main`, cherry-picked the root publication-policy doc pass, restored `.github/workflows/ci.yml` from the previously validated repo-polish commit history, verified the branch locally with `dotnet restore`, both `Release` test projects, and the console `Release` build, and confirmed GitHub issues `#21` and `#23` are now closed.
 - [x] 2026-04-17: maintainer chose MIT, so `chore/repo-finish` now adds the root `LICENSE`, sets `PackageLicenseExpression` to `MIT` in `Directory.Build.props`, updates the root README/status files accordingly, and verifies the package metadata path with `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-local-mit -o artifacts/pack-mit`.

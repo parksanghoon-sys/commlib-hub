@@ -284,3 +284,9 @@
 - Decision: create `chore/restore-ci-workflow` directly from the updated `commlib-hub/main` and carry only the workflow restoration commit there.
 - Why: this keeps the final publication step minimal, reviewable, and easy to reason about while avoiding duplicate repo/doc churn on top of the already-merged `main`.
 - Consequences: once `chore/restore-ci-workflow` lands, repository-level publication cleanup is complete and the next work can return to the previously queued `DeviceSession` internal cleanup.
+
+## 2026-04-17 - Collapse `DeviceSession` pending-response state into typed private entries
+- Context: `DeviceSession` tracked pending responses through three overlapping structures: a dictionary of `object`-typed `TaskCompletionSource<>` instances, a separate timeout-registration dictionary, and `PendingRequestStore`. Completing or failing responses from the non-generic path relied on reflection over `TaskCompletionSource<>`, and a response with the right correlation id but the wrong concrete response type could silently remove the pending entry.
+- Decision: replace the object/reflection path with a single dictionary of typed private pending-entry objects that own response completion, timeout registration, and failure propagation. Remove `PendingRequestStore` entirely because it only duplicated the keys already stored in the pending-response map.
+- Why: this is the smallest structurally correct cleanup that removes redundant internal state, avoids reflection in a hot path, and makes mismatched response handling truthful instead of silently dropping tracked work.
+- Consequences: `DeviceSession` now has one authoritative pending-response representation, tests no longer need to reflect into the old timeout-registration field, and the next cleanup slice can move to other ambiguous runtime paths such as `ConnectionManager.TryHandleInboundFrame`.
