@@ -290,3 +290,15 @@
 - Decision: replace the object/reflection path with a single dictionary of typed private pending-entry objects that own response completion, timeout registration, and failure propagation. Remove `PendingRequestStore` entirely because it only duplicated the keys already stored in the pending-response map.
 - Why: this is the smallest structurally correct cleanup that removes redundant internal state, avoids reflection in a hot path, and makes mismatched response handling truthful instead of silently dropping tracked work.
 - Consequences: `DeviceSession` now has one authoritative pending-response representation, tests no longer need to reflect into the old timeout-registration field, and the next cleanup slice can move to other ambiguous runtime paths such as `ConnectionManager.TryHandleInboundFrame`.
+
+## 2026-04-18 - Internalize `ConnectionManager.TryHandleInboundFrame` because it is a repo-only test seam, not a supported public runtime path
+- Context: after the `DeviceSession` cleanup landed, the main remaining code-local truthfulness gap was `ConnectionManager.TryHandleInboundFrame(...)`. The method sat on a public concrete runtime type even though `IConnectionManager` never exposed it and the only repo callers were three infrastructure tests.
+- Decision: keep the method only as an in-repo test seam and reduce its visibility from `public` to `internal` instead of keeping a second public inbound-entry path alive.
+- Why: this is the smallest structurally correct way to keep the runtime contract honest without deleting useful low-level tests or widening the main receive-pump API again.
+- Consequences: external callers are steered back to the supported runtime paths (`ConnectAsync`, `SendAsync`, `ReceiveAsync`, `GetSession`), while infrastructure tests can still exercise decode/pending-response behavior directly through the existing friend-assembly boundary.
+
+## 2026-04-18 - Treat caller-registered `IConnectionEventSink` as the supported observability seam for now
+- Context: the backlog still described `IConnectionEventSink` as effectively unavailable through DI, but `AddCommLibCore()` already resolves `IConnectionEventSink` from the service provider when constructing `ConnectionManager`. The real missing piece was proof and documentation, not a second hosting API.
+- Decision: do not add a new hosting wrapper or alternate connection-manager registration path in this slice. Instead, keep the current caller-registration model as the supported seam, add unit coverage that proves the sink reaches `ConnectionManager`, and document the registration path in `docs/quick-start.md`.
+- Why: this closes the practical adoption gap with the smallest change and avoids widening the hosting surface before there is a stronger requirement for a richer observability package boundary.
+- Consequences: production callers can already register logging/metrics hooks through DI today, the quick-start guide now shows that path explicitly, and any future question about moving the interface to a higher package layer can be handled separately from basic sink adoption.

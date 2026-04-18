@@ -107,6 +107,16 @@ This path:
 
 The repository root already includes a sample [appsettings.json](../appsettings.json) with the expected shape.
 
+If you want structured connect/retry/failure notifications, register a custom `IConnectionEventSink`
+before building the host:
+
+```csharp
+using CommLib.Infrastructure.Sessions;
+
+builder.Services.AddSingleton<IConnectionEventSink, LoggingConnectionEventSink>();
+builder.Services.AddCommLibCore(builder.Configuration);
+```
+
 ## 6. Use It Manually Through `IConnectionManager`
 
 If you want full control over connect/send/receive timing, register the core services and drive the connection manager directly.

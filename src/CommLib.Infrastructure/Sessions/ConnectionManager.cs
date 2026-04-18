@@ -304,7 +304,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     /// <param name="message">복원된 메시지입니다.</param>
     /// <param name="bytesConsumed">소비한 바이트 수입니다.</param>
     /// <returns>완전한 메시지를 복원했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
-    public bool TryHandleInboundFrame(string deviceId, ReadOnlySpan<byte> buffer, out IMessage? message, out int bytesConsumed)
+    internal bool TryHandleInboundFrame(string deviceId, ReadOnlySpan<byte> buffer, out IMessage? message, out int bytesConsumed)
     {
         message = null;
         bytesConsumed = 0;

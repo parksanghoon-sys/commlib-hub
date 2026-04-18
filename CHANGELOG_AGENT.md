@@ -1,5 +1,20 @@
 # CHANGELOG_AGENT
 
+## 2026-04-18
+- Continued runtime cleanup from fresh branch `cleanup/inbound-frame-seam` after the quick-start guide landed on `main`.
+- Narrowed the remaining ambiguous manual inbound seam in `ConnectionManager`:
+  - confirmed `TryHandleInboundFrame(...)` had no repo callers outside the infrastructure tests
+  - changed the method from `public` to `internal`
+  - kept the in-repo test seam intact through the existing `InternalsVisibleTo("CommLib.Infrastructure.Tests")` assembly boundary
+- Formalized the existing observability seam instead of widening hosting again:
+  - added `ServiceCollectionExtensionsTests` coverage proving a caller-registered `IConnectionEventSink` flows through `AddCommLibCore()` into `ConnectionManager`
+  - documented the same registration path in `docs/quick-start.md`
+- Verification for this slice passed with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter ServiceCollectionExtensionsTests`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+- One earlier parallel validation attempt hit the repo's known transient build-output file lock on `CommLib.Domain.dll`; rerunning the checks sequentially succeeded with no code rollback needed.
+- Updated the continuity files so the next promoted work unit is now `ReconnectOptions` contract-truthfulness review rather than more inbound-path cleanup or wider observability work.
+
 > Internal development continuity file for active repository maintenance.
 > Not part of the public CommLib runtime or package contract.
 

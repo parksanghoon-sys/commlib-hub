@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `docs/quick-start-guide` (documentation-only branch created from `commlib-hub/main` after the repository-publication baseline and `DeviceSession` cleanup landed).
+- Active checkout: `cleanup/inbound-frame-seam` (runtime cleanup branch created from `main` after the quick-start guide landed).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -13,9 +13,9 @@
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Resume the next evidence-ready runtime cleanup slice.
-  Scope: review `ConnectionManager.TryHandleInboundFrame` and either remove it or shrink it to an internal-only seam if no real external caller depends on the dual-entry inbound path.
-  Objective: keep the connection/session runtime surface honest by removing ambiguous internal/public code paths after the `DeviceSession` cleanup landed.
-  Validation: focused `ConnectionManager` coverage still passes and the resulting public/runtime contract stays truthful.
+  Scope: inventory repo-facing `ReconnectOptions` / `DeviceProfile.Reconnect` references and decide whether the current connect-time-only semantics need stronger doc-only clarification or a staged alias/deprecation path.
+  Objective: keep the public retry contract truthful without widening immediately into a larger reconnect-state-machine redesign.
+  Validation: the chosen contract path is documented explicitly, affected docs/tests stay truthful, and no unintended public-behavior drift is introduced.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -39,17 +39,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Current status: the code comment and state docs now call out the connect-time-only semantics, but the public type/property names remain `ReconnectOptions` and `Reconnect`.
 - Known blockers/open questions: whether external consumers already depend on the current JSON/property names, whether a doc-only clarification is sufficient for now, and whether a rename is worth the churn before a stable external package surface exists.
 - Most natural next step: inventory repo/external references and choose between doc-only clarification, a staged alias, or a later breaking rename.
-
-### Production Integration & Hosting
-### [P1_SOON] Expose `IConnectionEventSink` through DI so callers can wire logging and metrics without coupling to `ConnectionManager` internals
-- What remains: register `IConnectionEventSink` as a singleton in `AddCommLibCore()` so application code can supply a custom sink via DI instead of needing an internal constructor or direct `ConnectionManager` cast.
-- Why deferred: the current `NullConnectionEventSink` default is safe, but the DI-invisible optional parameter means production deployments can't observe connect/disconnect/failure events without reflection or internal access.
-- Objective: give production adopters a first-class, DI-friendly hook for structured logging and metrics without widening the core session contracts.
-- Relevant context: `ConnectionManager` already accepts `IConnectionEventSink?` in its internal constructor; `AddCommLibCore()` in `ServiceCollectionExtensions.cs` does not register the sink interface at all today.
-- Scope: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Infrastructure/Sessions/IConnectionEventSink.cs`, `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`.
-- Current status: `IConnectionEventSink` is an internal infrastructure detail not reachable from the hosting layer.
-- Known blockers/open questions: whether the sink should be moved to the domain or application layer so `CommLib.Hosting` can reference it without taking a direct dependency on `CommLib.Infrastructure` internals.
-- Most natural next step: move `IConnectionEventSink` to `CommLib.Application` or expose it via a thin hosting adapter, then wire it into `AddCommLibCore()`.
 
 ### Runtime Hardening & Correctness
 ### [P2_LATER] Parallelize `DeviceBootstrapper.StartAsync` to reduce multi-device startup latency
@@ -170,6 +159,8 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-18: narrowed the ambiguous manual inbound-frame seam by confirming `ConnectionManager.TryHandleInboundFrame(...)` was only used by in-repo infrastructure tests, then changing it from `public` to `internal` while keeping the test seam available through the existing `InternalsVisibleTo("CommLib.Infrastructure.Tests")` boundary; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
+- [x] 2026-04-18: treated caller-registered `IConnectionEventSink` as the supported observability seam instead of widening hosting APIs again, then proved and documented that path by adding `ServiceCollectionExtensionsTests` coverage plus a quick-start registration example; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter ServiceCollectionExtensionsTests`.
 - [x] 2026-04-17: added `docs/quick-start.md` as the canonical root-linked getting-started guide, covering restore/build, workflow-aligned test commands, console/WinUI example entry points, and the basic Generic Host/manual `IConnectionManager` usage paths; linked it from `README.md` and kept the next promoted code task on `ConnectionManager.TryHandleInboundFrame`. No build/test rerun was needed because this slice only changed documentation/continuity files.
 - [x] 2026-04-17: replaced `DeviceSession`'s reflection-based pending-response completion/failure dispatch with a typed private pending-entry abstraction, removed the redundant `PendingRequestStore` plus separate timeout-registration dictionary, added coverage so mismatched response types no longer drop pending entries, and hardened the background backpressure event test helper to snapshot events thread-safely; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore` and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-17: finished the repository-level publication cleanup by merging PR `#26` for the MIT/license/root-policy subset, then restoring `.github/workflows/ci.yml` from the dedicated minimal branch `chore/restore-ci-workflow` so GitHub `main` now carries the Windows CI workflow too.
