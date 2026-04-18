@@ -14,6 +14,31 @@
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
 - One earlier parallel validation attempt hit the repo's known transient build-output file lock on `CommLib.Domain.dll`; rerunning the checks sequentially succeeded with no code rollback needed.
 - Updated the continuity files so the next promoted work unit is now `ReconnectOptions` contract-truthfulness review rather than more inbound-path cleanup or wider observability work.
+- Continued from fresh branch `docs/reconnect-contract-clarity` to close the `ReconnectOptions` contract-truthfulness slice without widening the public API.
+- Reassessed the public reconnect naming against the live runtime behavior and chose stronger doc-only clarification over alias/deprecation for now because:
+  - the code and tests already behaved consistently
+  - the repo already had partial wording about connect-time-only retry
+  - there is still no evidence of external compatibility pressure that justifies a staged rename path
+- Updated the contract wording in:
+  - `README.md`
+  - `docs/quick-start.md`
+  - `examples/CommLib.Examples.Console/README.md`
+  - `examples/CommLib.Examples.WinUI/README.md`
+- Re-verified the clarified contract with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+- Promoted the next evidence-ready runtime slice to `DeviceBootstrapper.StartAsync()` parallelization, while leaving queue-pressure signaling deferred until a concrete operator requirement appears.
+- Completed the bootstrap startup-latency slice without widening hosting APIs:
+  - `DeviceBootstrapper.StartAsync()` now validates all enabled profiles before any connect attempt begins
+  - enabled profiles now connect concurrently through `Task.WhenAll` instead of one-by-one awaits
+  - single startup failures still rethrow directly, while multiple concurrent failures now surface as `AggregateException`
+  - `StartWithReportAsync()` intentionally keeps its earlier continue-and-report behavior
+- Updated `DeviceBootstrapperTests` to prove the new concurrent-start semantics, invalid-profile prevalidation boundary, cancellation propagation, and multi-fault aggregation; also updated `docs/quick-start.md` so the Generic Host path no longer implies serial startup.
+- Re-verified the combined reconnect/bootstrap follow-up bundle with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+- Promoted the next evidence-ready slice to the deferred WinUI UDP / Multicast / real-pointer manual validation pass.
 
 > Internal development continuity file for active repository maintenance.
 > Not part of the public CommLib runtime or package contract.

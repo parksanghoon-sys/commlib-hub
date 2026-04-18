@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `cleanup/inbound-frame-seam` (runtime cleanup branch created from `main` after the quick-start guide landed).
+- Active checkout: `docs/reconnect-contract-clarity` (follow-up branch created from `main` for reconnect-contract clarification and bootstrap startup cleanup).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -13,9 +13,9 @@
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
 - [ ] Resume the next evidence-ready runtime cleanup slice.
-  Scope: inventory repo-facing `ReconnectOptions` / `DeviceProfile.Reconnect` references and decide whether the current connect-time-only semantics need stronger doc-only clarification or a staged alias/deprecation path.
-  Objective: keep the public retry contract truthful without widening immediately into a larger reconnect-state-machine redesign.
-  Validation: the chosen contract path is documented explicitly, affected docs/tests stay truthful, and no unintended public-behavior drift is introduced.
+  Scope: run the deferred WinUI manual validation pass for UDP / Multicast / real-pointer behavior and tighten only the smallest resulting UI/status copy if the live pass surfaces confusion.
+  Objective: close the remaining operator-facing confidence gaps without widening transport/runtime behavior again.
+  Validation: the live pass covers `Device Lab` plus `Settings` transport switching and UDP/Multicast mock behavior, and any resulting follow-up stays scoped to the concrete issue observed.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -28,28 +28,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Current status: queue pressure currently manifests only as transport backpressure; there is no first-class event or diagnostic surface for it.
 - Known blockers/open questions: whether consumers need a metric, log event, callback, health signal, or nothing at all; whether any signal should be best-effort or contractually guaranteed.
 - Most natural next step: gather operator/deployment requirements first, then add only the smallest useful pressure signal to the hosting/runtime surface.
-
-### API / Contract Truthfulness
-### [P1_SOON] Decide whether `ReconnectOptions` needs a clearer connect-time retry contract
-- What remains: determine whether keeping the public `ReconnectOptions` / `DeviceProfile.Reconnect` naming is still acceptable now that runtime behavior is explicitly connect-time retry only, or whether the repo should add a non-breaking alias/deprecation path or plan a future rename.
-- Why deferred: the runtime policy is now explicit and tested, but the public naming still suggests broader live-session auto-reconnect semantics than the implementation actually provides; the branch/PR cleanup plus first memory/startup hardening slices are more urgent blockers.
-- Objective: keep configuration and API naming truthful without breaking existing consumers unnecessarily.
-- Relevant context: `ConnectionManager` now treats post-connect receive failure as terminal, hides failed sessions, and fails pending requests immediately on receive failure, explicit disconnect, and same-device session replacement; `ReconnectOptions` currently only affects connect-time `OpenAsync()` retry behavior inside `CreateOpenedTransportAsync()`.
-- Scope: `src/CommLib.Domain/Configuration/ReconnectOptions.cs`, `src/CommLib.Domain/Configuration/DeviceProfile.cs`, `src/CommLib.Domain/Configuration/DeviceProfileValidator.cs`, config/docs samples, and any compatibility shim that becomes necessary.
-- Current status: the code comment and state docs now call out the connect-time-only semantics, but the public type/property names remain `ReconnectOptions` and `Reconnect`.
-- Known blockers/open questions: whether external consumers already depend on the current JSON/property names, whether a doc-only clarification is sufficient for now, and whether a rename is worth the churn before a stable external package surface exists.
-- Most natural next step: inventory repo/external references and choose between doc-only clarification, a staged alias, or a later breaking rename.
-
-### Runtime Hardening & Correctness
-### [P2_LATER] Parallelize `DeviceBootstrapper.StartAsync` to reduce multi-device startup latency
-- What remains: replace the sequential `foreach / await ConnectAsync` loop with `Task.WhenAll` (or bounded concurrency via `SemaphoreSlim`) so devices that each have multi-second connect timeouts don't multiply startup time linearly.
-- Why deferred: startup latency is not critical until device counts grow or connect timeouts are tuned for slow links.
-- Objective: keep startup time proportional to the slowest single device rather than the sum of all device timeouts.
-- Relevant context: `DeviceBootstrapper.StartAsync()` currently awaits each `ConnectAsync` call before starting the next; with 10 devices at a 5 s timeout each, failure discovery takes up to 50 s.
-- Scope: `src/CommLib.Application/Bootstrap/DeviceBootstrapper.cs`.
-- Current status: sequential connect is correct but O(n) in the number of active devices.
-- Known blockers/open questions: whether partial-failure semantics should aggregate exceptions (`AggregateException`) or use the existing `StartWithReportAsync` report path.
-- Most natural next step: switch to `Task.WhenAll` inside `StartAsync`, propagate failures as `AggregateException`, and add a unit test with two slow-connect stubs to verify they run concurrently.
 
 ### [P2_LATER] Consider core-library auto-reconnect only if a real deployment needs runtime reconnect orchestration
 - What remains: design a real runtime recovery/state-machine path only if a concrete deployment needs the core library itself to reopen transports and restore live sessions after a post-connect failure.
@@ -159,6 +137,8 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-18: finished the bootstrap startup-latency cleanup by changing `DeviceBootstrapper.StartAsync()` to validate all enabled profiles before launching `ConnectAsync()` concurrently, keeping `StartWithReportAsync()` as the continue-and-report path, surfacing multi-fault concurrent startup as `AggregateException`, and documenting the concurrent host-start behavior in `docs/quick-start.md`; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
+- [x] 2026-04-18: clarified the public reconnect contract without widening the API by inventorying repo-facing `ReconnectOptions` references, deciding that a staged alias/deprecation path was not justified yet, and updating `README.md`, `docs/quick-start.md`, and the console/WinUI example READMEs to state explicitly that `Reconnect` governs only connect-time transport-open retries and not automatic post-connect recovery; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests` and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-18: narrowed the ambiguous manual inbound-frame seam by confirming `ConnectionManager.TryHandleInboundFrame(...)` was only used by in-repo infrastructure tests, then changing it from `public` to `internal` while keeping the test seam available through the existing `InternalsVisibleTo("CommLib.Infrastructure.Tests")` boundary; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-18: treated caller-registered `IConnectionEventSink` as the supported observability seam instead of widening hosting APIs again, then proved and documented that path by adding `ServiceCollectionExtensionsTests` coverage plus a quick-start registration example; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter ServiceCollectionExtensionsTests`.
 - [x] 2026-04-17: added `docs/quick-start.md` as the canonical root-linked getting-started guide, covering restore/build, workflow-aligned test commands, console/WinUI example entry points, and the basic Generic Host/manual `IConnectionManager` usage paths; linked it from `README.md` and kept the next promoted code task on `ConnectionManager.TryHandleInboundFrame`. No build/test rerun was needed because this slice only changed documentation/continuity files.

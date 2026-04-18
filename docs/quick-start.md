@@ -77,7 +77,7 @@ CommLib is intentionally narrow right now:
 - transport types: `TcpClient`, `Udp`, `Serial`, `Multicast`
 - framing: `LengthPrefixed`
 - serializers: `AutoBinary`, `RawHex`
-- reconnect behavior: initial `ConnectAsync()` retry only
+- reconnect behavior: transport-open retries inside the initial `ConnectAsync()` call only
 - failed receive loop behavior: the session becomes terminal until the caller reconnects explicitly
 
 If you are integrating the library into another app, keep those boundaries in mind before assuming richer framing or runtime reconnect behavior.
@@ -102,8 +102,12 @@ This path:
 
 - binds `CommLibOptions`
 - maps each enabled `DeviceProfileRaw` entry to `DeviceProfile`
-- validates and connects them during host startup through `DeviceBootstrapper`
+- validates all enabled profiles first, then connects them concurrently during host startup through `DeviceBootstrapper`
 - disposes active connections when the host stops
+
+`ReconnectOptions` in that configuration path still means connect-time transport-open retry only.
+If a device connects successfully and later loses its background receive loop, CommLib leaves that
+session terminal until your application reconnects it explicitly.
 
 The repository root already includes a sample [appsettings.json](../appsettings.json) with the expected shape.
 
@@ -159,6 +163,12 @@ var profile = new DeviceProfile
     {
         Type = SerializerTypes.AutoBinary
     },
+    Reconnect = new ReconnectOptions
+    {
+        Type = "Linear",
+        MaxAttempts = 2,
+        IntervalMs = 500
+    },
     RequestResponse = new RequestResponseOptions
     {
         DefaultTimeoutMs = 2000,
@@ -181,6 +191,9 @@ Message helpers already shipped in `CommLib.Domain.Messaging`:
 - `BinaryMessageModel` for raw payloads
 - `RequestMessageModel` / `ResponseMessageModel` for request-response flows
 - binary request/response variants for raw payload request-response cases
+
+That manual `Reconnect` example still affects only the initial `ConnectAsync()` path. It is not a
+background auto-reconnect policy for already-open sessions.
 
 ## 7. Common Next Steps
 

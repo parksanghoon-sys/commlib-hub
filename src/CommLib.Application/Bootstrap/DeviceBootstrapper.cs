@@ -1,6 +1,7 @@
 using CommLib.Application.Configuration;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
+using System.Runtime.ExceptionServices;
 
 namespace CommLib.Application.Bootstrap;
 
@@ -33,17 +34,38 @@ public sealed class DeviceBootstrapper
     {
         ArgumentNullException.ThrowIfNull(profiles);
 
-        foreach (var profile in profiles)
+        var enabledProfiles = CollectEnabledProfiles(profiles, cancellationToken);
+        if (enabledProfiles.Count == 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            return;
+        }
 
-            if (!profile.Enabled)
+        var connectionTasks = enabledProfiles
+            .Select(profile => _connectionManager.ConnectAsync(profile, cancellationToken))
+            .ToArray();
+
+        try
+        {
+            await Task.WhenAll(connectionTasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            var exceptions = connectionTasks
+                .Where(task => task.IsFaulted)
+                .SelectMany(task => task.Exception!.InnerExceptions)
+                .ToArray();
+
+            if (exceptions.Length == 0)
             {
-                continue;
+                throw;
             }
 
-            DeviceProfileValidator.ValidateAndThrow(profile);
-            await _connectionManager.ConnectAsync(profile, cancellationToken);
+            if (exceptions.Length == 1)
+            {
+                ExceptionDispatchInfo.Capture(exceptions[0]).Throw();
+            }
+
+            throw new AggregateException("One or more device bootstrap connections failed.", exceptions);
         }
     }
 
@@ -88,5 +110,27 @@ public sealed class DeviceBootstrapper
         }
 
         return new DeviceBootstrapReport(connectedDeviceIds, failures);
+    }
+
+    private static IReadOnlyList<DeviceProfile> CollectEnabledProfiles(
+        IEnumerable<DeviceProfile> profiles,
+        CancellationToken cancellationToken)
+    {
+        var enabledProfiles = new List<DeviceProfile>();
+
+        foreach (var profile in profiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!profile.Enabled)
+            {
+                continue;
+            }
+
+            DeviceProfileValidator.ValidateAndThrow(profile);
+            enabledProfiles.Add(profile);
+        }
+
+        return enabledProfiles;
     }
 }

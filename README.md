@@ -22,7 +22,7 @@ This repository intentionally keeps the public contract narrower than the long-t
 Before using it in another project, these current boundaries are important:
 
 - `ProtocolOptions` currently represents `LengthPrefixed` framing only.
-- `ReconnectOptions` currently controls initial `ConnectAsync()` retry behavior only.
+- `ReconnectOptions` currently controls transport-open retries inside the initial `ConnectAsync()` call only.
 - A session whose background receive loop fails is treated as terminal until the caller reconnects it explicitly.
 - The WinUI example is Windows-only and is provided as an operator/developer sample, not as a reusable UI package.
 
@@ -88,6 +88,10 @@ The overall shape looks like this:
   }
 }
 ```
+
+The `Reconnect` section in that sample applies only while `ConnectAsync()` is still trying to open
+the transport. It does not mean the library will auto-recover a session later after a successful
+connection has already transitioned into a receive failure.
 
 ## Build And Test
 

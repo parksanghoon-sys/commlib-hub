@@ -23,6 +23,6 @@ dotnet run --project examples/CommLib.Examples.Console -- serial-demo --port COM
 ## Notes
 
 - All demos use `LengthPrefixedProtocol` plus `NoOpSerializer` via the library factories.
-- The sample prints initial connection attempts through `IConnectionEventSink`, so `ReconnectOptions` retry behavior is visible during runs without implying later auto-reconnect support.
+- The sample prints connect-time attempts through `IConnectionEventSink`, so `ReconnectOptions` retry behavior is visible during runs without implying later auto-reconnect support after a successful session has already failed.
 - `serial-demo` is intentionally the only example that needs external setup because a single process cannot open both ends of the same serial port.
 - Run `multicast-receive` in one terminal first, then trigger `multicast-send` from another terminal.

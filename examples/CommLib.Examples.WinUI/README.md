@@ -33,6 +33,7 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - TCP and UDP expect a reachable remote endpoint.
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
+- Any reconnect-related status in the live log reflects connect-time retry attempts only; if an already-connected session later fails, the operator still needs to reconnect it explicitly.
 - The `Device Lab` and `Settings` pages now show only the currently selected transport panel instead of every transport preset at once.
 - For repeatable local manual verification without external hardware, use [scripts/Start-WinUiTransportValidation.ps1](../../scripts/Start-WinUiTransportValidation.ps1) to launch the repo-owned TCP/UDP echo peers or multicast send/receive flow instead of rediscovering console commands each session.
 - The in-app mock peer path covers TCP, UDP, and Multicast on loopback; Serial still stays external because it needs a paired COM environment.
