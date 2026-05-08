@@ -1,5 +1,5 @@
 # CommLib
-
+ 
 CommLib is a config-driven .NET communication library for device-facing applications.
 It focuses on a small, explicit runtime contract for TCP, UDP, Serial, and Multicast
 connections, plus a lightweight application/bootstrap layer and runnable examples.
