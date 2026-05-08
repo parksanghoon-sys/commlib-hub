@@ -746,11 +746,11 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 
     private static bool IsNoRetryPolicy(string type)
     {
-        return type.Equals("None", StringComparison.OrdinalIgnoreCase);
+        return type.Equals(ReconnectTypes.None, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsLinearPolicy(string type)
     {
-        return type.Equals("Linear", StringComparison.OrdinalIgnoreCase);
+        return type.Equals(ReconnectTypes.Linear, StringComparison.OrdinalIgnoreCase);
     }
 }
