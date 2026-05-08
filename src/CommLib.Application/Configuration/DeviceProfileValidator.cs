@@ -26,7 +26,28 @@ public static class DeviceProfileValidator
         }
 
         ValidateProtocolOptions(profile);
+        ValidateRequestResponseOptions(profile);
+        ValidateSerializerOptions(profile);
+        ValidateReconnectOptions(profile);
+        ValidateTransportOptions(profile);
+    }
 
+    private static void ValidateProtocolOptions(DeviceProfile profile)
+    {
+        if (!profile.Protocol.Type.Equals("LengthPrefixed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
+        }
+
+        if (profile.Protocol.MaxFrameLength < 4)
+        {
+            throw new InvalidOperationException(
+                $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+        }
+    }
+
+    private static void ValidateRequestResponseOptions(DeviceProfile profile)
+    {
         if (profile.RequestResponse.DefaultTimeoutMs <= 0)
         {
             throw new InvalidOperationException($"[{profile.DeviceId}] DefaultTimeoutMs must be greater than 0.");
@@ -36,103 +57,208 @@ public static class DeviceProfileValidator
         {
             throw new InvalidOperationException($"[{profile.DeviceId}] MaxPendingRequests must be greater than 0.");
         }
+    }
 
-        ValidateSerializerOptions(profile);
-        ValidateReconnectOptions(profile);
+    private static void ValidateSerializerOptions(DeviceProfile profile)
+    {
+        if (profile.Serializer.BitFieldSchema is null)
+        {
+            return;
+        }
 
+        if (!string.Equals(profile.Serializer.Type, SerializerTypes.RawHex, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] BitFieldSchema requires the RawHex serializer.");
+        }
+
+        try
+        {
+            BitFieldPayloadSchemaValidator.ValidateAndThrow(profile.Serializer.BitFieldSchema);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Invalid BitFieldSchema: {exception.Message}", exception);
+        }
+    }
+
+    private static void ValidateReconnectOptions(DeviceProfile profile)
+    {
+        var reconnect = profile.Reconnect;
+
+        if (reconnect.MaxAttempts < 0)
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be greater than or equal to 0.");
+        }
+
+        if (reconnect.Type.Equals(ReconnectTypes.None, StringComparison.OrdinalIgnoreCase))
+        {
+            if (reconnect.MaxAttempts != 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be 0 when Type is None.");
+            }
+        }
+        else if (reconnect.Type.Equals(ReconnectTypes.Linear, StringComparison.OrdinalIgnoreCase))
+        {
+            if (reconnect.IntervalMs <= 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect IntervalMs must be greater than 0.");
+            }
+        }
+        else if (reconnect.Type.Equals(ReconnectTypes.Exponential, StringComparison.OrdinalIgnoreCase) ||
+                 reconnect.Type.Equals(ReconnectTypes.Backoff, StringComparison.OrdinalIgnoreCase) ||
+                 reconnect.Type.Equals(ReconnectTypes.ExponentialBackoff, StringComparison.OrdinalIgnoreCase))
+        {
+            if (reconnect.BaseDelayMs <= 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect BaseDelayMs must be greater than 0.");
+            }
+
+            if (reconnect.MaxDelayMs <= 0)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than 0.");
+            }
+
+            if (reconnect.MaxDelayMs < reconnect.BaseDelayMs)
+            {
+                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than or equal to BaseDelayMs.");
+            }
+        }
+        else
+        {
+            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect Type is invalid.");
+        }
+    }
+
+    private static void ValidateTransportOptions(DeviceProfile profile)
+    {
         switch (profile.Transport)
         {
             case TcpClientTransportOptions tcp:
-                if (string.IsNullOrWhiteSpace(tcp.Host))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] TCP Host is required.");
-                }
-                if (tcp.Port is <= 0 or > 65535)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] TCP Port is invalid.");
-                }
+                ValidateTcpTransportOptions(profile.DeviceId, tcp);
                 break;
 
             case UdpTransportOptions udp:
-                if (udp.LocalPort is < 0 or > 65535)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] UDP LocalPort is invalid.");
-                }
-                if (udp.RemotePort is <= 0 or > 65535)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemotePort is invalid.");
-                }
-                if (!string.IsNullOrWhiteSpace(udp.RemoteHost) != udp.RemotePort.HasValue)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] UDP RemoteHost and RemotePort must be configured together.");
-                }
+                ValidateUdpTransportOptions(profile.DeviceId, udp);
                 break;
 
             case SerialTransportOptions serial:
-                if (string.IsNullOrWhiteSpace(serial.PortName))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial PortName is required.");
-                }
-                if (serial.BaudRate <= 0)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial BaudRate is invalid.");
-                }
-                if (serial.DataBits is < 5 or > 8)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial DataBits must be between 5 and 8.");
-                }
-                if (!IsSupportedSerialParity(serial.Parity))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial Parity is invalid.");
-                }
-                if (!IsSupportedSerialStopBits(serial.StopBits))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial StopBits is invalid.");
-                }
-                if (serial.TurnGapMs < 0)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial TurnGapMs must be greater than or equal to 0.");
-                }
-                if (serial.ReadBufferSize <= 0)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial ReadBufferSize must be greater than 0.");
-                }
-                if (serial.WriteBufferSize <= 0)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Serial WriteBufferSize must be greater than 0.");
-                }
+                ValidateSerialTransportOptions(profile.DeviceId, serial);
                 break;
 
             case MulticastTransportOptions multicast:
-                if (string.IsNullOrWhiteSpace(multicast.GroupAddress))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress is required.");
-                }
-                if (!IPAddress.TryParse(multicast.GroupAddress, out var groupAddress))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress must be a valid IP address.");
-                }
-                if (!IsIpv4Multicast(groupAddress))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast GroupAddress must be an IPv4 multicast address.");
-                }
-                if (multicast.Port is <= 0 or > 65535)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Port is invalid.");
-                }
-                if (multicast.Ttl <= 0)
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast Ttl must be greater than 0.");
-                }
-                if (!string.IsNullOrWhiteSpace(multicast.LocalInterface) &&
-                    !IPAddress.TryParse(multicast.LocalInterface, out _))
-                {
-                    throw new InvalidOperationException($"[{profile.DeviceId}] Multicast LocalInterface must be a valid IP address.");
-                }
+                ValidateMulticastTransportOptions(profile.DeviceId, multicast);
                 break;
 
             default:
                 throw new InvalidOperationException($"[{profile.DeviceId}] Unsupported transport type.");
+        }
+    }
+
+    private static void ValidateTcpTransportOptions(string deviceId, TcpClientTransportOptions tcp)
+    {
+        if (string.IsNullOrWhiteSpace(tcp.Host))
+        {
+            throw new InvalidOperationException($"[{deviceId}] TCP Host is required.");
+        }
+
+        if (tcp.Port is <= 0 or > 65535)
+        {
+            throw new InvalidOperationException($"[{deviceId}] TCP Port is invalid.");
+        }
+    }
+
+    private static void ValidateUdpTransportOptions(string deviceId, UdpTransportOptions udp)
+    {
+        if (udp.LocalPort is < 0 or > 65535)
+        {
+            throw new InvalidOperationException($"[{deviceId}] UDP LocalPort is invalid.");
+        }
+
+        if (udp.RemotePort is <= 0 or > 65535)
+        {
+            throw new InvalidOperationException($"[{deviceId}] UDP RemotePort is invalid.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(udp.RemoteHost) != udp.RemotePort.HasValue)
+        {
+            throw new InvalidOperationException($"[{deviceId}] UDP RemoteHost and RemotePort must be configured together.");
+        }
+    }
+
+    private static void ValidateSerialTransportOptions(string deviceId, SerialTransportOptions serial)
+    {
+        if (string.IsNullOrWhiteSpace(serial.PortName))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial PortName is required.");
+        }
+
+        if (serial.BaudRate <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial BaudRate is invalid.");
+        }
+
+        if (serial.DataBits is < 5 or > 8)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial DataBits must be between 5 and 8.");
+        }
+
+        if (!IsSupportedSerialParity(serial.Parity))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial Parity is invalid.");
+        }
+
+        if (!IsSupportedSerialStopBits(serial.StopBits))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial StopBits is invalid.");
+        }
+
+        if (serial.TurnGapMs < 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial TurnGapMs must be greater than or equal to 0.");
+        }
+
+        if (serial.ReadBufferSize <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial ReadBufferSize must be greater than 0.");
+        }
+
+        if (serial.WriteBufferSize <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Serial WriteBufferSize must be greater than 0.");
+        }
+    }
+
+    private static void ValidateMulticastTransportOptions(string deviceId, MulticastTransportOptions multicast)
+    {
+        if (string.IsNullOrWhiteSpace(multicast.GroupAddress))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast GroupAddress is required.");
+        }
+
+        if (!IPAddress.TryParse(multicast.GroupAddress, out var groupAddress))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast GroupAddress must be a valid IP address.");
+        }
+
+        if (!IsIpv4Multicast(groupAddress))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast GroupAddress must be an IPv4 multicast address.");
+        }
+
+        if (multicast.Port is <= 0 or > 65535)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast Port is invalid.");
+        }
+
+        if (multicast.Ttl <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast Ttl must be greater than 0.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(multicast.LocalInterface) &&
+            !IPAddress.TryParse(multicast.LocalInterface, out _))
+        {
+            throw new InvalidOperationException($"[{deviceId}] Multicast LocalInterface must be a valid IP address.");
         }
     }
 
@@ -158,98 +284,5 @@ public static class DeviceProfileValidator
         var bytes = address.GetAddressBytes();
         return address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
                bytes[0] is >= 224 and <= 239;
-    }
-
-    private static void ValidateProtocolOptions(DeviceProfile profile)
-    {
-        if (!profile.Protocol.Type.Equals("LengthPrefixed", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
-        }
-
-        if (profile.Protocol.MaxFrameLength < 4)
-        {
-            throw new InvalidOperationException(
-                $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
-        }
-    }
-
-    private static void ValidateSerializerOptions(DeviceProfile profile)
-    {
-        if (profile.Serializer.BitFieldSchema is null)
-        {
-            return;
-        }
-
-        if (!string.Equals(profile.Serializer.Type, SerializerTypes.RawHex, StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] BitFieldSchema requires the RawHex serializer.");
-        }
-
-        try
-        {
-            BitFieldPayloadSchemaValidator.ValidateAndThrow(profile.Serializer.BitFieldSchema);
-        }
-        catch (InvalidOperationException exception)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Invalid BitFieldSchema: {exception.Message}", exception);
-        }
-    }
-    private static void ValidateReconnectOptions(DeviceProfile profile)
-    {
-        var reconnect = profile.Reconnect;
-        if (!IsSupportedReconnectType(reconnect.Type))
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect Type is invalid.");
-        }
-
-        if (reconnect.MaxAttempts < 0)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be greater than or equal to 0.");
-        }
-
-        if (reconnect.Type.Equals("None", StringComparison.OrdinalIgnoreCase))
-        {
-            if (reconnect.MaxAttempts != 0)
-            {
-                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxAttempts must be 0 when Type is None.");
-            }
-
-            return;
-        }
-
-        if (reconnect.Type.Equals("Linear", StringComparison.OrdinalIgnoreCase))
-        {
-            if (reconnect.IntervalMs <= 0)
-            {
-                throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect IntervalMs must be greater than 0.");
-            }
-
-            return;
-        }
-
-        if (reconnect.BaseDelayMs <= 0)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect BaseDelayMs must be greater than 0.");
-        }
-
-        if (reconnect.MaxDelayMs <= 0)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than 0.");
-        }
-
-        if (reconnect.MaxDelayMs < reconnect.BaseDelayMs)
-        {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Reconnect MaxDelayMs must be greater than or equal to BaseDelayMs.");
-        }
-    }
-
-    private static bool IsSupportedReconnectType(string value)
-    {
-        return value.Equals("None", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("Linear", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("Exponential", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("Backoff", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("ExponentialBackoff", StringComparison.OrdinalIgnoreCase);
     }
 }
