@@ -8,7 +8,7 @@ public sealed class ReconnectOptions
     /// <summary>
     /// 연결 재시도 전략 이름을 가져옵니다.
     /// </summary>
-    public string Type { get; init; } = "None";
+    public string Type { get; init; } = ReconnectTypes.None;
     /// <summary>
     /// 최초 transport-open 시도 이후 추가 재시도 횟수를 가져옵니다.
     /// </summary>
