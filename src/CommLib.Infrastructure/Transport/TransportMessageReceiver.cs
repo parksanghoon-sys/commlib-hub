@@ -69,6 +69,12 @@ public sealed class TransportMessageReceiver
             return;
         }
 
+        if (_pendingBuffer.Length == 0)
+        {
+            _pendingBuffer = chunk.ToArray();
+            return;
+        }
+
         var merged = new byte[_pendingBuffer.Length + chunk.Length];
         _pendingBuffer.AsSpan().CopyTo(merged);
         chunk.CopyTo(merged.AsSpan(_pendingBuffer.Length));
@@ -82,7 +88,9 @@ public sealed class TransportMessageReceiver
             return false;
         }
 
-        _pendingBuffer = _pendingBuffer.AsSpan(bytesConsumed).ToArray();
+        _pendingBuffer = bytesConsumed >= _pendingBuffer.Length
+            ? Array.Empty<byte>()
+            : _pendingBuffer.AsSpan(bytesConsumed).ToArray();
         return true;
     }
 }

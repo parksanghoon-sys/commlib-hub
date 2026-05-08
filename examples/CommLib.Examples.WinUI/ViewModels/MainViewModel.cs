@@ -403,7 +403,8 @@ public sealed class MainViewModel : ObservableObject, IAsyncDisposable
             },
             Serializer = new SerializerOptions
             {
-                Type = Settings.SelectedSerializer.Type
+                Type = Settings.SelectedSerializer.Type,
+                BitFieldSchema = Settings.BitFieldSchema
             },
             Reconnect = new ReconnectOptions
             {

@@ -498,8 +498,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
     }
 
-    private static async Task TryCloseTransportAsync(ITransport transport)
+    private static async Task TryCloseTransportAsync(ITransport? transport)
     {
+        if (transport is null)
+        {
+            return;
+        }
+
         try
         {
             await transport.CloseAsync().ConfigureAwait(false);
@@ -693,19 +698,12 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                if (transport is not null)
-                {
-                    await TryCloseTransportAsync(transport).ConfigureAwait(false);
-                }
-
+                await TryCloseTransportAsync(transport).ConfigureAwait(false);
                 throw;
             }
             catch (Exception exception)
             {
-                if (transport is not null)
-                {
-                    await TryCloseTransportAsync(transport).ConfigureAwait(false);
-                }
+                await TryCloseTransportAsync(transport).ConfigureAwait(false);
 
                 if (attempt >= totalAttempts)
                 {
