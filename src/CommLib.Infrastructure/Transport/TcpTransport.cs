@@ -115,7 +115,7 @@ public sealed class TcpTransport : ITransport
                 throw new InvalidOperationException($"Transport '{Name}' remote endpoint closed the connection.");
             }
 
-            return new ReadOnlyMemory<byte>(buffer, 0, bytesRead).ToArray();
+            return buffer.AsMemory(0, bytesRead);
         }
         catch (Exception exception) when (IsCloseCancellation(exception, cancellationToken))
         {
