@@ -39,6 +39,15 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
 - Promoted the next evidence-ready slice to the deferred WinUI UDP / Multicast / real-pointer manual validation pass.
+- Reconciled the execution context back to `main` after `ef00908` landed and used that updated baseline for the next WinUI-only follow-up instead of keeping the stale branch name in the state files.
+- Closed the older WinUI UDP / Multicast confidence gap with live UIAutomation-assisted validation:
+  - `Device Lab` transport switching worked across `TCP`, `UDP`, `Multicast`, and `Serial`
+  - `Settings` transport switching reflected the shared selection state and showed the expected transport-specific fields
+  - the UDP in-app mock path completed a real connect/send/echo roundtrip with the expected live-log entries
+  - the multicast in-app mock path completed a real connect/send roundtrip, and the external `MulticastReceive` helper also observed the outbound frame
+  - this machine showed one multicast inbound line in the WinUI live log, while the existing status text already covered the possible self-traffic / peer-echo case for other loopback environments
+- No product-code or UI-copy change was necessary after that live pass, so the result was recorded only in the continuity files instead of widening the example again.
+- Promoted the next evidence-ready WinUI slice to the deferred `RawHex` / `BitFieldSchema` live validation pass.
 
 > Internal development continuity file for active repository maintenance.
 > Not part of the public CommLib runtime or package contract.
@@ -535,3 +544,11 @@
   - linked the new guide from `README.md` instead of duplicating more command detail inline at the root
 - Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, `TODOS.md`, and `DECISIONS.md` so the next promoted execution point remains the `ConnectionManager.TryHandleInboundFrame` cleanup after this documentation-only slice.
 - No build or test rerun was needed because this slice only changed documentation/continuity files.
+- Closed the deferred WinUI `RawHex` / `BitFieldSchema` live pass instead of leaving it as design speculation:
+  - the first live attempt showed that `messageComposer.bitFieldSchema` loaded into WinUI settings but never reached `SerializerOptions`
+  - fixed that gap by forwarding `Settings.BitFieldSchema` inside `MainViewModel.BuildProfile()`
+  - updated the WinUI README with the validated runtime `messageComposer.bitFieldSchema` example instead of leaving the path implicit
+- Verified the fix with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
+  - a live WinUI UIAutomation-assisted TCP in-app mock roundtrip whose outbound and inbound logs both showed `AA 12 34 7F | fields[prefix=170, register=4660, tail=127]`
+- Promoted the next closest safe slice as packaging the now-proven WinUI validation workflow into repo-owned helper/docs rather than widening serializer/runtime contracts again.

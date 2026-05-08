@@ -7,24 +7,31 @@
 - 2026-04-18
 
 ## Current Scope
-- Resume the next runtime/application follow-up work from a truthful, publication-ready repository baseline
-- Keep the next work focused on the smallest safe next slice after the reconnect/bootstrap follow-up bundle
+- Continue from the truthful `main` baseline after the reconnect/bootstrap follow-up bundle landed
+- Keep the next step close to the current WinUI validation context instead of widening into a larger runtime redesign
 
 ## Confirmed State
-- `main` now includes the publication baseline, the `DeviceSession` cleanup, the quick-start guide, and the inbound-frame seam cleanup through `63c89a4`.
-- The current follow-up branch now adds two more truthful follow-ups on top of that baseline:
-  - `ReconnectOptions` is documented more explicitly as connect-time transport-open retry only
-  - `DeviceBootstrapper.StartAsync()` now validates enabled profiles first and starts their connection attempts concurrently
-- `StartWithReportAsync()` still keeps its continue-and-report semantics, while concurrent `StartAsync()` failures now aggregate only when more than one connection fails at once.
-- Verification for this slice passed with:
+- `main` now includes the publication baseline, the `DeviceSession` cleanup, the quick-start guide, the inbound-frame seam cleanup, and the reconnect/bootstrap follow-up bundle through `ef00908`.
+- The latest live validation pass closed the older UDP / Multicast / transport-panel confidence gap without requiring product-code changes:
+  - `Device Lab` and `Settings` both switched transport-specific panels correctly
+  - the UDP in-app mock completed a real connect/send/echo roundtrip
+  - the multicast in-app mock completed a real connect/send roundtrip, and the external `MulticastReceive` helper also observed the outbound frame
+  - the existing multicast status copy already remained sufficient on this machine
+- The later WinUI `RawHex` / `BitFieldSchema` pass found one concrete bug, not a broader contract failure:
+  - `messageComposer.bitFieldSchema` already loaded from runtime settings, but `MainViewModel.BuildProfile()` was not forwarding it into `SerializerOptions`
+  - forwarding that property was enough to make the existing schema-log path work
+  - the live TCP in-app mock pass then produced the expected outbound and inbound `fields[prefix=170, register=4660, tail=127]` summaries for `AA 12 34 7F`
+- Verification for the latest bundle passed with:
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - live WinUI UIAutomation-assisted passes for UDP mock roundtrip, multicast mock roundtrip, helper multicast receive, transport-panel switching, and a TCP `RawHex` / schema-log roundtrip
 
 ## Next Work Unit
-1. Resume the deferred WinUI manual validation pass for UDP / Multicast / real-pointer behavior and only adjust UI/status copy if that live pass exposes a real confusion point.
+1. Package the now-proven WinUI live-validation workflow into repo-owned helper/docs so future sessions can rerun the transport and `RawHex` / schema checks without rediscovery.
 
 ## Not In This Step
 - No new repository-publication cleanup
-- No broader reconnect-state-machine, queue-pressure, or observability/TLS redesign
+- No queue-pressure, reconnect-orchestration, or observability/TLS redesign
 - No new transport/protocol family expansion

@@ -314,3 +314,15 @@
 - Decision: change only `StartAsync()` so it first validates every enabled profile, then launches the enabled `ConnectAsync()` calls concurrently. Keep `StartWithReportAsync()` unchanged as the opt-in reporting path instead of mixing concurrent startup into a broader hosting/bootstrap redesign.
 - Why: this shortens host startup time without inventing a new bootstrap abstraction, and the prevalidation step avoids a half-started host when a later enabled profile is invalid.
 - Consequences: enabled device startup is now bounded by the slowest single connect rather than the sum of all connect times, later invalid enabled profiles fail before any connection begins, and callers can now see `AggregateException` when more than one concurrent startup connection fails at the same time.
+
+## 2026-04-18 - Keep the current multicast mock status copy after the live WinUI validation pass
+- Context: the deferred WinUI validation backlog still left one open UX question: whether the one-machine multicast mock flow needed stronger status/log copy because loopback environments can sometimes show both self traffic and peer echo in the live log.
+- Decision: keep the current multicast mock status/detail copy as-is for now. Do not add more warning text or behavior tweaks in this slice.
+- Why: the live WinUI pass on this machine completed successfully, the external `MulticastReceive` helper also observed the outbound frame, and the existing status detail already explains the possible self-traffic / peer-echo case without overcomplicating the UI.
+- Consequences: the multicast mock UX question is closed for the current baseline, and future changes should reopen it only if operator feedback or a different NIC/loopback environment shows confusion that the current wording does not cover.
+
+## 2026-04-18 - Fix the WinUI schema-log path by forwarding `BitFieldSchema`, not by widening serializer or UI contracts
+- Context: the deferred live WinUI `RawHex` / `BitFieldSchema` pass initially failed even though the repo already had config-backed schema loading, formatter support, and session-log enrichment. Inspection showed that `DeviceLabSettingsViewModel` loaded `messageComposer.bitFieldSchema`, but `MainViewModel.BuildProfile()` only copied `Serializer.Type`, so the active session never received the schema metadata.
+- Decision: treat this as a narrow wiring bug. Keep the existing config-backed `messageComposer.bitFieldSchema` contract and fix `MainViewModel.BuildProfile()` so it forwards `Settings.BitFieldSchema` into `SerializerOptions.BitFieldSchema`.
+- Why: this is the smallest structurally correct fix, and the follow-up live pass proved that no wider serializer redesign or new WinUI schema-editing surface is required for the current baseline.
+- Consequences: the current WinUI app now produces schema-enriched `RawHex` outbound/inbound logs end-to-end, the README can document the validated runtime settings shape truthfully, and any future richer schema UX can stay deferred until a real operator/device workflow needs it.

@@ -30,6 +30,7 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 
 - The peer device or test server must speak the same `LengthPrefixed + serializer` combination currently selected in the app.
 - `AutoBinary` keeps the existing text-body example format, while `RawHex` sends whitespace-tolerant hexadecimal byte pairs as the raw payload.
+- If you add `messageComposer.bitFieldSchema` in the runtime `appsettings.json`, the live log now appends a compact `fields[...]` summary for `RawHex` payloads whose bytes match that schema.
 - TCP and UDP expect a reachable remote endpoint.
 - Multicast receive/send requires the same group and port on both sides.
 - Serial requires a real COM port, a paired virtual port, or hardware loopback wiring.
@@ -39,6 +40,26 @@ dotnet run --project examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.cspr
 - The in-app mock peer path covers TCP, UDP, and Multicast on loopback; Serial still stays external because it needs a paired COM environment.
 - The sample now defaults to `win-x64` again because the current branch state no longer reproduces the earlier local `Microsoft.UI.Xaml.dll` startup fault; `-r win-x86` remains available if you need to compare runtimes.
 - The default `appsettings.json` is copied to the output folder on build and then reused as the runtime settings file.
+
+## RawHex Schema Example
+
+The validated live-log path uses the runtime `appsettings.json` in the output folder. For example, this `messageComposer` block sends `AA 12 34 7F` in `RawHex` mode and appends the decoded field summary to the outbound and inbound log lines:
+
+```json
+"messageComposer": {
+  "serializerType": "RawHex",
+  "bitFieldSchema": {
+    "payloadLengthBytes": 4,
+    "fields": [
+      { "name": "prefix", "bitOffset": 0, "bitLength": 8 },
+      { "name": "register", "bitOffset": 8, "bitLength": 16, "endianness": "BigEndian" },
+      { "name": "tail", "bitOffset": 24, "bitLength": 8 }
+    ]
+  },
+  "outboundMessageId": "100",
+  "outboundBody": "AA 12 34 7F"
+}
+```
 
 ## Local Validation Helper
 

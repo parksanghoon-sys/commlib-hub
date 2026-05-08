@@ -4,7 +4,7 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `docs/reconnect-contract-clarity` (follow-up branch created from `main` for reconnect-contract clarification and bootstrap startup cleanup).
+- Active checkout: `main` (the reconnect/bootstrap follow-up bundle is now landed on the authoritative branch, so the next work starts from the updated mainline baseline).
 - Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
 - Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
 - Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
@@ -12,10 +12,10 @@
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
-- [ ] Resume the next evidence-ready runtime cleanup slice.
-  Scope: run the deferred WinUI manual validation pass for UDP / Multicast / real-pointer behavior and tighten only the smallest resulting UI/status copy if the live pass surfaces confusion.
-  Objective: close the remaining operator-facing confidence gaps without widening transport/runtime behavior again.
-  Validation: the live pass covers `Device Lab` plus `Settings` transport switching and UDP/Multicast mock behavior, and any resulting follow-up stays scoped to the concrete issue observed.
+- [ ] Package the now-proven WinUI live-validation workflow into the repo-owned helper/doc path.
+  Scope: capture the repeatable local steps for the existing UDP, multicast, and `RawHex` / `BitFieldSchema` WinUI checks without widening the runtime or app surface area again.
+  Objective: reduce rediscovery cost for future sessions now that the current WinUI transport/schema paths have been validated live.
+  Validation: the repo-owned helper/docs explain or automate the same local scenarios that were just proven, including the schema-enriched `RawHex` log expectation.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -61,27 +61,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Known blockers/open questions: whether the intended deployments are controlled/air-gapped enough that TLS stays out of scope, and whether diagnostics should remain callback-based through `IConnectionEventSink` or grow into a stronger hosting integration story.
 - Most natural next step: pin down the expected deployment environment first, then add only the smallest production-facing diagnostics/security surface that materially supports it.
 
-### Examples & WinUI Follow-up
-### [P1_SOON] Resume the older UDP / Multicast / real-pointer WinUI validation pass after the raw-hex composer work
-- What remains: re-run the manual UDP and Multicast mock endpoint checks, step through TCP / UDP / Multicast / Serial panel switching on both `Device Lab` and `Settings`, and only re-check transition feel / wheel-scroll / live-log manual scrolling if that pass surfaces a concrete regression.
-- Why deferred: raw-hex TCP is now wired, covered by automated lower-stack tests, validated through a live WinUI roundtrip, and the active implementation priority has shifted to the first bitfield foundation slice.
-- Objective: close the remaining interactive WinUI confidence gaps without mixing them into the current serializer-layer implementation slice.
-- Relevant context: transport-panel collapsing, live-log auto-follow, in-app mock peers, and the earlier TCP automation smoke are already in place; the remaining gaps are real-pointer confirmation plus UDP/Multicast behavior in the live app.
-- Scope: `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`, `examples/CommLib.Examples.WinUI/Views/SettingsView.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, and any resulting docs/status text.
-- Current status: TCP mock flow already has earlier automation smoke coverage, the raw-hex TCP transport/session path now has focused infrastructure roundtrip coverage, and a live WinUI raw-hex TCP pass is complete. UDP / Multicast and real-pointer confirmation are still manual-only.
-- Known blockers/open questions: whether multicast still needs clearer UX copy once the broader live pass happens, and whether any real-pointer issue appears that did not show up in automation.
-- Most natural next step: run one live `Device Lab` session that focuses on UDP, Multicast, panel switching, and real-pointer behavior rather than repeating the now-covered raw-hex TCP path.
-
-### [P1_SOON] Clarify single-machine multicast mock UX if duplicate inbound lines feel confusing
-- What remains: decide whether the new in-app multicast mock flow needs stronger status/log copy, a dedicated note in the UI, or a small behavior tweak for one-machine validation sessions.
-- Why deferred: the implementation is in place and TCP has been smoke-validated, but the remaining manual multicast pass has not yet confirmed whether seeing both self loopback traffic and peer echo is intuitive enough.
-- Objective: make the multicast mock path understandable during local operator testing without overcomplicating the transport layer.
-- Relevant context: `LocalMockEndpointService` now joins the selected multicast group and replies back to the sender port so a single machine can act as both sender and mock peer; depending on socket loopback behavior, the live log may still show more than one inbound event per send.
-- Scope: `examples/CommLib.Examples.WinUI/Services/LocalMockEndpointService.cs`, `examples/CommLib.Examples.WinUI/ViewModels/MainViewModel.cs`, `examples/CommLib.Examples.WinUI/Services/AppLocalizer.cs`, and `examples/CommLib.Examples.WinUI/Views/DeviceLabView.cs`.
-- Current status: status text already warns about self traffic plus peer echo, but the UX has not been manually judged yet in the real app.
-- Known blockers/open questions: how the local NIC / multicast loopback behavior presents on this machine during a full WinUI send/receive session, and whether the current status text is enough.
-- Most natural next step: run the manual multicast mock validation from `Device Lab`, capture the exact live-log behavior, then either keep the current wording or tighten it with the smallest safe UI-only change.
-
 ### [P2_LATER] Safely map full `DeviceLabTheme` templated-control styles before broad rollout
 - What remains: decide whether to prune the currently unused templated-control style helpers in `DeviceLabTheme` or reintroduce them with verified WinUI default-style keys and a startup-safe initialization path.
 - Why deferred: during this session, a broader theme rollout exposed startup failures when the theme dictionary eagerly created styles that depended on missing default resource keys such as `DefaultListViewStyle`.
@@ -93,14 +72,14 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Most natural next step: inventory the actual default style keys available at runtime, then either delete the dormant helpers or add back only the verified ones behind a small focused validation pass.
 
 ### [P2_LATER] Add a reusable local WinUI transport validation helper
-- What remains: package the local TCP/UDP echo peer and multicast verification flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
-- Why deferred: the existing console example plus ad-hoc local echo commands are enough for immediate manual verification, but the setup is still more manual than it should be.
-- Objective: make WinUI transport validation repeatable without rediscovering local peer commands every session.
-- Relevant context: `examples/CommLib.Examples.Console` already provides `tcp-demo`, `udp-demo`, `multicast-send`, and `multicast-receive`; during this session we also used local TCP/UDP echo peers to support WinUI manual checks.
+- What remains: package the now-proven local TCP/UDP echo peer, multicast verification, and `RawHex` / `BitFieldSchema` WinUI validation flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
+- Why deferred: the existing console example, the transport helper script, and the README sample are enough for immediate use, but the end-to-end validation flow is still more manual than it should be.
+- Objective: make WinUI transport and schema-log validation repeatable without rediscovering local peer commands or ad-hoc UIAutomation steps every session.
+- Relevant context: `examples/CommLib.Examples.Console` already provides `tcp-demo`, `udp-demo`, `multicast-send`, and `multicast-receive`; `scripts/Start-WinUiTransportValidation.ps1` already covers the external peer side for transport checks; the 2026-04-18 live `RawHex` / schema pass needed only one code fix (`MainViewModel.BuildProfile()` now forwards `Settings.BitFieldSchema`), but the actual UI-driven validation steps still live mostly in chat/session memory.
 - Scope: likely `examples/CommLib.Examples.Console`, WinUI README/docs, and possibly a small helper script under `scripts/` or `examples/`.
-- Current status: no dedicated helper exists yet; validation instructions are partly in chat and partly in example READMEs.
-- Known blockers/open questions: whether the best shape is a PowerShell script, extra console subcommands, or documentation-only guidance.
-- Most natural next step: after the current interactive validation pass, capture the exact repeatable commands that felt necessary and package only that minimal workflow.
+- Current status: transport peer setup is partly packaged already, and the WinUI README now includes the validated `messageComposer.bitFieldSchema` sample, but the full repeatable operator workflow is not consolidated yet.
+- Known blockers/open questions: whether the best shape is a PowerShell script, extra console subcommands, or documentation-only guidance; whether UIAutomation should stay ad-hoc instead of becoming a first-class helper dependency.
+- Most natural next step: capture only the minimal repeatable workflow that future sessions actually need, and stop short of a heavier automation harness if docs plus the existing transport helper are enough.
 
 ### Repo Hygiene
 ### [P2_LATER] Normalize `PROGRESS.md` encoding for safe future updates
@@ -114,15 +93,15 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Most natural next step: back up the file, detect the dominant encoding per corrupted section, and rewrite once with a verified UTF-8 result so future updates can use normal in-place editing again.
 
 ### Examples & WinUI Follow-up
-### [P1_SOON] Extend the binary-capable serializer path toward future bitfield schema support without rewriting the transport/protocol layers
-- What remains: run one focused live WinUI `RawHex` session using the new config-backed `messageComposer.bitFieldSchema` log-enrichment path, then decide from that concrete usage whether later phases truly need richer typed serializer/protocol options plus broader bitfield-aware schema mapping for byte/bit-oriented devices.
-- Why deferred: the repo now has a first real runtime consumer of `BitFieldSchema`, but the current branch priority shifted to runtime hardening before a live WinUI pass was completed.
-- Objective: support devices whose payload contract is defined in bytes and bit ranges while preserving the existing transport, session, and frame-boundary architecture.
-- Relevant context: `IProtocol` still owns frame boundaries only, which remains the intended boundary. The repo now has `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `OutboundMessageComposer`, persisted serializer selection in the WinUI example, `RawHexConnectionManagerRoundtripTests` covering both direct binary payloads and the hex-text bridge over the real TCP/session stack, `BitFieldDefinition`/`BitFieldCodec`, plus the new `BitFieldPayloadSchema` / `BitFieldPayloadSchemaValidator` / `BitFieldPayloadSchemaCodec` layer and optional `SerializerOptions.BitFieldSchema`.
-- Scope: `src/CommLib.Domain/Configuration/SerializerOptions.cs`, `src/CommLib.Domain/Configuration/ProtocolOptions.cs`, `src/CommLib.Domain/Messaging`, `src/CommLib.Application/Configuration/DeviceProfileMapper.cs`, `src/CommLib.Application/Configuration/DeviceProfileValidator.cs`, `src/CommLib.Infrastructure/Factories`, any future serializer/schema support under `src/CommLib.Infrastructure`, WinUI composer/settings files under `examples/CommLib.Examples.WinUI`, and focused tests/docs.
-- Current status: the repository now supports binary payload message representation, formatter-based binary display, `RawHex` serializer creation, outbound hex parsing, inbound binary message deserialization, persisted WinUI serializer choice, automated raw-hex TCP roundtrip coverage, a live WinUI raw-hex TCP proof, low-level bitfield read/write helpers, a validated fixed-length signed/unsigned schema-backed compose/inspect layer, and a config-backed WinUI session-log consumer for `BitFieldSchema`.
-- Known blockers/open questions: whether the current optional schema property is enough or will later pressure a richer typed serializer-options model, whether inbound raw payloads should stay formatter-based or gain richer UI treatment, and how much schema-editing UX the WinUI example should expose after the first live pass.
-- Most natural next step: run one live session against the current log-enrichment seam, then use that evidence before widening into additional consumers or UI work.
+### [P2_LATER] Consider richer schema-editing UX or typed serializer options only if a real device needs more than the current config-backed log-enrichment path
+- What remains: decide later whether `BitFieldSchema` should stay as a config-backed `RawHex` log-enrichment seam or whether future devices justify richer UI editing, stronger typed serializer options, or additional schema consumers.
+- Why deferred: the 2026-04-18 live WinUI pass proved that the existing path works once `MainViewModel.BuildProfile()` forwards `Settings.BitFieldSchema`; no broader serializer/protocol redesign pressure appeared in that validation.
+- Objective: preserve the existing transport/session/frame boundaries while leaving a clear path if a real payload contract later needs more than log inspection and config-defined schema metadata.
+- Relevant context: `IProtocol` still owns frame boundaries only, which remains the intended boundary. The repo now has `IBinaryMessagePayload`, binary message models, `MessagePayloadFormatter`, `RawHexSerializer`, `OutboundMessageComposer`, `BitFieldDefinition` / `BitFieldCodec`, `BitFieldPayloadSchema`, optional `SerializerOptions.BitFieldSchema`, live WinUI schema-enriched logs, and README guidance for the validated runtime `messageComposer.bitFieldSchema` shape.
+- Scope: `src/CommLib.Domain/Configuration/SerializerOptions.cs`, `src/CommLib.Domain/Messaging`, `src/CommLib.Application`, WinUI composer/settings files under `examples/CommLib.Examples.WinUI`, and focused tests/docs.
+- Current status: the config-backed schema-log path is now working end-to-end in the real WinUI example, and there is no current evidence that the repo needs a larger serializer or UI surface.
+- Known blockers/open questions: whether the current optional schema property is enough long-term, whether inbound raw payloads should stay formatter-based or gain richer UI treatment, and whether any real operator will need in-app schema editing instead of JSON-backed settings.
+- Most natural next step: wait for a real device/operator workflow to pressure a broader schema surface, then scope only the missing consumer or UX path instead of redesigning the serializer boundary prematurely.
 
 ### [P2_LATER] Consider alternate bit numbering and richer scalar types after the first schema-backed bitfield slice
 - What remains: evaluate whether later devices need MSB-first bit numbering, partial-byte big-endian multi-byte fields, scaled numeric fields, enums, floats, BCD, or packed string helpers beyond the current unsigned/signed integer foundation and the newly added whole-byte endianness support.
@@ -137,6 +116,8 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-04-18: completed the deferred WinUI `RawHex` / `BitFieldSchema` live pass, found that the issue was a real wiring bug rather than a larger serializer/schema design gap, fixed `MainViewModel.BuildProfile()` so `Settings.BitFieldSchema` now flows into `SerializerOptions`, and revalidated the path with a Release WinUI build plus a UIAutomation-assisted TCP mock roundtrip whose outbound and inbound logs both showed `AA 12 34 7F | fields[prefix=170, register=4660, tail=127]`; also documented the validated runtime `messageComposer.bitFieldSchema` example in the WinUI README.
+- [x] 2026-04-18: completed the deferred WinUI UDP / Multicast validation pass with live UIAutomation-assisted runs instead of more repo speculation: `Device Lab` and `Settings` both switched transport panels correctly for `TCP`, `UDP`, `Multicast`, and `Serial`; the UDP in-app mock completed a real connect/send/echo roundtrip; the multicast in-app mock completed a real connect/send roundtrip; and an external `MulticastReceive` helper also observed the WinUI outbound frame. No product-code or UI-copy change was needed because the existing multicast status note was already sufficient on this machine.
 - [x] 2026-04-18: finished the bootstrap startup-latency cleanup by changing `DeviceBootstrapper.StartAsync()` to validate all enabled profiles before launching `ConnectAsync()` concurrently, keeping `StartWithReportAsync()` as the continue-and-report path, surfacing multi-fault concurrent startup as `AggregateException`, and documenting the concurrent host-start behavior in `docs/quick-start.md`; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-18: clarified the public reconnect contract without widening the API by inventorying repo-facing `ReconnectOptions` references, deciding that a staged alias/deprecation path was not justified yet, and updating `README.md`, `docs/quick-start.md`, and the console/WinUI example READMEs to state explicitly that `Reconnect` governs only connect-time transport-open retries and not automatic post-connect recovery; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests` and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
 - [x] 2026-04-18: narrowed the ambiguous manual inbound-frame seam by confirming `ConnectionManager.TryHandleInboundFrame(...)` was only used by in-repo infrastructure tests, then changing it from `public` to `internal` while keeping the test seam available through the existing `InternalsVisibleTo("CommLib.Infrastructure.Tests")` boundary; verified with `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.
