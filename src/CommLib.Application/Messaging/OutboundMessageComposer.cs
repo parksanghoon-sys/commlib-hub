@@ -5,17 +5,17 @@ using CommLib.Domain.Messaging;
 namespace CommLib.Application.Messaging;
 
 /// <summary>
-/// ?좏깮??serializer 紐⑤뱶??留욌뒗 outbound 硫붿떆吏 紐⑤뜽??議고빀?⑸땲??
+/// serializer 유형에 따라 outbound 메시지를 구성하는 정적 클래스입니다.
 /// </summary>
 public static class OutboundMessageComposer
 {
     /// <summary>
-    /// serializer ?좏삎???곕씪 text ?먮뒗 binary outbound 硫붿떆吏瑜??앹꽦?⑸땲??
+    /// serializer 유형에 따라 text 또는 binary outbound 메시지를 생성합니다.
     /// </summary>
-    /// <param name="serializerType">?쒖꽦 serializer ?앸퀎?먯엯?덈떎.</param>
-    /// <param name="messageId">硫붿떆吏 ?앸퀎?먯엯?덈떎.</param>
-    /// <param name="body">?ъ슜???낅젰 蹂몃Ц?낅땲??</param>
-    /// <returns>?꾩넚??硫붿떆吏 紐⑤뜽?낅땲??</returns>
+    /// <param name="serializerType">사용할 serializer 유형입니다.</param>
+    /// <param name="messageId">메시지 식별자입니다.</param>
+    /// <param name="body">사용자가 입력한 데이터입니다.</param>
+    /// <returns>구성된 메시지 인스턴스입니다.</returns>
     public static IMessage Compose(string serializerType, ushort messageId, string body)
     {
         return serializerType switch
