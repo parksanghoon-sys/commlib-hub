@@ -326,3 +326,21 @@
 - Decision: treat this as a narrow wiring bug. Keep the existing config-backed `messageComposer.bitFieldSchema` contract and fix `MainViewModel.BuildProfile()` so it forwards `Settings.BitFieldSchema` into `SerializerOptions.BitFieldSchema`.
 - Why: this is the smallest structurally correct fix, and the follow-up live pass proved that no wider serializer redesign or new WinUI schema-editing surface is required for the current baseline.
 - Consequences: the current WinUI app now produces schema-enriched `RawHex` outbound/inbound logs end-to-end, the README can document the validated runtime settings shape truthfully, and any future richer schema UX can stay deferred until a real operator/device workflow needs it.
+
+## 2026-05-18 - Start commercial-readiness hardening with runtime option validation, not a broad redesign
+- Context: the commercial-deployment review found several real production gaps: release reproducibility, network security/TLS, observability/health, and recovery policy. The current worktree also has pre-existing dirty/untracked files, so a wide redesign would be harder to review safely.
+- Decision: make the first implementation slice a narrow validation hardening pass. Add upfront `DeviceProfileValidator` checks for TCP options that the runtime immediately consumes (`ConnectTimeoutMs` and `BufferSize`) and cover them with focused unit tests.
+- Why: invalid TCP timeout or buffer settings should fail during profile validation before transport creation, and this improves production safety without touching unrelated dirty work or forcing unresolved TLS/observability/reconnect decisions.
+- Consequences: TCP config failures are caught earlier and tested; larger commercial-readiness work remains split into explicit follow-up slices, with release-pipeline guardrails promoted as the next evidence-ready task.
+
+## 2026-05-18 - Validate package readiness in CI by packing library projects directly
+- Context: commercial-readiness needs release artifacts to be reproducible in CI, not just manually packed locally. A local solution-level `dotnet pack` check proved too broad because it also created packages for the example projects.
+- Decision: add CI package validation by packing the four library projects directly: `CommLib.Domain`, `CommLib.Application`, `CommLib.Infrastructure`, and `CommLib.Hosting`. Use a CI-only `0.1.0-ci` package version for validation so this guardrail does not decide the real release versioning strategy. Also make CI restore promote NuGet audit warnings `NU1901` through `NU1904` to errors, with a separate `dotnet list ... --vulnerable` step for visibility.
+- Why: direct library packing verifies the intended packageable surface while avoiding accidental example packages and keeping release-version policy separate. Restore-time audit warnings-as-errors provide the actual CI failure gate, while `dotnet list` keeps the dependency state easy to read.
+- Consequences: CI now catches package-generation failures for the product libraries and fails on known NuGet vulnerabilities surfaced by restore; the next commercial-readiness slice can move to production diagnostics instead of more release pipeline plumbing.
+
+## 2026-05-18 - Prune dormant WinUI theme helpers instead of preserving an unverified style surface
+- Context: the WinUI example used `DeviceLabTheme` only for active brush, text, and border resources, while several templated-control style keys and helper methods remained unused after an earlier broader theme rollout was deferred for startup/default-style-key risk.
+- Decision: delete the dormant templated-control style keys/helpers from `DeviceLabTheme` and simplify `DeviceLabTheme.Get<T>()` by removing its unused `FrameworkElement owner` parameter. Do not reintroduce broader control styles until a real consumer and verified default-style-key path exist.
+- Why: keeping unconsumed style helpers made the example look more capable than it was, carried a known historical startup risk, and created maintenance surface without current UI behavior. Pruning keeps the theme contract aligned with actual consumers.
+- Consequences: the WinUI theme file is smaller and more truthful; future button/input/list styling should be added back only as a focused, verified slice when the code-built views actually consume it.

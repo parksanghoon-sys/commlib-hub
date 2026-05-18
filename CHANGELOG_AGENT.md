@@ -552,3 +552,43 @@
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
   - a live WinUI UIAutomation-assisted TCP in-app mock roundtrip whose outbound and inbound logs both showed `AA 12 34 7F | fields[prefix=170, register=4660, tail=127]`
 - Promoted the next closest safe slice as packaging the now-proven WinUI validation workflow into repo-owned helper/docs rather than widening serializer/runtime contracts again.
+
+## 2026-05-18
+
+- Reviewed the current repository through a commercial-deployment lens and identified the safest first implementation slice as config validation hardening rather than a broad runtime redesign.
+- Completed the first commercial-readiness hardening slice:
+  - added upfront `DeviceProfileValidator` checks for non-positive TCP `ConnectTimeoutMs`
+  - added upfront `DeviceProfileValidator` checks for non-positive TCP `BufferSize`
+  - added focused `DeviceProfileValidatorTests` coverage for both invalid TCP runtime options
+- Preserved the pre-existing dirty/untracked work instead of cleaning or overwriting it:
+  - `src/CommLib.Application/Sessions/DeviceSession.cs`
+  - `.claude/`
+  - `docs/superpowers/`
+  - `todo.md`
+- Verified the slice with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive`
+- The NuGet vulnerability audit reported no vulnerable packages from the configured sources.
+- Completed the release-pipeline guardrail slice:
+  - made CI restore promote NuGet audit warnings `NU1901` through `NU1904` to errors
+  - added a CI `dotnet list ... package --vulnerable --include-transitive` audit visibility step
+  - added CI package validation for the four library projects under `src/`
+  - intentionally avoided solution-level pack in CI after local validation showed it also creates example packages
+- Verified the release-pipeline commands with:
+  - `dotnet restore commlib-codex-full.sln -p:NuGetAudit=true -p:NuGetAuditLevel=low -warnaserror:NU1901,NU1902,NU1903,NU1904`
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Application/CommLib.Application.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Hosting/CommLib.Hosting.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+- Completed the user-requested unused-code cleanup slice in the WinUI example:
+  - pruned dormant `DeviceLabTheme` templated-control style keys/helpers that were not consumed by `AppShellView`, `DeviceLabView`, or `SettingsView`
+  - removed the unused `FrameworkElement owner` parameter from `DeviceLabTheme.Get<T>()`
+  - updated the three WinUI view call sites to use the simplified theme lookup
+- Verified the cleanup with:
+  - `rg -n "BadgeBackgroundBrushKey|BadgeBorderStyleKey|PrimaryButtonStyleKey|SecondaryButtonStyleKey|TextInputStyleKey|ComboInputStyleKey|InlineToggleStyleKey|ActivityListStyleKey|CreateGradient|CreateBasedOnStyle|DeviceLabTheme\.Get<.*this" examples/CommLib.Examples.WinUI -S`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
+- Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, and `TODOS.md` so the next promoted slice is the first production diagnostics pass over the existing `IConnectionEventSink` seam.

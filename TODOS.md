@@ -4,18 +4,18 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `main` (the reconnect/bootstrap follow-up bundle is now landed on the authoritative branch, so the next work starts from the updated mainline baseline).
-- Authoritative repository/runtime baseline: `commlib-hub/main`, which now contains the earlier runtime follow-ups plus the later integration batch from PR `#25`.
-- Truth note: the repository-level publication cleanup is now complete after MIT/license/root-policy cleanup plus workflow restoration; future work should return to runtime/application follow-ups.
-- Execution rule: keep new cleanup/product work on fresh branches from `commlib-hub/main`, not on the preserved local integration branch or the divergent local `main`.
+- Active checkout: `main`, with local commits not yet pushed to `commlib-hub/main`.
+- Pre-existing dirty/untracked work remains in `src/CommLib.Application/Sessions/DeviceSession.cs`, `.claude/`, `docs/superpowers/`, and `todo.md`; do not overwrite or clean these unless explicitly asked.
+- Current direction: commercial-readiness hardening after the 2026-05-18 deployment-readiness review.
+- Truth note: core tests/builds pass, but external production-grade release still needs stronger release governance, security, observability, and recovery-policy guardrails.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
-- [ ] Package the now-proven WinUI live-validation workflow into the repo-owned helper/doc path.
-  Scope: capture the repeatable local steps for the existing UDP, multicast, and `RawHex` / `BitFieldSchema` WinUI checks without widening the runtime or app surface area again.
-  Objective: reduce rediscovery cost for future sessions now that the current WinUI transport/schema paths have been validated live.
-  Validation: the repo-owned helper/docs explain or automate the same local scenarios that were just proven, including the schema-enriched `RawHex` log expectation.
+- [ ] Add the first production diagnostics slice.
+  Scope: reuse the existing `IConnectionEventSink` seam to make connect/retry/failure/backpressure events easier to wire into production logging, likely through an `ILogger`-backed adapter or focused hosting guidance.
+  Objective: reduce commercial deployment blind spots without redesigning transport, metrics, health checks, or reconnect behavior in the same slice.
+  Validation: focused tests prove the diagnostics path is available through DI or documented registration, and the existing unit/infrastructure baseline still passes.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -60,16 +60,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Current status: the repo has useful validation and test coverage, but no built-in `ILogger`, metrics, health-check, or TLS/certificate surface in `src/`.
 - Known blockers/open questions: whether the intended deployments are controlled/air-gapped enough that TLS stays out of scope, and whether diagnostics should remain callback-based through `IConnectionEventSink` or grow into a stronger hosting integration story.
 - Most natural next step: pin down the expected deployment environment first, then add only the smallest production-facing diagnostics/security surface that materially supports it.
-
-### [P2_LATER] Safely map full `DeviceLabTheme` templated-control styles before broad rollout
-- What remains: decide whether to prune the currently unused templated-control style helpers in `DeviceLabTheme` or reintroduce them with verified WinUI default-style keys and a startup-safe initialization path.
-- Why deferred: during this session, a broader theme rollout exposed startup failures when the theme dictionary eagerly created styles that depended on missing default resource keys such as `DefaultListViewStyle`.
-- Objective: either make the full theme surface safe and real for templated controls, or remove the dormant pieces so the theme stays aligned with the actual UI contract.
-- Relevant context: the current successful hookup uses `DeviceLabTheme.Shared` for live brush/text/border resources in `AppShellView`, `DeviceLabView`, and `SettingsView`; broad app-resource merging and eager templated-control style creation proved too risky for the current step.
-- Scope: `examples/CommLib.Examples.WinUI/Styles/DeviceLabTheme.cs` plus any future consumer updates in the WinUI views.
-- Current status: the app now runs successfully with the safe subset, but keys/methods for broader control styles still exist as future design-space rather than live behavior.
-- Known blockers/open questions: which default WinUI style keys are actually available in this app/runtime combination, and whether a code-built WinUI example should keep those style definitions at all.
-- Most natural next step: inventory the actual default style keys available at runtime, then either delete the dormant helpers or add back only the verified ones behind a small focused validation pass.
 
 ### [P2_LATER] Add a reusable local WinUI transport validation helper
 - What remains: package the now-proven local TCP/UDP echo peer, multicast verification, and `RawHex` / `BitFieldSchema` WinUI validation flow into a repo-owned helper script or documented workflow tailored for the WinUI example.
@@ -116,6 +106,9 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-05-18: completed the first commercial-readiness hardening slice by adding upfront TCP runtime-option validation for non-positive `ConnectTimeoutMs` and `BufferSize` in `DeviceProfileValidator`, covering both cases in `DeviceProfileValidatorTests`, and verifying with focused validator tests, full unit tests, full infrastructure tests, console Release build, full solution Release build, and a NuGet vulnerability audit that reported no vulnerable packages from the configured sources.
+- [x] 2026-05-18: completed the release-pipeline guardrail slice by adding CI restore-time NuGet audit warnings-as-errors, vulnerability audit visibility, and library-only package validation for `CommLib.Domain`, `CommLib.Application`, `CommLib.Infrastructure`, and `CommLib.Hosting`; intentionally avoided solution-level pack because it also creates example packages, and verified the selected restore/pack/audit commands locally.
+- [x] 2026-05-18: completed the WinUI theme cleanup slice by pruning dormant `DeviceLabTheme` templated-control style keys/helpers that were not consumed by the code-built views, simplifying `DeviceLabTheme.Get<T>()` so it no longer carries an unused `FrameworkElement owner` argument, updating the three view call sites, and verifying with a Release WinUI build.
 - [x] 2026-04-18: completed the deferred WinUI `RawHex` / `BitFieldSchema` live pass, found that the issue was a real wiring bug rather than a larger serializer/schema design gap, fixed `MainViewModel.BuildProfile()` so `Settings.BitFieldSchema` now flows into `SerializerOptions`, and revalidated the path with a Release WinUI build plus a UIAutomation-assisted TCP mock roundtrip whose outbound and inbound logs both showed `AA 12 34 7F | fields[prefix=170, register=4660, tail=127]`; also documented the validated runtime `messageComposer.bitFieldSchema` example in the WinUI README.
 - [x] 2026-04-18: completed the deferred WinUI UDP / Multicast validation pass with live UIAutomation-assisted runs instead of more repo speculation: `Device Lab` and `Settings` both switched transport panels correctly for `TCP`, `UDP`, `Multicast`, and `Serial`; the UDP in-app mock completed a real connect/send/echo roundtrip; the multicast in-app mock completed a real connect/send roundtrip; and an external `MulticastReceive` helper also observed the WinUI outbound frame. No product-code or UI-copy change was needed because the existing multicast status note was already sufficient on this machine.
 - [x] 2026-04-18: finished the bootstrap startup-latency cleanup by changing `DeviceBootstrapper.StartAsync()` to validate all enabled profiles before launching `ConnectAsync()` concurrently, keeping `StartWithReportAsync()` as the continue-and-report path, surfacing multi-fault concurrent startup as `AggregateException`, and documenting the concurrent host-start behavior in `docs/quick-start.md`; verified with `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`, `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`, and `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`.

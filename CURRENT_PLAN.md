@@ -3,44 +3,53 @@
 > Internal development continuity file for active repository maintenance.
 > Not part of the public CommLib runtime or package contract.
 
-Date: 2026-04-18
+Date: 2026-05-18
 
 ## Goal
-Resume the highest-priority runtime/application follow-up work from a truthful, publication-ready repository baseline.
+Continue commercial-readiness hardening from the current repository state while keeping each slice small, verified, and release-trackable.
 
 ## Confirmed Facts
-- `main` now includes the publication baseline, the `DeviceSession` pending-entry cleanup, the quick-start guide, the inbound-frame seam cleanup, and the reconnect/bootstrap follow-up bundle through commit `ef00908`.
-- The reconnect/bootstrap follow-up bundle is now the new baseline on `main`:
-  - public docs and sample READMEs state explicitly that `Reconnect` applies only to transport-open retries inside the initial `ConnectAsync()` path
-  - `DeviceBootstrapper.StartAsync()` validates all enabled profiles first, then starts their `ConnectAsync()` calls concurrently
-  - `DeviceBootstrapper.StartWithReportAsync()` still keeps the earlier continue-and-report semantics
-- A live WinUI validation pass has now closed the earlier UDP / Multicast / transport-panel confidence gap without requiring product-code changes:
-  - `Device Lab` transport switching worked across `TCP`, `UDP`, `Multicast`, and `Serial`
-  - `Settings` transport switching reflected the same shared selection state and showed the expected transport-specific fields
-  - the UDP in-app mock path completed a real connect/send/echo roundtrip with the expected live-log entries
-  - the multicast in-app mock path completed a real connect/send roundtrip, and the external `MulticastReceive` helper also observed the outbound frame
-  - on this machine the multicast live log showed one inbound line, while the existing status copy already surfaced the potential self-traffic / peer-echo note for other loopback environments
-- A later live WinUI `RawHex` / `BitFieldSchema` pass exposed one real wiring gap instead of a broader design problem:
-  - `messageComposer.bitFieldSchema` was loading into `DeviceLabSettingsViewModel`, but `MainViewModel.BuildProfile()` was not forwarding it into `SerializerOptions`
-  - forwarding `Settings.BitFieldSchema` into `SerializerOptions.BitFieldSchema` was the only code change needed to make the existing config-backed schema-log path work end-to-end
-  - after that fix, a live TCP in-app mock roundtrip produced the expected outbound and inbound `fields[prefix=170, register=4660, tail=127]` summaries for `AA 12 34 7F`
-  - the WinUI README now includes the validated runtime `messageComposer.bitFieldSchema` example instead of leaving that path implicit
-- Verification for the latest live/runtime follow-up bundle passed with:
-  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
-  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceBootstrapperTests`
+- The current checkout is `main`, with local commits not yet pushed to `commlib-hub/main` and pre-existing dirty/untracked work still present:
+  - `src/CommLib.Application/Sessions/DeviceSession.cs`
+  - `.claude/`
+  - `docs/superpowers/`
+  - `todo.md`
+- The 2026-05-18 commercial-readiness review found that CommLib is suitable for controlled/internal pilot usage, but not yet a full external production-grade commercial release without more release governance, security, observability, and recovery-policy hardening.
+- The first commercial-readiness implementation slice is complete:
+  - `DeviceProfileValidator` now rejects non-positive TCP `ConnectTimeoutMs` and `BufferSize` values before runtime transport creation.
+  - `DeviceProfileValidatorTests` covers both new TCP validation failures.
+- The second commercial-readiness implementation slice is complete:
+  - `.github/workflows/ci.yml` now restores with NuGet audit warnings promoted to errors for `NU1901` through `NU1904`.
+  - `.github/workflows/ci.yml` now runs a NuGet vulnerability audit listing step for visibility.
+  - `.github/workflows/ci.yml` now packs the four library projects under `src/` with a CI-only package version.
+  - CI intentionally packs `CommLib.Domain`, `CommLib.Application`, `CommLib.Infrastructure`, and `CommLib.Hosting` directly instead of solution-level packing, because solution-level pack also creates example packages.
+- The user-requested cleanup slice is complete:
+  - `DeviceLabTheme` now keeps only the brush/text/border resources actively consumed by the code-built WinUI views.
+  - Dormant templated-control style keys/helpers were pruned instead of preserving an unverified future style surface.
+  - `DeviceLabTheme.Get<T>()` no longer accepts an unused `FrameworkElement owner` argument.
+- Verification for this slice passed with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
-  - live WinUI UIAutomation-assisted passes for UDP mock roundtrip, multicast mock roundtrip, external multicast helper receive, `Device Lab` / `Settings` transport switching, and a TCP `RawHex` / `BitFieldSchema` roundtrip with schema-enriched logs
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `dotnet restore commlib-codex-full.sln -p:NuGetAudit=true -p:NuGetAuditLevel=low -warnaserror:NU1901,NU1902,NU1903,NU1904`
+  - `dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Application/CommLib.Application.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet pack src/CommLib.Hosting/CommLib.Hosting.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci`
+  - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
+- NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
 ## Next Work Unit
-1. Package the now-proven WinUI live-validation workflow into the repo-owned helper/doc path so future sessions can rerun UDP, multicast, and `RawHex` / schema checks without rediscovering ad-hoc local steps.
+1. Add the first production diagnostics slice, likely an `ILogger`-backed `IConnectionEventSink` adapter or equivalent hosting-level guidance, so connect/retry/failure/backpressure events do not depend only on custom app code.
 
 ## Next Slice Design
-1. Keep the next slice WinUI-local and reuse-first: extend the existing local validation guidance instead of inventing a new runtime or serializer surface.
-2. Treat queue-pressure signaling as still deferred because there is still no concrete operator requirement for a stronger public/runtime signal.
-3. Keep `docs/quick-start.md` as the canonical getting-started/test-run entry point and avoid scattering new duplicate command blocks.
-4. Continue to branch fresh from `commlib-hub/main`, not from preserved mixed or publication branches.
+1. Keep the next slice observability-focused and opt-in; do not redesign transport or reconnect behavior at the same time.
+2. Reuse the existing `IConnectionEventSink` seam before introducing a new diagnostics abstraction.
+3. Do not touch the pre-existing `DeviceSession.cs`, `.claude/`, `docs/superpowers/`, or `todo.md` changes unless the user explicitly asks to reconcile them.
+4. Keep TLS, health checks, metrics, and auto-reconnect as separate production-integration decisions unless the diagnostics slice exposes a direct dependency.
 
 ## Stop / Reassess Conditions
-- If packaging the WinUI validation workflow starts demanding brittle UI-automation infrastructure or a larger app redesign, stop at the smallest documentation-only capture instead of widening the helper scope.
-- If moving or renaming root internal files would break existing automation or local workflow, stop and document the chosen boundary before editing paths.
+- If adding logging requires a package-boundary or public-API decision beyond a small adapter, stop and record the decision point instead of guessing.
+- If unrelated dirty files overlap with the release-governance edits, stop and ask how the user wants those files handled.
