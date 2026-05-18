@@ -21,7 +21,10 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Restore solution
-        run: dotnet restore commlib-codex-full.sln
+        run: dotnet restore commlib-codex-full.sln -p:NuGetAudit=true -p:NuGetAuditLevel=low -warnaserror:NU1901,NU1902,NU1903,NU1904
+
+      - name: Audit NuGet vulnerabilities
+        run: dotnet list commlib-codex-full.sln package --vulnerable --include-transitive
 
       - name: Run unit tests
         run: dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore
@@ -31,3 +34,10 @@ jobs:
 
       - name: Build console example
         run: dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore
+
+      - name: Pack libraries
+        run: |
+          dotnet pack src/CommLib.Domain/CommLib.Domain.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci
+          dotnet pack src/CommLib.Application/CommLib.Application.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci
+          dotnet pack src/CommLib.Infrastructure/CommLib.Infrastructure.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci
+          dotnet pack src/CommLib.Hosting/CommLib.Hosting.csproj --configuration Release --no-restore -p:PackageVersion=0.1.0-ci -o artifacts/pack-ci
