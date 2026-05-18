@@ -54,6 +54,32 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_TcpNonPositiveConnectTimeout_Throws()
+    {
+        var profile = CreateTcpProfile(
+            deviceId: "tcp-timeout",
+            displayName: "TCP Timeout",
+            host: "127.0.0.1",
+            port: 502,
+            connectTimeoutMs: 0);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
+    [Fact]
+    public void Validate_TcpNonPositiveBufferSize_Throws()
+    {
+        var profile = CreateTcpProfile(
+            deviceId: "tcp-buffer",
+            displayName: "TCP Buffer",
+            host: "127.0.0.1",
+            port: 502,
+            bufferSize: 0);
+
+        Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+    }
+
     /// <summary>
     /// 유효한 시리얼 프로필은 예외 없이 검증을 통과하는지 확인합니다.
     /// </summary>
@@ -518,7 +544,13 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
-    private static DeviceProfile CreateTcpProfile(string deviceId, string displayName, string host, int port)
+    private static DeviceProfile CreateTcpProfile(
+        string deviceId,
+        string displayName,
+        string host,
+        int port,
+        int connectTimeoutMs = 3000,
+        int bufferSize = 8192)
     {
         return new DeviceProfile
         {
@@ -528,7 +560,9 @@ public sealed class DeviceProfileValidatorTests
             {
                 Type = "TcpClient",
                 Host = host,
-                Port = port
+                Port = port,
+                ConnectTimeoutMs = connectTimeoutMs,
+                BufferSize = bufferSize
             },
             Protocol = new ProtocolOptions(),
             Serializer = new SerializerOptions()

@@ -165,6 +165,16 @@ public static class DeviceProfileValidator
         {
             throw new InvalidOperationException($"[{deviceId}] TCP Port is invalid.");
         }
+
+        if (tcp.ConnectTimeoutMs <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] TCP ConnectTimeoutMs must be greater than 0.");
+        }
+
+        if (tcp.BufferSize <= 0)
+        {
+            throw new InvalidOperationException($"[{deviceId}] TCP BufferSize must be greater than 0.");
+        }
     }
 
     private static void ValidateUdpTransportOptions(string deviceId, UdpTransportOptions udp)
