@@ -508,7 +508,7 @@ public sealed class DeviceLabView : Grid
 
     private T GetTheme<T>(string key) where T : class
     {
-        return DeviceLabTheme.Get<T>(this, key);
+        return DeviceLabTheme.Get<T>(key);
     }
 
     private Brush GetThemeBrush(string key)
