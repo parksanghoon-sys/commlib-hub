@@ -23,7 +23,7 @@ public sealed class ProtocolFactory : IProtocolFactory
 
         if (string.Equals(options.Type, ProtocolTypes.BinaryFrame, StringComparison.OrdinalIgnoreCase))
         {
-            return new BinaryFrameProtocol(options.BinaryFrame ?? new BinaryFrameOptions(), options.MaxFrameLength);
+            return new BinaryFrameProtocol(options.BinaryFrame, options.MaxFrameLength);
         }
 
         throw new NotSupportedException($"Unsupported protocol: {options.Type}");
