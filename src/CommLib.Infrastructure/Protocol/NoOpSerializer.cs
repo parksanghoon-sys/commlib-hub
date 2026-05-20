@@ -8,7 +8,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 메시지 식별자와 기본 상관관계 정보를 텍스트로 인코드하는 최소 serializer 구현입니다.
 /// </summary>
-public sealed class NoOpSerializer : ISerializer
+public sealed class NoOpSerializer : ISerializer, ISpanSerializer
 {
     private const char Separator = '|';
 
@@ -19,30 +19,31 @@ public sealed class NoOpSerializer : ISerializer
     /// <returns>메시지 payload 바이트 배열입니다.</returns>
     public byte[] Serialize(IMessage message)
     {
-        var encodedBody = TryEncodeBody(message);
-        var payload = message switch
-        {
-            IResponseMessage response => string.Join(
-                Separator,
-                "response",
-                message.MessageId.ToString(CultureInfo.InvariantCulture),
-                response.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
-                response.IsSuccess ? "1" : "0",
-                encodedBody),
-            IRequestMessage request => string.Join(
-                Separator,
-                "request",
-                message.MessageId.ToString(CultureInfo.InvariantCulture),
-                request.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
-                encodedBody),
-            _ => string.Join(
-                Separator,
-                "message",
-                message.MessageId.ToString(CultureInfo.InvariantCulture),
-                encodedBody)
-        };
+        return Encoding.UTF8.GetBytes(CreatePayloadText(message));
+    }
 
-        return Encoding.UTF8.GetBytes(payload);
+    /// <summary>
+    /// UTF-8 text payload로 직렬화될 때 필요한 byte 길이를 계산합니다.
+    /// </summary>
+    /// <param name="message">직렬화할 메시지입니다.</param>
+    /// <returns>필요한 destination byte 길이입니다.</returns>
+    public int GetSerializedLength(IMessage message)
+    {
+        return Encoding.UTF8.GetByteCount(CreatePayloadText(message));
+    }
+
+    /// <summary>
+    /// UTF-8 payload를 caller가 제공한 destination span에 직접 기록합니다.
+    /// </summary>
+    /// <param name="message">직렬화할 메시지입니다.</param>
+    /// <param name="destination">정확한 길이로 준비된 출력 span입니다.</param>
+    public void Serialize(IMessage message, Span<byte> destination)
+    {
+        var written = Encoding.UTF8.GetBytes(CreatePayloadText(message), destination);
+        if (written != destination.Length)
+        {
+            throw new InvalidOperationException("Serialized payload length did not match the destination length.");
+        }
     }
 
     /// <summary>
@@ -84,6 +85,32 @@ public sealed class NoOpSerializer : ISerializer
         }
 
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(bodyMessage.Body));
+    }
+
+    private static string CreatePayloadText(IMessage message)
+    {
+        var encodedBody = TryEncodeBody(message);
+        return message switch
+        {
+            IResponseMessage response => string.Join(
+                Separator,
+                "response",
+                message.MessageId.ToString(CultureInfo.InvariantCulture),
+                response.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
+                response.IsSuccess ? "1" : "0",
+                encodedBody),
+            IRequestMessage request => string.Join(
+                Separator,
+                "request",
+                message.MessageId.ToString(CultureInfo.InvariantCulture),
+                request.CorrelationId.ToString("D", CultureInfo.InvariantCulture),
+                encodedBody),
+            _ => string.Join(
+                Separator,
+                "message",
+                message.MessageId.ToString(CultureInfo.InvariantCulture),
+                encodedBody)
+        };
     }
 
     private static bool TryParseBody(string[] parts, int index, out string body)

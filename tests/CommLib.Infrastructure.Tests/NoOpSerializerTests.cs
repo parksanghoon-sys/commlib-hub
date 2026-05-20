@@ -1,4 +1,5 @@
 using CommLib.Domain.Messaging;
+using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
 
@@ -65,6 +66,18 @@ public sealed class NoOpSerializerTests
         var payload = serializer.Serialize(new FakeBodyMessage(12, "hello|world"));
 
         Assert.Equal("message|12|aGVsbG98d29ybGQ=", System.Text.Encoding.UTF8.GetString(payload));
+    }
+
+    [Fact]
+    public void SpanSerialize_MessageWithBody_WritesSamePayloadAsLegacySerialize()
+    {
+        var serializer = Assert.IsAssignableFrom<ISpanSerializer>(new NoOpSerializer());
+        var message = new FakeBodyMessage(12, "hello|world");
+        var destination = new byte[serializer.GetSerializedLength(message)];
+
+        serializer.Serialize(message, destination);
+
+        Assert.Equal(new NoOpSerializer().Serialize(message), destination);
     }
 
     /// <summary>

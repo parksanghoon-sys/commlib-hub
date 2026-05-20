@@ -8,7 +8,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 메시지 메타데이터 헤더 뒤에 raw binary payload를 그대로 붙여 직렬화하는 serializer입니다.
 /// </summary>
-public sealed class RawHexSerializer : ISerializer
+public sealed class RawHexSerializer : ISerializer, ISpanSerializer
 {
     private const char Separator = '|';
     private const byte SeparatorByte = (byte)Separator;
@@ -20,12 +20,31 @@ public sealed class RawHexSerializer : ISerializer
     /// <returns>헤더와 raw payload가 결합된 바이트 배열입니다.</returns>
     public byte[] Serialize(IMessage message)
     {
-        var header = CreateHeader(message);
-        var payload = ExtractPayload(message);
-        var serialized = new byte[header.Length + payload.Length];
-        header.CopyTo(serialized, 0);
-        payload.CopyTo(serialized.AsSpan(header.Length));
+        var serialized = new byte[GetSerializedLength(message)];
+        Serialize(message, serialized);
         return serialized;
+    }
+
+    /// <summary>
+    /// message metadata header와 raw payload를 합친 직렬화 결과 길이를 계산합니다.
+    /// </summary>
+    /// <param name="message">직렬화할 메시지입니다.</param>
+    /// <returns>필요한 destination byte 길이입니다.</returns>
+    public int GetSerializedLength(IMessage message)
+    {
+        return Encoding.ASCII.GetByteCount(CreateHeaderText(message)) + GetPayloadLength(message);
+    }
+
+    /// <summary>
+    /// 별도 payload 배열을 만들지 않고 caller가 제공한 destination에 header와 raw payload를 순서대로 씁니다.
+    /// </summary>
+    /// <param name="message">직렬화할 메시지입니다.</param>
+    /// <param name="destination">정확한 길이로 준비된 출력 span입니다.</param>
+    public void Serialize(IMessage message, Span<byte> destination)
+    {
+        var headerText = CreateHeaderText(message);
+        var headerLength = Encoding.ASCII.GetBytes(headerText, destination);
+        WritePayload(message, destination[headerLength..]);
     }
 
     /// <summary>
@@ -52,9 +71,9 @@ public sealed class RawHexSerializer : ISerializer
         };
     }
 
-    private static byte[] CreateHeader(IMessage message)
+    private static string CreateHeaderText(IMessage message)
     {
-        var header = message switch
+        return message switch
         {
             IResponseMessage response => string.Create(
                 CultureInfo.InvariantCulture,
@@ -66,30 +85,48 @@ public sealed class RawHexSerializer : ISerializer
                 CultureInfo.InvariantCulture,
                 $"message|{message.MessageId}|")
         };
-
-        return Encoding.ASCII.GetBytes(header);
     }
 
-    private static byte[] ExtractPayload(IMessage message)
+    private static int GetPayloadLength(IMessage message)
     {
         if (message is IBinaryMessagePayload binaryPayload)
         {
-            return binaryPayload.Payload.ToArray();
+            return binaryPayload.Payload.Length;
         }
 
         if (message is IMessageBody bodyMessage)
         {
-            try
-            {
-                return HexPayloadParser.Parse(bodyMessage.Body);
-            }
-            catch (FormatException exception)
-            {
-                throw new InvalidOperationException("Message body must be valid hexadecimal text.", exception);
-            }
+            return ParseBodyPayload(bodyMessage).Length;
         }
 
-        return [];
+        return 0;
+    }
+
+    private static void WritePayload(IMessage message, Span<byte> destination)
+    {
+        if (message is IBinaryMessagePayload binaryPayload)
+        {
+            binaryPayload.Payload.Span.CopyTo(destination);
+            return;
+        }
+
+        if (message is IMessageBody bodyMessage)
+        {
+            ParseBodyPayload(bodyMessage).CopyTo(destination);
+            return;
+        }
+    }
+
+    private static byte[] ParseBodyPayload(IMessageBody bodyMessage)
+    {
+        try
+        {
+            return HexPayloadParser.Parse(bodyMessage.Body);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException("Message body must be valid hexadecimal text.", exception);
+        }
     }
 
     private static IMessage DeserializeRequest(ReadOnlySpan<byte> payload, int index, ushort messageId)

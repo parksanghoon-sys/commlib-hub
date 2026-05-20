@@ -1,5 +1,6 @@
 using System.Text;
 using CommLib.Domain.Messaging;
+using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
 
@@ -21,6 +22,18 @@ public sealed class RawHexSerializerTests
         Assert.Equal(
             Encoding.ASCII.GetBytes("message|12|").Concat(new byte[] { 0xDE, 0xAD, 0xBE, 0xEF }).ToArray(),
             payload);
+    }
+
+    [Fact]
+    public void SpanSerialize_BinaryMessage_WritesSamePayloadAsLegacySerialize()
+    {
+        var serializer = Assert.IsAssignableFrom<ISpanSerializer>(new RawHexSerializer());
+        var message = new BinaryMessageModel(12, new byte[] { 0xDE, 0xAD, 0xBE, 0xEF });
+        var destination = new byte[serializer.GetSerializedLength(message)];
+
+        serializer.Serialize(message, destination);
+
+        Assert.Equal(new RawHexSerializer().Serialize(message), destination);
     }
 
     [Fact]
