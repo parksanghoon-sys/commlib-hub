@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
@@ -25,6 +27,35 @@ public static class BitFieldCodec
     }
 
     /// <summary>
+    /// Reads a byte-local bit range as an unsigned integer type.
+    /// </summary>
+    /// <typeparam name="T">The target integer type.</typeparam>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="byteIndex">The zero-based byte index from the start of the payload.</param>
+    /// <param name="startBit">The inclusive start bit in the byte. Bit 0 is the LSB.</param>
+    /// <param name="endBit">The inclusive end bit in the byte. Bit 7 is the MSB.</param>
+    /// <returns>The unsigned value stored in the bit range.</returns>
+    public static T ReadUnsigned<T>(ReadOnlySpan<byte> payload, int byteIndex, int startBit, int endBit)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        return ReadUnsigned<T>(payload, BitFieldDefinition.FromByteBits("value", byteIndex, startBit, endBit));
+    }
+
+    /// <summary>
+    /// Reads a bitfield as an unsigned integer type.
+    /// </summary>
+    /// <typeparam name="T">The target integer type.</typeparam>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="field">The field to read.</param>
+    /// <returns>The unsigned value stored in the field.</returns>
+    public static T ReadUnsigned<T>(ReadOnlySpan<byte> payload, BitFieldDefinition field)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        var value = ReadUnsigned(payload, field);
+        return ConvertInteger<T>(value, field);
+    }
+
+    /// <summary>
     /// Reads a bitfield as a signed integer.
     /// </summary>
     /// <param name="payload">The source payload.</param>
@@ -46,6 +77,35 @@ public static class BitFieldCodec
 
         var extensionMask = ulong.MaxValue << field.BitLength;
         return unchecked((long)(value | extensionMask));
+    }
+
+    /// <summary>
+    /// Reads a byte-local bit range as a signed integer type.
+    /// </summary>
+    /// <typeparam name="T">The target integer type.</typeparam>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="byteIndex">The zero-based byte index from the start of the payload.</param>
+    /// <param name="startBit">The inclusive start bit in the byte. Bit 0 is the LSB.</param>
+    /// <param name="endBit">The inclusive end bit in the byte. Bit 7 is the MSB.</param>
+    /// <returns>The signed value stored in the bit range.</returns>
+    public static T ReadSigned<T>(ReadOnlySpan<byte> payload, int byteIndex, int startBit, int endBit)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        return ReadSigned<T>(payload, BitFieldDefinition.FromByteBits("value", byteIndex, startBit, endBit));
+    }
+
+    /// <summary>
+    /// Reads a bitfield as a signed integer type.
+    /// </summary>
+    /// <typeparam name="T">The target integer type.</typeparam>
+    /// <param name="payload">The source payload.</param>
+    /// <param name="field">The field to read.</param>
+    /// <returns>The signed value stored in the field.</returns>
+    public static T ReadSigned<T>(ReadOnlySpan<byte> payload, BitFieldDefinition field)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        var value = ReadSigned(payload, field);
+        return ConvertInteger<T>(value, field);
     }
 
     /// <summary>
@@ -88,6 +148,36 @@ public static class BitFieldCodec
         }
 
         return value;
+    }
+
+    private static T ConvertInteger<T>(ulong value, BitFieldDefinition field)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        try
+        {
+            return T.CreateChecked(value);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException(
+                $"Bit field '{field.Name}' value {value} does not fit in {typeof(T).Name}.",
+                exception);
+        }
+    }
+
+    private static T ConvertInteger<T>(long value, BitFieldDefinition field)
+        where T : unmanaged, IBinaryInteger<T>
+    {
+        try
+        {
+            return T.CreateChecked(value);
+        }
+        catch (OverflowException exception)
+        {
+            throw new InvalidOperationException(
+                $"Bit field '{field.Name}' value {value} does not fit in {typeof(T).Name}.",
+                exception);
+        }
     }
 
     private static ulong ReadUnsignedBigEndian(ReadOnlySpan<byte> payload, BitFieldDefinition field)

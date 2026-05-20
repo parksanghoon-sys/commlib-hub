@@ -6,6 +6,47 @@ namespace CommLib.Domain.Messaging;
 public sealed record BitFieldDefinition
 {
     /// <summary>
+    /// Creates a definition from a byte index and inclusive bit range within that byte.
+    /// </summary>
+    /// <param name="name">The field name.</param>
+    /// <param name="byteIndex">The zero-based byte index from the start of the payload.</param>
+    /// <param name="startBit">The inclusive start bit in the byte. Bit 0 is the LSB.</param>
+    /// <param name="endBit">The inclusive end bit in the byte. Bit 7 is the MSB.</param>
+    /// <param name="endianness">The byte order used when a field spans multiple whole bytes.</param>
+    /// <returns>A validated <see cref="BitFieldDefinition"/> instance.</returns>
+    public static BitFieldDefinition FromByteBits(
+        string name,
+        int byteIndex,
+        int startBit,
+        int endBit,
+        BitFieldEndianness endianness = BitFieldEndianness.LittleEndian)
+    {
+        if (byteIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(byteIndex), "Byte index must be greater than or equal to 0.");
+        }
+
+        if (startBit is < 0 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(startBit), "Start bit must be between 0 and 7.");
+        }
+
+        if (endBit is < 0 or > 7)
+        {
+            throw new ArgumentOutOfRangeException(nameof(endBit), "End bit must be between 0 and 7.");
+        }
+
+        if (endBit < startBit)
+        {
+            throw new ArgumentException("End bit must be greater than or equal to start bit.", nameof(endBit));
+        }
+
+        var bitOffset = checked((byteIndex * 8) + startBit);
+        var bitLength = endBit - startBit + 1;
+        return new BitFieldDefinition(name, bitOffset, bitLength, endianness);
+    }
+
+    /// <summary>
     /// Initializes a <see cref="BitFieldDefinition"/> instance.
     /// </summary>
     /// <param name="name">The field name.</param>

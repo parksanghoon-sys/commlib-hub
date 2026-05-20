@@ -19,6 +19,45 @@ public sealed class BitFieldCodecTests
     }
 
     [Fact]
+    public void FromByteBits_ByteLocalRange_ReturnsEquivalentBitDefinition()
+    {
+        var field = BitFieldDefinition.FromByteBits("mode", byteIndex: 2, startBit: 1, endBit: 5);
+
+        Assert.Equal("mode", field.Name);
+        Assert.Equal(17, field.BitOffset);
+        Assert.Equal(5, field.BitLength);
+        Assert.Equal(BitFieldEndianness.LittleEndian, field.Endianness);
+    }
+
+    [Fact]
+    public void ReadUnsignedGeneric_ByteLocalRange_ReturnsTypedValue()
+    {
+        var value = BitFieldCodec.ReadUnsigned<byte>(new byte[] { 0x00, 0b_0010_1100 }, byteIndex: 1, startBit: 2, endBit: 5);
+
+        Assert.Equal((byte)0b_1011, value);
+    }
+
+    [Fact]
+    public void ReadSignedGeneric_ByteLocalRange_ReturnsTypedValue()
+    {
+        var value = BitFieldCodec.ReadSigned<sbyte>(new byte[] { 0b_1100_0000 }, byteIndex: 0, startBit: 4, endBit: 7);
+
+        Assert.Equal((sbyte)-4, value);
+    }
+
+    [Fact]
+    public void ReadUnsignedGeneric_ValueTooLargeForTargetType_Throws()
+    {
+        var field = new BitFieldDefinition("register", 0, 16);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => BitFieldCodec.ReadUnsigned<byte>(new byte[] { 0x34, 0x12 }, field));
+
+        Assert.Contains("Byte", exception.Message);
+        Assert.Contains("register", exception.Message);
+    }
+
+    [Fact]
     public void ReadUnsigned_FieldAcrossByteBoundary_ReturnsExpectedValue()
     {
         var field = new BitFieldDefinition("temperatureRaw", 0, 12);
