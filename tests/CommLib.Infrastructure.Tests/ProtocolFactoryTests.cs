@@ -36,6 +36,33 @@ public sealed class ProtocolFactoryTests
     }
 
     [Fact]
+    public void Create_BinaryFrameOptions_ReturnsBinaryFrameProtocol()
+    {
+        var factory = new ProtocolFactory();
+
+        var protocol = factory.Create(new ProtocolOptions
+        {
+            Type = ProtocolTypes.BinaryFrame,
+            MaxFrameLength = 64,
+            BinaryFrame = new BinaryFrameOptions
+            {
+                StartHex = "AA 55",
+                LengthPrefix = new BinaryFrameLengthPrefixOptions
+                {
+                    SizeBytes = 1
+                }
+            }
+        });
+
+        var binaryFrame = Assert.IsType<BinaryFrameProtocol>(protocol);
+        var frame = binaryFrame.Encode(new byte[] { 0x7F });
+
+        Assert.True(binaryFrame.TryDecode(frame, out var payload, out var consumed));
+        Assert.Equal(new byte[] { 0x7F }, payload);
+        Assert.Equal(frame.Length, consumed);
+    }
+
+    [Fact]
     public void Create_UnsupportedProtocol_ThrowsNotSupportedException()
     {
         var factory = new ProtocolFactory();

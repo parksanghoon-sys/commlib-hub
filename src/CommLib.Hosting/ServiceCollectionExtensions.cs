@@ -7,6 +7,7 @@ using CommLib.Infrastructure.Factories;
 using CommLib.Infrastructure.Sessions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace CommLib.Hosting;
@@ -56,7 +57,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(runtimeOptionsSnapshot);
         services.AddSingleton<ITransportFactory, TransportFactory>();
-        services.AddSingleton<IProtocolFactory, ProtocolFactory>();
+        services.TryAddSingleton<IProtocolFactory, ProtocolFactory>();
         services.AddSingleton<ISerializerFactory, SerializerFactory>();
         services.AddSingleton<IConnectionManager>(serviceProvider => new ConnectionManager(
             serviceProvider.GetRequiredService<ITransportFactory>(),

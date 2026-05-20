@@ -16,9 +16,14 @@ public sealed class ProtocolFactory : IProtocolFactory
     /// <returns>설정 형식에 맞는 프로토콜 구현입니다.</returns>
     public IProtocol Create(ProtocolOptions options)
     {
-        if (string.Equals(options.Type, "LengthPrefixed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(options.Type, ProtocolTypes.LengthPrefixed, StringComparison.OrdinalIgnoreCase))
         {
             return new LengthPrefixedProtocol(options.MaxFrameLength);
+        }
+
+        if (string.Equals(options.Type, ProtocolTypes.BinaryFrame, StringComparison.OrdinalIgnoreCase))
+        {
+            return new BinaryFrameProtocol(options.BinaryFrame ?? new BinaryFrameOptions(), options.MaxFrameLength);
         }
 
         throw new NotSupportedException($"Unsupported protocol: {options.Type}");

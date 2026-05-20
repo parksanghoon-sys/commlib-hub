@@ -34,15 +34,85 @@ public static class DeviceProfileValidator
 
     private static void ValidateProtocolOptions(DeviceProfile profile)
     {
-        if (!profile.Protocol.Type.Equals("LengthPrefixed", StringComparison.OrdinalIgnoreCase))
+        if (profile.Protocol.Type.Equals(ProtocolTypes.LengthPrefixed, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
+            if (profile.Protocol.MaxFrameLength < 4)
+            {
+                throw new InvalidOperationException(
+                    $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+            }
+
+            return;
         }
 
-        if (profile.Protocol.MaxFrameLength < 4)
+        if (profile.Protocol.Type.Equals(ProtocolTypes.BinaryFrame, StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateBinaryFrameProtocolOptions(profile.DeviceId, profile.Protocol);
+            return;
+        }
+
+        throw new InvalidOperationException($"[{profile.DeviceId}] Protocol Type is invalid.");
+    }
+
+    private static void ValidateBinaryFrameProtocolOptions(string deviceId, ProtocolOptions protocol)
+    {
+        var binaryFrame = protocol.BinaryFrame ?? new BinaryFrameOptions();
+        var lengthPrefix = binaryFrame.LengthPrefix ?? new BinaryFrameLengthPrefixOptions();
+        var checksum = binaryFrame.Checksum ?? new BinaryFrameChecksumOptions();
+
+        var startLength = GetStartHexLength(deviceId, binaryFrame.StartHex);
+        if (lengthPrefix.SizeBytes is not (1 or 2 or 4))
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame LengthPrefix SizeBytes must be 1, 2, or 4.");
+        }
+
+        if (!Enum.IsDefined(lengthPrefix.Endianness))
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame LengthPrefix Endianness is invalid.");
+        }
+
+        if (!checksum.Type.Equals(BinaryFrameChecksumTypes.None, StringComparison.OrdinalIgnoreCase) &&
+            !checksum.Type.Equals(BinaryFrameChecksumTypes.Crc16Modbus, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame Checksum Type is invalid.");
+        }
+
+        if (!Enum.IsDefined(checksum.Endianness))
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame Checksum Endianness is invalid.");
+        }
+
+        if (!checksum.Coverage.Equals(BinaryFrameChecksumCoverageTypes.FrameWithoutChecksum, StringComparison.OrdinalIgnoreCase) &&
+            !checksum.Coverage.Equals(BinaryFrameChecksumCoverageTypes.Payload, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame Checksum Coverage is invalid.");
+        }
+
+        var checksumLength = checksum.Type.Equals(BinaryFrameChecksumTypes.Crc16Modbus, StringComparison.OrdinalIgnoreCase)
+            ? 2
+            : 0;
+        var minimumFrameLength = checked(startLength + lengthPrefix.SizeBytes + checksumLength);
+        if (protocol.MaxFrameLength < minimumFrameLength)
         {
             throw new InvalidOperationException(
-                $"[{profile.DeviceId}] LengthPrefixed MaxFrameLength must be greater than or equal to 4.");
+                $"[{deviceId}] BinaryFrame MaxFrameLength must be greater than or equal to {minimumFrameLength}.");
+        }
+    }
+
+    private static int GetStartHexLength(string deviceId, string? startHex)
+    {
+        if (string.IsNullOrWhiteSpace(startHex))
+        {
+            return 0;
+        }
+
+        try
+        {
+            return HexPayloadParser.Parse(startHex).Length;
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException($"[{deviceId}] BinaryFrame StartHex must contain valid hexadecimal byte pairs.", exception);
         }
     }
 

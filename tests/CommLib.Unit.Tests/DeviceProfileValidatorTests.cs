@@ -355,6 +355,68 @@ public sealed class DeviceProfileValidatorTests
         Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
     }
 
+    [Fact]
+    public void Validate_BinaryFrameProtocolWithInvalidLengthPrefixSize_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-02c", displayName: "TCP 02C", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = new ProtocolOptions
+            {
+                Type = ProtocolTypes.BinaryFrame,
+                MaxFrameLength = 512,
+                BinaryFrame = new BinaryFrameOptions
+                {
+                    LengthPrefix = new BinaryFrameLengthPrefixOptions
+                    {
+                        SizeBytes = 3
+                    }
+                }
+            },
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+
+        Assert.Contains("BinaryFrame LengthPrefix SizeBytes", exception.Message);
+    }
+
+    [Fact]
+    public void Validate_BinaryFrameProtocolWithInvalidChecksumType_Throws()
+    {
+        var profile = CreateTcpProfile(deviceId: "tcp-02d", displayName: "TCP 02D", host: "127.0.0.1", port: 502);
+        profile = new DeviceProfile
+        {
+            DeviceId = profile.DeviceId,
+            DisplayName = profile.DisplayName,
+            Transport = profile.Transport,
+            Protocol = new ProtocolOptions
+            {
+                Type = ProtocolTypes.BinaryFrame,
+                MaxFrameLength = 512,
+                BinaryFrame = new BinaryFrameOptions
+                {
+                    Checksum = new BinaryFrameChecksumOptions
+                    {
+                        Type = "Xor8"
+                    }
+                }
+            },
+            Serializer = profile.Serializer,
+            RequestResponse = profile.RequestResponse,
+            Reconnect = profile.Reconnect
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => DeviceProfileValidator.ValidateAndThrow(profile));
+
+        Assert.Contains("BinaryFrame Checksum Type", exception.Message);
+    }
+
     /// <summary>
     /// 최대 대기 요청 수가 0 이하면 거부하는지 확인합니다.
     /// </summary>

@@ -1,5 +1,7 @@
 using System.Reflection;
 using CommLib.Domain.Messaging;
+using CommLib.Domain.Configuration;
+using CommLib.Domain.Protocol;
 using CommLib.Hosting;
 using CommLib.Infrastructure.Sessions;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,6 +65,19 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Same(sink, GetConnectionEventSink(manager));
     }
 
+    [Fact]
+    public async Task AddCommLibCore_WithPreRegisteredProtocolFactory_PreservesCustomFactory()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IProtocolFactory, CustomProtocolFactory>();
+        services.AddCommLibCore();
+
+        await using var serviceProvider = services.BuildServiceProvider();
+        var factory = serviceProvider.GetRequiredService<IProtocolFactory>();
+
+        Assert.IsType<CustomProtocolFactory>(factory);
+    }
+
     private static int GetInboundQueueCapacity(IConnectionManager manager)
     {
         var field = manager.GetType().GetField("_inboundQueueCapacity", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -93,6 +108,14 @@ public sealed class ServiceCollectionExtensionsTests
 
         public void OnOperationFailed(string deviceId, string operation, Exception exception)
         {
+        }
+    }
+
+    private sealed class CustomProtocolFactory : IProtocolFactory
+    {
+        public IProtocol Create(ProtocolOptions options)
+        {
+            throw new NotSupportedException();
         }
     }
 }
