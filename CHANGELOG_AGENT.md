@@ -674,3 +674,8 @@
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter BitFieldCodecTests`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `git diff --check`
+- Fast-forward merged `codex/span-minimal-copy-pipeline` into local `main`.
+- Verified the merged `main` with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`

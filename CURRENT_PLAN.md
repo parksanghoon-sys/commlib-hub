@@ -9,10 +9,10 @@ Date: 2026-05-20
 Continue commercial-readiness hardening from the current repository state while keeping each slice small, verified, and release-trackable.
 
 ## Confirmed Facts
-- The current checkout is `codex/span-minimal-copy-pipeline`, with local commits not yet pushed to `commlib-hub/main` and pre-existing dirty/untracked work still present:
+- The current checkout is `main`, ahead of `commlib-hub/main` after fast-forward merging `codex/span-minimal-copy-pipeline`.
+- Pre-existing dirty/untracked work still present:
   - `.gitignore`
   - `DESIGN_REVIEW.md`
-  - `SPAN_PIPELINE_REVIEW.md`
   - `docs/superpowers/plans/2026-05-08-reconnect-types-constants.md`
   - `todo.md`
 - The 2026-05-18 commercial-readiness review found that CommLib is suitable for controlled/internal pilot usage, but not yet a full external production-grade commercial release without more release governance, security, observability, and recovery-policy hardening.
@@ -96,6 +96,11 @@ Continue commercial-readiness hardening from the current repository state while 
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter BitFieldCodecTests`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `git diff --check`
+- The span/minimal-copy branch was fast-forward merged into local `main`.
+- Verification on merged `main` passed with:
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
 - NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
 ## Next Work Unit
