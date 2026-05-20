@@ -12,10 +12,10 @@
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
-- [ ] Add the first production diagnostics slice.
-  Scope: reuse the existing `IConnectionEventSink` seam to make connect/retry/failure/backpressure events easier to wire into production logging, likely through an `ILogger`-backed adapter or focused hosting guidance.
-  Objective: reduce commercial deployment blind spots without redesigning transport, metrics, health checks, or reconnect behavior in the same slice.
-  Validation: focused tests prove the diagnostics path is available through DI or documented registration, and the existing unit/infrastructure baseline still passes.
+- [ ] Execute the span/minimal-copy protocol pipeline plan.
+  Scope: implement `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` task-by-task, starting with additive zero-copy protocol decode contracts and receiver pending-buffer reuse before outbound span writer fast paths.
+  Objective: reduce avoidable payload/frame copies while preserving existing `IProtocol` and `ISerializer` compatibility for custom implementations.
+  Validation: focused protocol/serializer/encoder/decoder/receiver tests, full infrastructure tests, full unit tests, and full solution Release build.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -40,17 +40,27 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Most natural next step: wait for a concrete deployment requirement, then design reconnect semantics as a dedicated slice instead of mixing them into naming/docs cleanup.
 
 ### API / Contract Truthfulness
-### [P2_LATER] Add a new framing family only when a concrete device contract requires non-length-prefixed behavior
-- What remains: design and implement a dedicated protocol family for CRC, STX/ETX delimiters, or other non-length-prefixed framing only if a real device contract requires it.
-- Why deferred: the current runtime now enforces a truthful `LengthPrefixed` contract, and this slice intentionally removed inactive knobs instead of pretending those semantics already exist.
-- Objective: preserve honest runtime/configuration contracts while keeping a clear expansion path for future framing requirements.
-- Relevant context: `ProtocolOptions` now carries only `Type` and `MaxFrameLength`, `LengthPrefixedProtocol` now enforces that frame limit directly, and the root sample config no longer advertises `UseCrc`, `Stx`, or `Etx`.
-- Scope: `src/CommLib.Domain/Configuration/ProtocolOptions.cs`, `src/CommLib.Domain/Protocol/IProtocol.cs`, `src/CommLib.Infrastructure/Factories/ProtocolFactory.cs`, `src/CommLib.Infrastructure/Protocol`, focused tests, and any config/docs samples that would expose the new framing family.
-- Current status: no delimited or CRC-backed framing implementation exists in the runtime library.
-- Known blockers/open questions: the actual target frame contract, checksum semantics, delimiter escaping rules, and whether framing should stay payload-agnostic under the current serializer boundary.
-- Most natural next step: wait for a concrete device/protocol contract, then design the new framing family as its own dedicated slice instead of mixing it into runtime recovery work.
+### [P2_LATER] Extend `BinaryFrame` only when a concrete device contract needs more envelope shapes
+- What remains: decide whether `BinaryFrame` needs delimiter/STX-ETX framing, fixed-length payloads, escaping, message-specific header fields, alternate checksums, or checksum coverage beyond the first generic start/length/CRC slice.
+- Why deferred: the current user-requested slice added the smallest useful generic envelope without guessing at every industrial device framing variation.
+- Objective: preserve a truthful, extensible protocol boundary while avoiding a broad protocol DSL before a real device contract proves which envelope shapes matter.
+- Relevant context: `ProtocolOptions` now supports `ProtocolTypes.BinaryFrame`; `BinaryFrameProtocol` supports optional `StartHex`, 1/2/4-byte payload length prefixes, and optional CRC16/Modbus checksums over either the payload or frame-without-checksum. Payload bit/byte interpretation remains in `BitFieldPayloadSchema` and `RawHex`, not in `IProtocol`.
+- Scope: `src/CommLib.Domain/Configuration/BinaryFrameOptions.cs`, `src/CommLib.Infrastructure/Protocol/BinaryFrameProtocol.cs`, `src/CommLib.Infrastructure/Factories/ProtocolFactory.cs`, `src/CommLib.Application/Configuration/DeviceProfileValidator.cs`, protocol tests, and README/quick-start samples.
+- Current status: the first `BinaryFrame` envelope is implemented and tested, but it is not a full Modbus implementation and does not yet cover delimiter-only, escaped, fixed-length, or per-message envelope fields.
+- Known blockers/open questions: whether the next real target device uses delimiter framing, whether address/function code belongs in payload schema or a future message-layout layer, and which checksum algorithms are actually required.
+- Most natural next step: wait for one concrete device frame contract, then add the smallest missing envelope feature with encode/decode tests and config validation.
 
 ### Production Integration & Hosting
+### [P1_SOON] Resume the first production diagnostics slice after the span/minimal-copy protocol work
+- What remains: reuse the existing `IConnectionEventSink` seam to make connect/retry/failure/backpressure events easier to wire into production logging, likely through an `ILogger`-backed adapter or focused hosting guidance.
+- Why deferred: the user explicitly redirected the active protocol line toward a `Span` / minimal-copy data pipeline plan after the generic `BinaryFrame` slice.
+- Objective: reduce commercial deployment blind spots without redesigning transport, metrics, health checks, or reconnect behavior in the same slice.
+- Relevant context: `AddCommLibCore()` already resolves caller-registered services and recently preserved a caller pre-registered `IProtocolFactory`; the diagnostics slice should similarly reuse existing DI seams before adding new hosting surface.
+- Scope: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, existing `IConnectionEventSink` types, focused DI/hosting tests, and quick-start documentation.
+- Current status: this was the prior current work item, but it has not been implemented in the current local changes.
+- Known blockers/open questions: whether the smallest useful production diagnostic output is an `ILogger` adapter, documentation-only registration guidance, or a narrowly registered hosting helper.
+- Most natural next step: after the span/minimal-copy work is complete or paused, inspect the existing `IConnectionEventSink` call sites and add the smallest tested production-registration path.
+
 ### [P2_LATER] Decide the production integration surface for diagnostics, health, and secure network transport
 - What remains: decide whether the core library, the hosting package, or a future integration package should own structured logging, metrics, health checks, and TLS/certificate-aware transport options.
 - Why deferred: the current review established that these hooks are not first-class yet, but it did not establish the target deployment model strongly enough to justify widening the library immediately.
@@ -106,6 +116,8 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-05-20: added the simple byte-local generic bitfield extraction slice by introducing `BitFieldDefinition.FromByteBits(...)` and `BitFieldCodec.ReadUnsigned<T>` / `ReadSigned<T>` overloads; kept the implementation in the payload bitfield layer instead of moving bit semantics into `BinaryFrame`; documented the code-first extraction example in README and quick-start.
+- [x] 2026-05-19: completed the first generic binary protocol slice by adding `ProtocolTypes.BinaryFrame`, `BinaryFrameOptions`, and `BinaryFrameProtocol` for configurable start bytes, 1/2/4-byte payload length prefixes, and optional CRC16/Modbus checksums; kept bit-level byte management in the existing `BitFieldPayloadSchema` payload layer rather than moving payload semantics into `IProtocol`; preserved pre-registered `IProtocolFactory` as the C# protocol escape hatch; updated factory/validator/DI tests plus README/quick-start docs; verified focused BinaryFrame/factory tests, focused validator tests, focused DI escape-hatch test, full unit tests, full infrastructure tests, console Release build, and full solution Release build.
 - [x] 2026-05-18: completed the first commercial-readiness hardening slice by adding upfront TCP runtime-option validation for non-positive `ConnectTimeoutMs` and `BufferSize` in `DeviceProfileValidator`, covering both cases in `DeviceProfileValidatorTests`, and verifying with focused validator tests, full unit tests, full infrastructure tests, console Release build, full solution Release build, and a NuGet vulnerability audit that reported no vulnerable packages from the configured sources.
 - [x] 2026-05-18: completed the release-pipeline guardrail slice by adding CI restore-time NuGet audit warnings-as-errors, vulnerability audit visibility, and library-only package validation for `CommLib.Domain`, `CommLib.Application`, `CommLib.Infrastructure`, and `CommLib.Hosting`; intentionally avoided solution-level pack because it also creates example packages, and verified the selected restore/pack/audit commands locally.
 - [x] 2026-05-18: completed the WinUI theme cleanup slice by pruning dormant `DeviceLabTheme` templated-control style keys/helpers that were not consumed by the code-built views, simplifying `DeviceLabTheme.Get<T>()` so it no longer carries an unused `FrameworkElement owner` argument, updating the three view call sites, and verifying with a Release WinUI build.

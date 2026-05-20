@@ -592,3 +592,40 @@
   - `rg -n "BadgeBackgroundBrushKey|BadgeBorderStyleKey|PrimaryButtonStyleKey|SecondaryButtonStyleKey|TextInputStyleKey|ComboInputStyleKey|InlineToggleStyleKey|ActivityListStyleKey|CreateGradient|CreateBasedOnStyle|DeviceLabTheme\.Get<.*this" examples/CommLib.Examples.WinUI -S`
   - `dotnet build examples/CommLib.Examples.WinUI/CommLib.Examples.WinUI.csproj --configuration Release --no-restore`
 - Updated `CURRENT_PLAN.md`, `docs/current-plan.md`, and `TODOS.md` so the next promoted slice is the first production diagnostics pass over the existing `IConnectionEventSink` seam.
+
+## 2026-05-19
+
+- Completed the first generic binary protocol slice requested by the user:
+  - added `ProtocolTypes.BinaryFrame` alongside `LengthPrefixed`
+  - added `BinaryFrameOptions`, `BinaryFrameLengthPrefixOptions`, and `BinaryFrameChecksumOptions`
+  - added `BinaryFrameProtocol` with optional start bytes, 1/2/4-byte payload length prefixes, and optional CRC16/Modbus checksum validation
+  - kept bit-level field interpretation in `BitFieldPayloadSchema` / `BitFieldPayloadSchemaCodec` rather than moving payload semantics into `IProtocol`
+  - wired `ProtocolFactory` and `DeviceProfileValidator` to the new protocol type
+  - preserved a C# protocol escape hatch by letting a pre-registered `IProtocolFactory` survive `AddCommLibCore()`
+  - updated README and quick-start docs so the public contract no longer says framing is `LengthPrefixed` only
+- Verified the slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "BinaryFrameProtocolTests|ProtocolFactoryTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter "DeviceProfileValidatorTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter "ServiceCollectionExtensionsTests.AddCommLibCore_WithPreRegisteredProtocolFactory_PreservesCustomFactory"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+- Recorded the remaining protocol follow-up as deferred, not implicit:
+  - `BinaryFrame` is not a full Modbus stack
+  - delimiter-only, escaped, fixed-length, alternate checksum, and per-message envelope-field support should wait for a concrete device frame contract
+- Drafted the user-requested span/minimal-copy data pipeline implementation plan:
+  - saved `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md`
+  - scoped the next implementation around additive optional contracts for zero-copy protocol decode, receiver pending-buffer reuse, and outbound span writer fast paths
+  - preserved compatibility with existing custom `IProtocol` and `ISerializer` implementations as a planning constraint
+  - updated the current execution pointer so this plan supersedes the production diagnostics slice until the user redirects again
+- No build or test rerun was needed for the span/minimal-copy planning cycle because it only added a plan document and continuity updates.
+
+## 2026-05-20
+
+- Added the user-requested simple bit-level extraction convenience slice without expanding `BinaryFrame` responsibilities:
+  - added `BitFieldDefinition.FromByteBits(...)` for byte index plus inclusive start/end bit ranges
+  - added `BitFieldCodec.ReadUnsigned<T>` and `ReadSigned<T>` overloads for typed integral extraction
+  - reused the existing unsigned/signed bit reader internally instead of duplicating bit-walking logic
+  - documented the code-first byte/bit extraction example in README and quick-start
+- Kept schema-level `BitFieldPayloadField` unchanged to avoid adding a second config expression style before a real settings consumer requires it.
