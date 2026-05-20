@@ -39,6 +39,30 @@ public sealed class LengthPrefixedProtocolTests
     }
 
     [Fact]
+    public void FrameWriter_WithPayloadSlot_ReturnsBigEndianLengthPrefixedFrame()
+    {
+        var protocol = Assert.IsAssignableFrom<IFrameEncodingProtocol>(new LengthPrefixedProtocol());
+        var layout = protocol.CreateFrameLayout(payloadLength: 3);
+        var frame = new byte[layout.FrameLength];
+
+        protocol.WriteFramePrefix(frame, layout);
+        new byte[] { 0x10, 0x20, 0x30 }.CopyTo(frame.AsSpan(layout.PayloadOffset, layout.PayloadLength));
+        protocol.WriteFrameSuffix(frame, layout);
+
+        Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x03, 0x10, 0x20, 0x30 }, frame);
+    }
+
+    [Fact]
+    public void CreateFrameLayout_FrameLongerThanConfiguredMaximum_Throws()
+    {
+        var protocol = Assert.IsAssignableFrom<IFrameEncodingProtocol>(new LengthPrefixedProtocol(6));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => protocol.CreateFrameLayout(payloadLength: 3));
+
+        Assert.Equal("Frame length 7 exceeds the configured maximum of 6.", exception.Message);
+    }
+
+    [Fact]
     public void TryDecode_CompleteFrame_ReturnsPayloadAndConsumedLength()
     {
         var protocol = new LengthPrefixedProtocol();

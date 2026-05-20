@@ -8,7 +8,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 설정으로 start bytes, payload length prefix, checksum을 조합하는 범용 binary frame protocol입니다.
 /// </summary>
-public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol
+public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol, IFrameEncodingProtocol
 {
     private readonly byte[] _startBytes;
     private readonly int _lengthPrefixSizeBytes;
@@ -68,33 +68,61 @@ public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol
     /// <returns>전송 가능한 encoded frame입니다.</returns>
     public byte[] Encode(ReadOnlySpan<byte> payload)
     {
-        EnsurePayloadLengthFitsPrefix(payload.Length);
+        var layout = CreateFrameLayout(payload.Length);
+        var frame = new byte[layout.FrameLength];
+        WriteFramePrefix(frame, layout);
+        payload.CopyTo(frame.AsSpan(layout.PayloadOffset, layout.PayloadLength));
+        WriteFrameSuffix(frame, layout);
+        return frame;
+    }
 
-        var frameLength = checked(_startBytes.Length + _lengthPrefixSizeBytes + payload.Length + _checksumSizeBytes);
+    /// <summary>
+    /// BinaryFrame envelope의 전체 길이와 payload slot 위치를 계산합니다.
+    /// </summary>
+    /// <param name="payloadLength">payload byte 길이입니다.</param>
+    /// <returns>최종 frame layout입니다.</returns>
+    public ProtocolFrameLayout CreateFrameLayout(int payloadLength)
+    {
+        EnsurePayloadLengthFitsPrefix(payloadLength);
+
+        var frameLength = checked(_startBytes.Length + _lengthPrefixSizeBytes + payloadLength + _checksumSizeBytes);
         if (frameLength > _maxFrameLength)
         {
             throw new InvalidOperationException(
                 $"Frame length {frameLength} exceeds the configured maximum of {_maxFrameLength}.");
         }
 
-        var frame = new byte[frameLength];
-        var offset = 0;
-        _startBytes.CopyTo(frame.AsSpan(offset));
-        offset += _startBytes.Length;
+        return new ProtocolFrameLayout(frameLength, _startBytes.Length + _lengthPrefixSizeBytes, payloadLength);
+    }
 
-        WriteLengthPrefix(frame.AsSpan(offset, _lengthPrefixSizeBytes), payload.Length);
-        offset += _lengthPrefixSizeBytes;
+    /// <summary>
+    /// payload 앞에 start bytes와 payload length prefix를 씁니다.
+    /// </summary>
+    /// <param name="frame">최종 frame buffer입니다.</param>
+    /// <param name="layout">계산된 frame layout입니다.</param>
+    public void WriteFramePrefix(Span<byte> frame, ProtocolFrameLayout layout)
+    {
+        _startBytes.AsSpan().CopyTo(frame);
+        WriteLengthPrefix(frame.Slice(_startBytes.Length, _lengthPrefixSizeBytes), layout.PayloadLength);
+    }
 
-        payload.CopyTo(frame.AsSpan(offset));
-        offset += payload.Length;
-
-        if (_checksumSizeBytes > 0)
+    /// <summary>
+    /// checksum이 설정되어 있으면 payload 기록 이후 suffix 위치에 checksum을 씁니다.
+    /// </summary>
+    /// <param name="frame">최종 frame buffer입니다.</param>
+    /// <param name="layout">계산된 frame layout입니다.</param>
+    public void WriteFrameSuffix(Span<byte> frame, ProtocolFrameLayout layout)
+    {
+        if (_checksumSizeBytes == 0)
         {
-            var checksum = ComputeChecksum(GetChecksumCoverage(frame.AsSpan(0, offset), frame.AsSpan(_startBytes.Length + _lengthPrefixSizeBytes, payload.Length)));
-            WriteChecksum(frame.AsSpan(offset, _checksumSizeBytes), checksum);
+            return;
         }
 
-        return frame;
+        var checksumOffset = layout.PayloadOffset + layout.PayloadLength;
+        var frameWithoutChecksum = frame[..checksumOffset];
+        var payload = frame.Slice(layout.PayloadOffset, layout.PayloadLength);
+        var checksum = ComputeChecksum(GetChecksumCoverage(frameWithoutChecksum, payload));
+        WriteChecksum(frame.Slice(checksumOffset, _checksumSizeBytes), checksum);
     }
 
     /// <summary>
@@ -267,6 +295,11 @@ public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol
 
     private void EnsurePayloadLengthFitsPrefix(int payloadLength)
     {
+        if (payloadLength < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(payloadLength), payloadLength, "Payload length cannot be negative.");
+        }
+
         var maxPayloadLength = _lengthPrefixSizeBytes switch
         {
             1 => byte.MaxValue,

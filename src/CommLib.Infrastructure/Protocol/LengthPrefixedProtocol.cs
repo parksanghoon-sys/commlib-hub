@@ -6,7 +6,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 4바이트 big-endian 길이 prefix 프레임을 인코드하고 디코드합니다.
 /// </summary>
-public sealed class LengthPrefixedProtocol : IProtocol, IZeroCopyProtocol
+public sealed class LengthPrefixedProtocol : IProtocol, IZeroCopyProtocol, IFrameEncodingProtocol
 {
     private const int HeaderSize = 4;
     private readonly int _maxFrameLength;
@@ -51,17 +51,53 @@ public sealed class LengthPrefixedProtocol : IProtocol, IZeroCopyProtocol
     /// <returns>인코딩된 프레임입니다.</returns>
     public byte[] Encode(ReadOnlySpan<byte> payload)
     {
-        var frameLength = HeaderSize + payload.Length;
+        var layout = CreateFrameLayout(payload.Length);
+        var frame = new byte[layout.FrameLength];
+        WriteFramePrefix(frame, layout);
+        payload.CopyTo(frame.AsSpan(layout.PayloadOffset, layout.PayloadLength));
+        WriteFrameSuffix(frame, layout);
+        return frame;
+    }
+
+    /// <summary>
+    /// length prefix frame의 전체 길이와 payload가 들어갈 위치를 계산합니다.
+    /// </summary>
+    /// <param name="payloadLength">payload byte 길이입니다.</param>
+    /// <returns>최종 frame layout입니다.</returns>
+    public ProtocolFrameLayout CreateFrameLayout(int payloadLength)
+    {
+        if (payloadLength < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(payloadLength), payloadLength, "Payload length cannot be negative.");
+        }
+
+        var frameLength = checked(HeaderSize + payloadLength);
         if (frameLength > _maxFrameLength)
         {
             throw new InvalidOperationException(
                 $"Frame length {frameLength} exceeds the configured maximum of {_maxFrameLength}.");
         }
 
-        var frame = new byte[frameLength];
-        BinaryPrimitives.WriteInt32BigEndian(frame.AsSpan(0, HeaderSize), payload.Length);
-        payload.CopyTo(frame.AsSpan(HeaderSize));
-        return frame;
+        return new ProtocolFrameLayout(frameLength, HeaderSize, payloadLength);
+    }
+
+    /// <summary>
+    /// payload 앞에 4 byte big-endian length prefix를 씁니다.
+    /// </summary>
+    /// <param name="frame">최종 frame buffer입니다.</param>
+    /// <param name="layout">계산된 frame layout입니다.</param>
+    public void WriteFramePrefix(Span<byte> frame, ProtocolFrameLayout layout)
+    {
+        BinaryPrimitives.WriteInt32BigEndian(frame[..HeaderSize], layout.PayloadLength);
+    }
+
+    /// <summary>
+    /// length-prefixed frame은 suffix가 없으므로 아무 것도 기록하지 않습니다.
+    /// </summary>
+    /// <param name="frame">최종 frame buffer입니다.</param>
+    /// <param name="layout">계산된 frame layout입니다.</param>
+    public void WriteFrameSuffix(Span<byte> frame, ProtocolFrameLayout layout)
+    {
     }
 
     /// <summary>

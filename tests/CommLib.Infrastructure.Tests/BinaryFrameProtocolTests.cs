@@ -26,6 +26,22 @@ public sealed class BinaryFrameProtocolTests
     }
 
     [Fact]
+    public void FrameWriter_WithStartLengthAndCrc16Modbus_ReturnsConfiguredFrame()
+    {
+        var protocol = Assert.IsAssignableFrom<IFrameEncodingProtocol>(CreateProtocol());
+        var layout = protocol.CreateFrameLayout(payloadLength: 3);
+        var frame = new byte[layout.FrameLength];
+
+        protocol.WriteFramePrefix(frame, layout);
+        new byte[] { 0x10, 0x20, 0x30 }.CopyTo(frame.AsSpan(layout.PayloadOffset, layout.PayloadLength));
+        protocol.WriteFrameSuffix(frame, layout);
+
+        Assert.Equal(
+            new byte[] { 0xAA, 0x55, 0x00, 0x03, 0x10, 0x20, 0x30, 0x05, 0x5A },
+            frame);
+    }
+
+    [Fact]
     public void TryDecode_WithStartLengthAndCrc16Modbus_ReturnsPayloadAndConsumedLength()
     {
         var protocol = CreateProtocol();
