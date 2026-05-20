@@ -326,18 +326,39 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// 지정한 연결 상태를 기준으로 메시지를 직접 transport 송신 경로에 전달합니다.
+    /// </summary>
+    /// <param name="state">메시지를 보낼 현재 장치 연결 상태입니다.</param>
+    /// <param name="message">전송할 메시지입니다.</param>
+    /// <param name="cancellationToken">송신 취소 토큰입니다.</param>
+    /// <returns>transport 송신이 끝나면 완료되는 작업입니다.</returns>
     private async Task SendMessageAsync(
         DeviceConnectionState state,
         IMessage message,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(message);
+
+        // 1. 오래된 facade가 교체된 세션을 붙잡고 있을 수 있으므로 현재 연결 상태와 같은 인스턴스인지 확인합니다.
         ThrowIfConnectionStateInactive(state);
+
+        // 2. receive pump가 이미 실패한 연결이면 저장된 실패를 그대로 전파해 이후 송신을 막습니다.
         ThrowIfReceivePumpFailed(state);
 
+        // 3. 세션 outbound 큐를 경유하지 않고 조립된 sender로 즉시 frame encode와 transport send를 수행합니다.
         await state.Sender.SendAsync(message, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 공개 세션 facade의 요청/응답 송신 호출을 pending 등록과 실제 transport 송신으로 연결합니다.
+    /// </summary>
+    /// <typeparam name="TRequest">전송할 요청 메시지 형식입니다.</typeparam>
+    /// <typeparam name="TResponse">기다릴 응답 메시지 형식입니다.</typeparam>
+    /// <param name="state">요청을 보낼 현재 장치 연결 상태입니다.</param>
+    /// <param name="request">전송할 요청 메시지입니다.</param>
+    /// <param name="timeout">요청별 응답 timeout입니다.</param>
+    /// <returns>송신 완료와 응답 완료를 각각 관찰할 수 있는 결과입니다.</returns>
     private ISendResult<TResponse> SendRequestFromSession<TRequest, TResponse>(
         DeviceConnectionState state,
         TRequest request,
@@ -347,6 +368,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        // 1. pending 등록 전에 세션이 아직 활성인지 확인해 닫힌 세션에 요청을 남기지 않습니다.
         try
         {
             ThrowIfConnectionStateInactive(state);
@@ -357,6 +379,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             return CreateFailedSendResult<TResponse>(exception);
         }
 
+        // 2. transport 송신보다 먼저 pending을 등록해야 빠른 응답이 와도 receive pump가 놓치지 않습니다.
         if (!state.Session.TryRegisterPendingResponse<TRequest, TResponse>(
                 request,
                 timeout,
@@ -366,10 +389,17 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             return CreateFailedSendResult<TResponse>(failure!);
         }
 
+        // 3. 등록된 요청만 실제로 송신합니다. 송신 실패 시 SendRegisteredRequestAsync가 pending도 실패 처리합니다.
         var sendTask = SendRegisteredRequestAsync(state, request);
         return new SendResult<TResponse>(sendTask, responseTask);
     }
 
+    /// <summary>
+    /// 세션이 닫혔거나 pending 등록에 실패한 요청의 송신 결과를 일관된 실패 상태로 만듭니다.
+    /// </summary>
+    /// <typeparam name="TResponse">실패시킬 응답 메시지 형식입니다.</typeparam>
+    /// <param name="exception">송신 완료와 응답 완료 양쪽에 전달할 실패 원인입니다.</param>
+    /// <returns>송신 작업과 응답 작업이 모두 같은 예외로 실패한 결과입니다.</returns>
     private static ISendResult<TResponse> CreateFailedSendResult<TResponse>(Exception exception)
         where TResponse : IResponseMessage
     {
@@ -378,6 +408,13 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             Task.FromException<TResponse>(exception));
     }
 
+    /// <summary>
+    /// pending 등록이 끝난 요청을 transport로 보내고, 송신 실패 시 등록된 pending 요청도 실패 처리합니다.
+    /// </summary>
+    /// <typeparam name="TRequest">전송할 요청 메시지 형식입니다.</typeparam>
+    /// <param name="state">요청을 보낼 현재 장치 연결 상태입니다.</param>
+    /// <param name="request">이미 pending 목록에 등록된 요청 메시지입니다.</param>
+    /// <returns>transport 송신이 끝나면 완료되는 작업입니다.</returns>
     private async Task SendRegisteredRequestAsync<TRequest>(
         DeviceConnectionState state,
         TRequest request)
@@ -385,10 +422,12 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     {
         try
         {
+            // pending 등록이 끝난 요청만 실제 transport로 보냅니다.
             await SendMessageAsync(state, request, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
+            // 송신 실패 뒤 pending을 그대로 두면 호출자가 응답을 계속 기다릴 수 있으므로 즉시 실패 처리합니다.
             state.Session.TryFailPendingResponse(request.CorrelationId, exception);
             throw;
         }
@@ -482,24 +521,52 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
 
+    /// <summary>
+    /// 외부 호출자에게 노출되는 장치 세션 facade입니다.
+    /// </summary>
+    /// <remarks>
+    /// 실제 pending 응답 상태와 transport 송신은 <see cref="ConnectionManager"/>가 계속 소유합니다.
+    /// 이 facade는 내부 lifecycle 메서드나 queue를 숨기면서 기존 <see cref="IDeviceSession"/> 송신 사용성을 유지합니다.
+    /// </remarks>
     private sealed class ConnectedDeviceSession : IDeviceSession
     {
         private readonly ConnectionManager _owner;
         private readonly DeviceConnectionState _state;
 
+        /// <summary>
+        /// <see cref="ConnectedDeviceSession"/> 클래스의 새 인스턴스를 초기화합니다.
+        /// </summary>
+        /// <param name="owner">실제 송신과 pending 관리를 수행할 connection manager입니다.</param>
+        /// <param name="state">이 facade가 대표하는 장치 연결 상태입니다.</param>
         public ConnectedDeviceSession(ConnectionManager owner, DeviceConnectionState state)
         {
             _owner = owner;
             _state = state;
         }
 
+        /// <summary>
+        /// facade가 대표하는 장치 식별자를 가져옵니다.
+        /// </summary>
         public string DeviceId => _state.Session.DeviceId;
 
+        /// <summary>
+        /// 응답을 기다리지 않는 메시지를 manager의 직접 송신 경로로 전달합니다.
+        /// </summary>
+        /// <param name="message">전송할 메시지입니다.</param>
+        /// <returns>transport 송신이 끝나면 완료되는 송신 결과입니다.</returns>
         public ISendResult Send(IMessage message)
         {
             return new SendResult(_owner.SendMessageAsync(_state, message, CancellationToken.None));
         }
 
+        /// <summary>
+        /// 요청 메시지를 pending 응답 추적과 실제 transport 송신이 결합된 manager 경로로 전달합니다.
+        /// </summary>
+        /// <typeparam name="TRequest">전송할 요청 메시지 형식입니다.</typeparam>
+        /// <typeparam name="TResponse">기다릴 응답 메시지 형식입니다.</typeparam>
+        /// <param name="request">전송할 요청 메시지입니다.</param>
+        /// <param name="timeout">요청별 응답 timeout입니다.</param>
+        /// <returns>송신 완료와 응답 완료를 각각 관찰할 수 있는 결과입니다.</returns>
         public ISendResult<TResponse> Send<TRequest, TResponse>(
             TRequest request,
             TimeSpan? timeout = null)
@@ -543,6 +610,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 
         public DeviceSession Session { get; }
 
+        /// <summary>
+        /// 외부 호출자에게 반환되는 공개 세션 facade입니다.
+        /// </summary>
         public IDeviceSession PublicSession { get; set; } = default!;
 
         public TransportMessageSender Sender { get; }
@@ -618,8 +688,14 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         ExceptionDispatchInfo.Capture(state.ReceivePumpFailure).Throw();
     }
 
+    /// <summary>
+    /// facade가 참조하는 연결 상태가 현재 manager에 등록된 활성 상태인지 확인합니다.
+    /// </summary>
+    /// <param name="expectedState">facade 생성 시점에 연결되어 있던 상태입니다.</param>
+    /// <exception cref="InvalidOperationException">해당 상태가 이미 교체되었거나 제거된 경우 발생합니다.</exception>
     private void ThrowIfConnectionStateInactive(DeviceConnectionState expectedState)
     {
+        // facade가 만들어진 뒤 같은 device id가 재연결되면 이전 state로는 더 이상 송신하면 안 됩니다.
         var currentState = GetConnectionState(expectedState.Session.DeviceId);
         if (!ReferenceEquals(currentState, expectedState))
         {

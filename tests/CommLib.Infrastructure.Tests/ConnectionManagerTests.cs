@@ -196,34 +196,49 @@ public sealed class ConnectionManagerTests
     }
 
     [Fact]
+    /// <summary>
+    /// 공개 세션 계약이 외부 호출자에게 내부 lifecycle 조작 메서드를 노출하지 않는지 확인합니다.
+    /// </summary>
     public void IDeviceSession_PublicContractDoesNotExposeRuntimeLifecycleMethods()
     {
+        // 준비: reflection으로 public IDeviceSession 계약에 남아 있는 메서드 이름만 수집합니다.
         var publicMethodNames = typeof(IDeviceSession).GetMethods().Select(static method => method.Name).ToArray();
 
+        // 검증: 응답 완료, pending 실패, outbound dequeue는 manager 내부 runtime 책임이어야 합니다.
         Assert.DoesNotContain("TryCompleteResponse", publicMethodNames);
         Assert.DoesNotContain("FailPendingResponses", publicMethodNames);
         Assert.DoesNotContain("TryDequeueOutbound", publicMethodNames);
     }
 
     [Fact]
+    /// <summary>
+    /// 공개 세션 facade의 단방향 송신이 내부 큐에 메시지를 남기지 않고 즉시 transport 송신으로 이어지는지 확인합니다.
+    /// </summary>
     public async Task GetSession_Send_DoesNotLeaveOutboundMessageForNextManagerSend()
     {
+        // 준비: 실제 송신 frame을 관찰할 수 있는 fake transport와 manager를 구성합니다.
         var transportFactory = new FakeTransportFactory();
         var manager = CreateManager(transportFactory: transportFactory);
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
         var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
 
+        // 실행: public session send를 먼저 호출한 뒤 manager 직접 send를 이어서 호출합니다.
         await session.Send(new FakeMessage(1)).SendCompletedTask;
         await manager.SendAsync(profile.DeviceId, new FakeMessage(2));
 
+        // 검증: 첫 메시지가 내부 큐에 남아 두 번째 송신을 오염시키지 않고, 두 번 모두 실제 transport까지 전송됩니다.
         Assert.Equal(2, transportFactory.Transport.SendCount);
         Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'2' }, transportFactory.Transport.LastFrame);
     }
 
     [Fact]
+    /// <summary>
+    /// 공개 세션 facade의 요청/응답 송신이 pending 등록, 실제 송신, receive pump 응답 완료까지 연결되는지 확인합니다.
+    /// </summary>
     public async Task GetSession_RequestResponseSend_SendsRequestThroughTransportAndCompletesResponse()
     {
+        // 준비: 응답 serializer가 고정 correlation id 응답을 복원하도록 manager를 구성합니다.
         var transportFactory = new FakeTransportFactory();
         var manager = CreateManager(
             transportFactory: transportFactory,
@@ -237,26 +252,34 @@ public sealed class ConnectionManagerTests
         await manager.ConnectAsync(profile);
         var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
 
+        // 실행: 요청을 facade로 보내고, 같은 correlation id를 가진 응답 frame을 receive pump에 주입합니다.
         var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
         await result.SendCompletedTask.WaitAsync(TimeSpan.FromSeconds(1));
         transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' });
         var response = await result.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1));
 
+        // 검증: 요청은 transport로 실제 송신되었고, 응답 task는 주입한 응답으로 완료됩니다.
         Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' }, transportFactory.Transport.LastFrame);
         Assert.Equal(1, transportFactory.Transport.SendCount);
         Assert.Equal(request.CorrelationId, response.CorrelationId);
     }
 
     [Fact]
+    /// <summary>
+    /// GetSession이 내부 DeviceSession 인스턴스가 아니라 공개 facade만 반환하는지 확인합니다.
+    /// </summary>
     public async Task GetSession_ConnectedDevice_ReturnsPublicSessionFacade()
     {
+        // 준비: 장치를 연결해 manager 내부에 실제 DeviceSession과 공개 facade가 모두 생성되게 합니다.
         var manager = CreateManager();
         var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
 
+        // 실행: 외부 공개 API인 GetSession으로 세션을 조회합니다.
         var session = manager.GetSession(profile.DeviceId);
 
+        // 검증: 외부에는 장치 식별자와 송신 계약만 보이는 facade가 반환됩니다.
         Assert.NotNull(session);
         Assert.Equal(profile.DeviceId, session.DeviceId);
         Assert.IsNotType<CommLib.Application.Sessions.DeviceSession>(session);
