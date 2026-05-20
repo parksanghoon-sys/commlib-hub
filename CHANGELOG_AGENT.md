@@ -629,3 +629,15 @@
   - reused the existing unsigned/signed bit reader internally instead of duplicating bit-walking logic
   - documented the code-first byte/bit extraction example in README and quick-start
 - Kept schema-level `BitFieldPayloadField` unchanged to avoid adding a second config expression style before a real settings consumer requires it.
+- Implemented the highest-priority findings from `DESIGN_REVIEW.md`:
+  - removed runtime lifecycle operations from the public `IDeviceSession` contract
+  - changed `ConnectionManager.GetSession()` to return a public send facade instead of the mutable runtime `DeviceSession`
+  - removed the `DeviceSession` outbound queue and the `SendFromSessionAsync` queue round-trip
+  - made `ConnectionManager.SendAsync(...)` send directly through `TransportMessageSender`
+  - kept `DeviceSession` focused on pending request/response registration, completion, timeout, and failure
+- Verified the session-boundary cleanup with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "IDeviceSession_PublicContractDoesNotExposeRuntimeLifecycleMethods|GetSession_Send_DoesNotLeaveOutboundMessageForNextManagerSend|GetSession_RequestResponseSend_SendsRequestThroughTransportAndCompletesResponse"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceSessionTests`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`

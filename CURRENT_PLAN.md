@@ -40,6 +40,11 @@ Continue commercial-readiness hardening from the current repository state while 
   - `BitFieldDefinition.FromByteBits(...)` centralizes byte-local bit range conversion into `BitOffset` / `BitLength`
   - `BitFieldCodec.ReadUnsigned<T>(...)` and `ReadSigned<T>(...)` provide typed integral extraction while reusing the existing unsigned/signed bit reader
   - `BinaryFrameProtocol` remains a frame-envelope layer; bit-level interpretation stays in payload helpers
+- The user asked to implement the highest-priority `DESIGN_REVIEW.md` findings:
+  - `IDeviceSession` now exposes only the public send-oriented session contract.
+  - `ConnectionManager.GetSession()` returns a public session facade instead of the mutable runtime `DeviceSession`.
+  - `ConnectionManager.SendAsync(...)` sends directly through `TransportMessageSender`; the old session outbound queue hop was removed.
+  - `DeviceSession` is now a request/response pending tracker, not a transport send queue.
 - Verification for this slice passed with:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
@@ -60,10 +65,16 @@ Continue commercial-readiness hardening from the current repository state while 
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
   - `dotnet build examples/CommLib.Examples.Console/CommLib.Examples.Console.csproj --configuration Release --no-restore`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+- Verification for the session API/outbound-queue cleanup passed with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "IDeviceSession_PublicContractDoesNotExposeRuntimeLifecycleMethods|GetSession_Send_DoesNotLeaveOutboundMessageForNextManagerSend|GetSession_RequestResponseSend_SendsRequestThroughTransportAndCompletesResponse"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceSessionTests`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
 - NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
 ## Next Work Unit
-1. Continue `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` only after the user confirms the next span/minimal-copy pipeline slice; the byte-local generic bitfield extraction slice is now the most recent protocol work.
+1. Continue `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` only after the user confirms the next span/minimal-copy pipeline slice; the session API/outbound-queue cleanup is now the most recent runtime design-review implementation.
 
 ## Next Slice Design
 1. Keep the next slice observability-focused and opt-in; do not redesign transport or reconnect behavior at the same time.
@@ -72,6 +83,7 @@ Continue commercial-readiness hardening from the current repository state while 
 4. Keep TLS, health checks, metrics, and auto-reconnect as separate production-integration decisions unless the diagnostics slice exposes a direct dependency.
 5. If continuing protocol work, extend `BinaryFrame` only from concrete device requirements; do not turn payload bit schemas into frame protocol state.
 6. For the span/minimal-copy pipeline, prefer additive opt-in interfaces and built-in fast paths over breaking existing custom protocol/serializer implementations.
+7. Do not reintroduce a session outbound queue unless a real asynchronous producer/consumer use case appears; direct transport send is now the runtime path.
 
 ## Stop / Reassess Conditions
 - If adding logging requires a package-boundary or public-API decision beyond a small adapter, stop and record the decision point instead of guessing.
