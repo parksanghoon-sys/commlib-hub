@@ -100,6 +100,9 @@ public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol, IFrameEn
     /// </summary>
     /// <param name="frame">최종 frame buffer입니다.</param>
     /// <param name="layout">계산된 frame layout입니다.</param>
+    /// <remarks>
+    /// 이 메서드는 payload 복사 또는 span serializer 기록보다 먼저 호출되어야 합니다.
+    /// </remarks>
     public void WriteFramePrefix(Span<byte> frame, ProtocolFrameLayout layout)
     {
         _startBytes.AsSpan().CopyTo(frame);
@@ -111,6 +114,9 @@ public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol, IFrameEn
     /// </summary>
     /// <param name="frame">최종 frame buffer입니다.</param>
     /// <param name="layout">계산된 frame layout입니다.</param>
+    /// <remarks>
+    /// CRC16/Modbus checksum은 payload 값을 읽을 수 있으므로 payload 기록이 끝난 뒤 호출해야 합니다.
+    /// </remarks>
     public void WriteFrameSuffix(Span<byte> frame, ProtocolFrameLayout layout)
     {
         if (_checksumSizeBytes == 0)

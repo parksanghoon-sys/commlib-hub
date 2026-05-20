@@ -665,3 +665,12 @@
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `rg -n "public interface IZeroCopyProtocol|public interface IFrameEncodingProtocol|public interface ISpanSerializer|public readonly record struct ProtocolDecodeResult|public readonly record struct ProtocolFrameLayout" src/CommLib.Domain -S`
   - `git diff --check`
+- Completed the actionable `SPAN_PIPELINE_REVIEW.md` follow-up:
+  - added `MessageFrameEncoderTests` coverage for fallback when only `ISpanSerializer` or only `IFrameEncodingProtocol` is available
+  - removed the dead `ProtocolFactory` `BinaryFrame` null-coalescing branch on the normal options path
+  - clarified the public frame writer order contract and the byte-local scope of `BitFieldDefinition.FromByteBits(...)`
+- Verified the follow-up with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "MessageFrameEncoderTests|ProtocolFactoryTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter BitFieldCodecTests`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `git diff --check`

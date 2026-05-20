@@ -14,6 +14,10 @@ public sealed record BitFieldDefinition
     /// <param name="endBit">The inclusive end bit in the byte. Bit 7 is the MSB.</param>
     /// <param name="endianness">The byte order used when a field spans multiple whole bytes.</param>
     /// <returns>A validated <see cref="BitFieldDefinition"/> instance.</returns>
+    /// <remarks>
+    /// 이 helper는 단일 byte 내부의 bit 범위만 표현합니다. byte 경계를 넘는 필드는
+    /// <see cref="BitFieldDefinition(string, int, int, BitFieldEndianness)"/> 생성자로 bit offset과 length를 직접 지정합니다.
+    /// </remarks>
     public static BitFieldDefinition FromByteBits(
         string name,
         int byteIndex,

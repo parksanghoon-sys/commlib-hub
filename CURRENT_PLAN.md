@@ -12,7 +12,7 @@ Continue commercial-readiness hardening from the current repository state while 
 - The current checkout is `codex/span-minimal-copy-pipeline`, with local commits not yet pushed to `commlib-hub/main` and pre-existing dirty/untracked work still present:
   - `.gitignore`
   - `DESIGN_REVIEW.md`
-  - `VERIFICATION_REPORT.md`
+  - `SPAN_PIPELINE_REVIEW.md`
   - `docs/superpowers/plans/2026-05-08-reconnect-types-constants.md`
   - `todo.md`
 - The 2026-05-18 commercial-readiness review found that CommLib is suitable for controlled/internal pilot usage, but not yet a full external production-grade commercial release without more release governance, security, observability, and recovery-policy hardening.
@@ -86,6 +86,15 @@ Continue commercial-readiness hardening from the current repository state while 
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `rg -n "public interface IZeroCopyProtocol|public interface IFrameEncodingProtocol|public interface ISpanSerializer|public readonly record struct ProtocolDecodeResult|public readonly record struct ProtocolFrameLayout" src/CommLib.Domain -S`
+  - `git diff --check`
+- The `SPAN_PIPELINE_REVIEW.md` follow-up slice is complete:
+  - `MessageFrameEncoderTests` now covers partial fast-path fallback when only serializer or only protocol supports the span writer contract.
+  - `ProtocolFactory` no longer carries the dead `BinaryFrame` null-coalescing branch on the normal non-null options path.
+  - `IFrameEncodingProtocol`, `BinaryFrameProtocol`, and `BitFieldDefinition.FromByteBits(...)` now document the ordering and byte-local constraints more explicitly.
+- Verification for the span review follow-up passed with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "MessageFrameEncoderTests|ProtocolFactoryTests"`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter BitFieldCodecTests`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `git diff --check`
 - NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
