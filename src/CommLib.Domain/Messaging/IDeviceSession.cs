@@ -1,53 +1,33 @@
 namespace CommLib.Domain.Messaging;
 
 /// <summary>
-/// 단일 장치에 대한 논리적 메시지 세션을 정의합니다.
+/// Defines the public message-sending surface for a connected device session.
 /// </summary>
 public interface IDeviceSession
 {
     /// <summary>
-    /// 세션과 연결된 장치 식별자를 가져옵니다.
+    /// Gets the connected device identifier.
     /// </summary>
     string DeviceId { get; }
 
     /// <summary>
-    /// 응답을 기다리지 않는 메시지를 송신 대기열에 넣습니다.
+    /// Sends a message that does not wait for a correlated response.
     /// </summary>
-    /// <param name="message">전송할 송신 메시지입니다.</param>
-    /// <returns>메시지가 전송 대상으로 수락되면 완료되는 결과입니다.</returns>
+    /// <param name="message">The outbound message.</param>
+    /// <returns>A send result that completes when the transport send finishes.</returns>
     ISendResult Send(IMessage message);
 
     /// <summary>
-    /// 요청 메시지를 대기열에 넣고 전송 완료와 응답 완료를 위한 핸들을 반환합니다.
+    /// Sends a request message and tracks the correlated response.
     /// </summary>
-    /// <typeparam name="TRequest">구체적인 요청 메시지 형식입니다.</typeparam>
-    /// <typeparam name="TResponse">기대하는 응답 메시지 형식입니다.</typeparam>
-    /// <param name="request">전송할 요청 메시지입니다.</param>
-    /// <param name="timeout">선택적인 응답 대기 시간 재정의 값입니다.</param>
-    /// <returns>전송 완료와 최종 응답을 모두 기다릴 수 있는 결과입니다.</returns>
+    /// <typeparam name="TRequest">The concrete request message type.</typeparam>
+    /// <typeparam name="TResponse">The expected response message type.</typeparam>
+    /// <param name="request">The outbound request message.</param>
+    /// <param name="timeout">An optional response timeout.</param>
+    /// <returns>A send result that exposes both send completion and response completion.</returns>
     ISendResult<TResponse> Send<TRequest, TResponse>(
         TRequest request,
         TimeSpan? timeout = null)
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage;
-
-    /// <summary>
-    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
-    /// </summary>
-    /// <param name="response">완료 처리할 응답 메시지입니다.</param>
-    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
-    bool TryCompleteResponse(IResponseMessage response);
-
-    /// <summary>
-    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
-    /// </summary>
-    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
-    void FailPendingResponses(Exception exception);
-
-    /// <summary>
-    /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.
-    /// </summary>
-    /// <param name="message">꺼낸 outbound 메시지입니다.</param>
-    /// <returns>꺼낼 메시지가 있으면 <see langword="true"/>이고, 없으면 <see langword="false"/>입니다.</returns>
-    bool TryDequeueOutbound(out IMessage? message);
 }

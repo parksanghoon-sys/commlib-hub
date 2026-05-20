@@ -1,25 +1,23 @@
-using System.Threading.Channels;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
 
 namespace CommLib.Application.Sessions;
 
 /// <summary>
-/// 단일 장치와의 송신/응답 대기를 추적하는 인메모리 세션입니다.
+/// Tracks correlated request/response state for a single connected device.
 /// </summary>
-public sealed class DeviceSession : IDeviceSession
+public sealed class DeviceSession
 {
-    private readonly Channel<IMessage> _outbound = Channel.CreateBounded<IMessage>(64);
     private readonly Dictionary<Guid, PendingResponseEntry> _pendingResponses = new();
     private readonly object _syncRoot = new();
     private readonly int _maxPendingRequests;
     private readonly TimeSpan? _defaultResponseTimeout;
 
     /// <summary>
-    /// <see cref="DeviceSession"/> 클래스의 새 인스턴스를 초기화합니다.
+    /// Initializes a new instance of the <see cref="DeviceSession"/> class.
     /// </summary>
-    /// <param name="deviceId">세션과 연결된 장치 식별자입니다.</param>
-    /// <param name="requestResponse">요청-응답 추적 제한과 기본 timeout 설정입니다.</param>
+    /// <param name="deviceId">The connected device identifier.</param>
+    /// <param name="requestResponse">Request/response tracking limits and defaults.</param>
     public DeviceSession(string deviceId, RequestResponseOptions? requestResponse = null)
     {
         var options = requestResponse ?? new RequestResponseOptions();
@@ -36,12 +34,12 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
-    /// 세션과 연결된 장치 식별자를 가져옵니다.
+    /// Gets the connected device identifier.
     /// </summary>
     public string DeviceId { get; }
 
     /// <summary>
-    /// 현재 응답을 기다리는 요청 수를 가져옵니다.
+    /// Gets the number of requests currently waiting for a response.
     /// </summary>
     public int PendingRequestCount
     {
@@ -55,61 +53,68 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
-    /// 일반 메시지를 송신 큐에 추가합니다.
+    /// Registers a request before it is sent so a later correlated response can complete it.
     /// </summary>
-    /// <param name="message">큐에 추가할 메시지입니다.</param>
-    /// <returns>큐 등록 성공 여부를 나타내는 결과입니다.</returns>
-    public ISendResult Send(IMessage message)
-    {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (_outbound.Writer.TryWrite(message))
-        {
-            tcs.TrySetResult();
-        }
-        else
-        {
-            tcs.TrySetException(new InvalidOperationException("Outbound queue is full."));
-        }
-
-        return new SendResult(tcs.Task);
-    }
-
-    /// <summary>
-    /// 요청 메시지를 송신 큐에 추가하고 응답 완료를 추적합니다.
-    /// </summary>
-    /// <typeparam name="TRequest">요청 메시지 형식입니다.</typeparam>
-    /// <typeparam name="TResponse">기대하는 응답 메시지 형식입니다.</typeparam>
-    /// <param name="request">큐에 추가할 요청 메시지입니다.</param>
-    /// <param name="timeout">선택적 응답 대기 시간입니다.</param>
-    /// <returns>송신 완료와 응답 완료를 함께 추적하는 결과입니다.</returns>
-    public ISendResult<TResponse> Send<TRequest, TResponse>(TRequest request, TimeSpan? timeout = null)
+    /// <typeparam name="TRequest">The concrete request message type.</typeparam>
+    /// <typeparam name="TResponse">The expected response message type.</typeparam>
+    /// <param name="request">The request to track.</param>
+    /// <param name="timeout">An optional response timeout.</param>
+    /// <param name="responseTask">The response task when registration succeeds, or a failed task when it fails.</param>
+    /// <param name="failure">The registration failure, if any.</param>
+    /// <returns><see langword="true"/> when the request was registered.</returns>
+    public bool TryRegisterPendingResponse<TRequest, TResponse>(
+        TRequest request,
+        TimeSpan? timeout,
+        out Task<TResponse> responseTask,
+        out Exception? failure)
         where TRequest : IRequestMessage
         where TResponse : IResponseMessage
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var pendingEntry = new PendingResponseEntry<TResponse>();
-        var sendCompletedTask = SendRequest(request, pendingEntry, timeout);
-        return new SendResult<TResponse>(sendCompletedTask, pendingEntry.ResponseTask);
+        var responseTimeout = timeout ?? _defaultResponseTimeout;
+
+        lock (_syncRoot)
+        {
+            if (_pendingResponses.Count >= _maxPendingRequests)
+            {
+                failure = new InvalidOperationException("Pending request limit has been reached.");
+                responseTask = Task.FromException<TResponse>(failure);
+                return false;
+            }
+
+            if (_pendingResponses.ContainsKey(request.CorrelationId))
+            {
+                failure = new InvalidOperationException($"Pending request '{request.CorrelationId}' is already registered.");
+                responseTask = Task.FromException<TResponse>(failure);
+                return false;
+            }
+
+            _pendingResponses.Add(request.CorrelationId, pendingEntry);
+        }
+
+        if (responseTimeout is { } effectiveResponseTimeout && effectiveResponseTimeout > TimeSpan.Zero)
+        {
+            var cancellationToken = pendingEntry.RegisterTimeout();
+            _ = HandleTimeoutAsync(request.CorrelationId, effectiveResponseTimeout, pendingEntry, cancellationToken);
+        }
+
+        responseTask = pendingEntry.ResponseTask;
+        failure = null;
+        return true;
     }
 
     /// <summary>
-    /// 송신 대기열에서 다음 outbound 메시지를 꺼냅니다.
+    /// Completes the pending request matching the response correlation id.
     /// </summary>
-    /// <param name="message">꺼낸 outbound 메시지입니다.</param>
-    /// <returns>꺼낼 메시지가 있으면 <see langword="true"/>이고, 없으면 <see langword="false"/>입니다.</returns>
-    public bool TryDequeueOutbound(out IMessage? message)
-    {
-        return _outbound.Reader.TryRead(out message);
-    }
-
-    /// <summary>
-    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
-    /// </summary>
-    /// <typeparam name="TResponse">완료할 응답 형식입니다.</typeparam>
-    /// <param name="response">완료할 응답 메시지입니다.</param>
-    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    /// <typeparam name="TResponse">The concrete response type.</typeparam>
+    /// <param name="response">The response to complete.</param>
+    /// <returns><see langword="true"/> when a matching pending request was completed.</returns>
     public bool TryCompleteResponse<TResponse>(TResponse response)
         where TResponse : IResponseMessage
     {
+        ArgumentNullException.ThrowIfNull(response);
         PendingResponseEntry<TResponse>? pendingEntry;
 
         lock (_syncRoot)
@@ -128,12 +133,13 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
-    /// 수신된 응답을 대기 중인 요청과 연결해 완료 처리합니다.
+    /// Completes the pending request matching the response correlation id.
     /// </summary>
-    /// <param name="response">완료 처리할 응답 메시지입니다.</param>
-    /// <returns>대기 중인 요청을 찾아 완료했으면 <see langword="true"/>이고, 아니면 <see langword="false"/>입니다.</returns>
+    /// <param name="response">The response to complete.</param>
+    /// <returns><see langword="true"/> when a matching pending request was completed.</returns>
     public bool TryCompleteResponse(IResponseMessage response)
     {
+        ArgumentNullException.ThrowIfNull(response);
         PendingResponseEntry? pendingEntry;
 
         lock (_syncRoot)
@@ -151,9 +157,34 @@ public sealed class DeviceSession : IDeviceSession
     }
 
     /// <summary>
-    /// 세션 실패 등으로 더 이상 응답을 기다릴 수 없을 때 모든 pending 요청을 실패 처리합니다.
+    /// Fails one pending request if it is still waiting for a response.
     /// </summary>
-    /// <param name="exception">각 pending 응답 작업에 전달할 예외입니다.</param>
+    /// <param name="correlationId">The pending request correlation id.</param>
+    /// <param name="exception">The failure to deliver to the response task.</param>
+    /// <returns><see langword="true"/> when a pending request was failed.</returns>
+    public bool TryFailPendingResponse(Guid correlationId, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        PendingResponseEntry? pendingEntry;
+
+        lock (_syncRoot)
+        {
+            if (!_pendingResponses.TryGetValue(correlationId, out pendingEntry))
+            {
+                return false;
+            }
+
+            _pendingResponses.Remove(correlationId);
+        }
+
+        pendingEntry.Fail(exception);
+        return true;
+    }
+
+    /// <summary>
+    /// Fails every pending response when the owning connection stops.
+    /// </summary>
+    /// <param name="exception">The failure to deliver to each response task.</param>
     public void FailPendingResponses(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
@@ -175,43 +206,6 @@ public sealed class DeviceSession : IDeviceSession
         {
             pending.Fail(exception);
         }
-    }
-
-    private Task SendRequest<TRequest, TResponse>(
-        TRequest request,
-        PendingResponseEntry<TResponse> pendingEntry,
-        TimeSpan? timeout)
-        where TRequest : IRequestMessage
-        where TResponse : IResponseMessage
-    {
-        var responseTimeout = timeout ?? _defaultResponseTimeout;
-
-        lock (_syncRoot)
-        {
-            if (_pendingResponses.Count >= _maxPendingRequests)
-            {
-                var exception = new InvalidOperationException("Pending request limit has been reached.");
-                pendingEntry.Fail(exception);
-                return Task.FromException(exception);
-            }
-
-            if (!_outbound.Writer.TryWrite(request))
-            {
-                var exception = new InvalidOperationException("Outbound queue is full.");
-                pendingEntry.Fail(exception);
-                return Task.FromException(exception);
-            }
-
-            _pendingResponses[request.CorrelationId] = pendingEntry;
-        }
-
-        if (responseTimeout is { } effectiveResponseTimeout && effectiveResponseTimeout > TimeSpan.Zero)
-        {
-            var cancellationToken = pendingEntry.RegisterTimeout();
-            _ = HandleTimeoutAsync(request.CorrelationId, effectiveResponseTimeout, pendingEntry, cancellationToken);
-        }
-
-        return Task.CompletedTask;
     }
 
     private async Task HandleTimeoutAsync<TResponse>(

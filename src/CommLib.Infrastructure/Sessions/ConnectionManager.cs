@@ -137,6 +137,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
                 transport,
                 inboundQueue,
                 receivePumpTokenSource);
+            newState.PublicSession = new ConnectedDeviceSession(this, newState);
             existingState = GetConnectionState(profile.DeviceId);
 
             if (existingState is not null)
@@ -210,8 +211,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     public Task SendAsync(string deviceId, IMessage message, CancellationToken cancellationToken = default)
     {
         var state = GetRequiredConnectionState(deviceId);
-        ThrowIfReceivePumpFailed(state);
-        return SendFromSessionAsync(state, message, cancellationToken);
+        return SendMessageAsync(state, message, cancellationToken);
     }
 
     /// <summary>
@@ -253,7 +253,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         var state = GetConnectionState(deviceId);
         return state is null || state.ReceivePumpFailure is not null
             ? null
-            : state.Session;
+            : state.PublicSession;
     }
 
     /// <summary>
@@ -326,22 +326,72 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         return true;
     }
 
-    private static async Task SendFromSessionAsync(
+    private async Task SendMessageAsync(
         DeviceConnectionState state,
         IMessage message,
         CancellationToken cancellationToken)
     {
-        var session = state.Session;
-        var result = session.Send(message);
-        await result.SendCompletedTask.ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(message);
+        ThrowIfConnectionStateInactive(state);
+        ThrowIfReceivePumpFailed(state);
 
-        if (!session.TryDequeueOutbound(out var outbound) || outbound is null)
+        await state.Sender.SendAsync(message, cancellationToken).ConfigureAwait(false);
+    }
+
+    private ISendResult<TResponse> SendRequestFromSession<TRequest, TResponse>(
+        DeviceConnectionState state,
+        TRequest request,
+        TimeSpan? timeout)
+        where TRequest : IRequestMessage
+        where TResponse : IResponseMessage
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        try
         {
-            throw new InvalidOperationException($"Session '{session.DeviceId}' did not expose an outbound message.");
+            ThrowIfConnectionStateInactive(state);
+            ThrowIfReceivePumpFailed(state);
+        }
+        catch (Exception exception)
+        {
+            return CreateFailedSendResult<TResponse>(exception);
         }
 
-        ThrowIfReceivePumpFailed(state);
-        await state.Sender.SendAsync(outbound, cancellationToken).ConfigureAwait(false);
+        if (!state.Session.TryRegisterPendingResponse<TRequest, TResponse>(
+                request,
+                timeout,
+                out var responseTask,
+                out var failure))
+        {
+            return CreateFailedSendResult<TResponse>(failure!);
+        }
+
+        var sendTask = SendRegisteredRequestAsync(state, request);
+        return new SendResult<TResponse>(sendTask, responseTask);
+    }
+
+    private static ISendResult<TResponse> CreateFailedSendResult<TResponse>(Exception exception)
+        where TResponse : IResponseMessage
+    {
+        return new SendResult<TResponse>(
+            Task.FromException(exception),
+            Task.FromException<TResponse>(exception));
+    }
+
+    private async Task SendRegisteredRequestAsync<TRequest>(
+        DeviceConnectionState state,
+        TRequest request)
+        where TRequest : IRequestMessage
+    {
+        try
+        {
+            await SendMessageAsync(state, request, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            state.Session.TryFailPendingResponse(request.CorrelationId, exception);
+            throw;
+        }
     }
 
     private async Task RunReceivePumpAsync(
@@ -432,6 +482,34 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
 
     private sealed record InboundEnvelope(IMessage? Message, Exception? Exception);
 
+    private sealed class ConnectedDeviceSession : IDeviceSession
+    {
+        private readonly ConnectionManager _owner;
+        private readonly DeviceConnectionState _state;
+
+        public ConnectedDeviceSession(ConnectionManager owner, DeviceConnectionState state)
+        {
+            _owner = owner;
+            _state = state;
+        }
+
+        public string DeviceId => _state.Session.DeviceId;
+
+        public ISendResult Send(IMessage message)
+        {
+            return new SendResult(_owner.SendMessageAsync(_state, message, CancellationToken.None));
+        }
+
+        public ISendResult<TResponse> Send<TRequest, TResponse>(
+            TRequest request,
+            TimeSpan? timeout = null)
+            where TRequest : IRequestMessage
+            where TResponse : IResponseMessage
+        {
+            return _owner.SendRequestFromSession<TRequest, TResponse>(_state, request, timeout);
+        }
+    }
+
     private Channel<InboundEnvelope> CreateInboundQueue()
     {
         var options = new BoundedChannelOptions(_inboundQueueCapacity)
@@ -448,7 +526,7 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
     private sealed class DeviceConnectionState
     {
         public DeviceConnectionState(
-            IDeviceSession session,
+            DeviceSession session,
             TransportMessageSender sender,
             TransportMessageReceiver receiver,
             ITransport transport,
@@ -463,7 +541,9 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
             ReceivePumpTokenSource = receivePumpTokenSource;
         }
 
-        public IDeviceSession Session { get; }
+        public DeviceSession Session { get; }
+
+        public IDeviceSession PublicSession { get; set; } = default!;
 
         public TransportMessageSender Sender { get; }
 
@@ -536,6 +616,15 @@ public sealed class ConnectionManager : IConnectionManager, IAsyncDisposable
         }
 
         ExceptionDispatchInfo.Capture(state.ReceivePumpFailure).Throw();
+    }
+
+    private void ThrowIfConnectionStateInactive(DeviceConnectionState expectedState)
+    {
+        var currentState = GetConnectionState(expectedState.Session.DeviceId);
+        if (!ReferenceEquals(currentState, expectedState))
+        {
+            throw new InvalidOperationException($"Session '{expectedState.Session.DeviceId}' is no longer active.");
+        }
     }
 
     private static void StopConnectionState(DeviceConnectionState state)

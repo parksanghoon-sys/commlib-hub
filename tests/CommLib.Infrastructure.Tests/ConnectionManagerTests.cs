@@ -195,23 +195,71 @@ public sealed class ConnectionManagerTests
         Assert.Equal(1, transportFactory.Transport.SendCount);
     }
 
-    /// <summary>
-    /// 연결 후 송신하면 세션 outbound 큐가 비워진 상태로 유지되는지 확인합니다.
-    /// </summary>
     [Fact]
-    /// <summary>
-    /// SendAsync_ConnectedDevice_DrainsSessionOutboundQueue 작업을 수행합니다.
-    /// </summary>
-    public async Task SendAsync_ConnectedDevice_DrainsSessionOutboundQueue()
+    public void IDeviceSession_PublicContractDoesNotExposeRuntimeLifecycleMethods()
+    {
+        var publicMethodNames = typeof(IDeviceSession).GetMethods().Select(static method => method.Name).ToArray();
+
+        Assert.DoesNotContain("TryCompleteResponse", publicMethodNames);
+        Assert.DoesNotContain("FailPendingResponses", publicMethodNames);
+        Assert.DoesNotContain("TryDequeueOutbound", publicMethodNames);
+    }
+
+    [Fact]
+    public async Task GetSession_Send_DoesNotLeaveOutboundMessageForNextManagerSend()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(transportFactory: transportFactory);
+        var profile = CreateTcpProfile();
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
+
+        await session.Send(new FakeMessage(1)).SendCompletedTask;
+        await manager.SendAsync(profile.DeviceId, new FakeMessage(2));
+
+        Assert.Equal(2, transportFactory.Transport.SendCount);
+        Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'2' }, transportFactory.Transport.LastFrame);
+    }
+
+    [Fact]
+    public async Task GetSession_RequestResponseSend_SendsRequestThroughTransportAndCompletesResponse()
+    {
+        var transportFactory = new FakeTransportFactory();
+        var manager = CreateManager(
+            transportFactory: transportFactory,
+            protocolFactory: new ProtocolFactory(),
+            serializerFactory: new ResponseSerializerFactory());
+        var profile = CreateTcpProfile();
+        var request = new FakeRequestMessage(7)
+        {
+            CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111")
+        };
+        await manager.ConnectAsync(profile);
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
+
+        var result = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
+        await result.SendCompletedTask.WaitAsync(TimeSpan.FromSeconds(1));
+        transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' });
+        var response = await result.ResponseTask.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' }, transportFactory.Transport.LastFrame);
+        Assert.Equal(1, transportFactory.Transport.SendCount);
+        Assert.Equal(request.CorrelationId, response.CorrelationId);
+    }
+
+    [Fact]
+    public async Task GetSession_ConnectedDevice_ReturnsPublicSessionFacade()
     {
         var manager = CreateManager();
         var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
-        await manager.SendAsync(profile.DeviceId, new FakeMessage(42));
 
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
-        Assert.False(session.TryDequeueOutbound(out _));
+        var session = manager.GetSession(profile.DeviceId);
+
+        Assert.NotNull(session);
+        Assert.Equal(profile.DeviceId, session.DeviceId);
+        Assert.IsNotType<CommLib.Application.Sessions.DeviceSession>(session);
     }
 
     /// <summary>
@@ -280,10 +328,9 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
 
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var request = new FakeRequestMessage(7) { CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111") };
         var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
-        session.TryDequeueOutbound(out _);
 
         var handled = manager.TryHandleInboundFrame(
             profile.DeviceId,
@@ -416,10 +463,9 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
 
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var request = new FakeRequestMessage(7) { CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111") };
         var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
-        session.TryDequeueOutbound(out _);
         transportFactory.Transport.EnqueueInboundFrame(new byte[] { 0x00, 0x00, 0x00, 0x01, (byte)'7' });
 
         var completed = await Task.WhenAny(sendResult.ResponseTask, Task.Delay(TimeSpan.FromSeconds(1)));
@@ -501,13 +547,12 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
 
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var request = new FakeRequestMessage(7)
         {
             CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111")
         };
         var sendResult = session.Send<FakeRequestMessage, IResponseMessage>(request);
-        session.TryDequeueOutbound(out _);
 
         var frame = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol()).Encode(
             new FakeResponseMessage(7)
@@ -542,13 +587,12 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
 
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var request = new FakeRequestMessage(7)
         {
             CorrelationId = Guid.Parse("11111111-1111-1111-1111-111111111111")
         };
         var sendResult = session.Send<FakeRequestMessage, IResponseMessage>(request);
-        session.TryDequeueOutbound(out _);
 
         var frame = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol()).Encode(
             new FakeResponseMessage(7)
@@ -704,11 +748,10 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile();
 
         await manager.ConnectAsync(profile);
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var request = new FakeRequestMessage(77);
         var sendResult = session.Send<FakeRequestMessage, FakeResponseMessage>(request);
         await sendResult.SendCompletedTask;
-        session.TryDequeueOutbound(out _);
         await transport.ReceiveStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
         transport.FailReceive(new InvalidOperationException("FakeTransport failed to receive."));
@@ -718,7 +761,6 @@ public sealed class ConnectionManagerTests
         Assert.Equal(profile.DeviceId, exception.DeviceId);
         Assert.Equal("receive", exception.Operation);
         Assert.Equal("FakeTransport failed to receive.", exception.InnerException?.Message);
-        Assert.Equal(0, session.PendingRequestCount);
     }
 
     /// <summary>
@@ -794,10 +836,9 @@ public sealed class ConnectionManagerTests
         var profile = CreateTcpProfile("device-1", 502);
 
         await manager.ConnectAsync(profile);
-        var firstSession = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var firstSession = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var pending = firstSession.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(55));
         await pending.SendCompletedTask;
-        firstSession.TryDequeueOutbound(out _);
 
         await manager.ConnectAsync(profile);
 
@@ -806,7 +847,6 @@ public sealed class ConnectionManagerTests
         Assert.Equal(profile.DeviceId, exception.DeviceId);
         Assert.Equal("disconnect", exception.Operation);
         Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
-        Assert.Equal(0, firstSession.PendingRequestCount);
     }
 
     /// <summary>
@@ -1079,10 +1119,9 @@ public sealed class ConnectionManagerTests
         var manager = CreateManager();
         var profile = CreateTcpProfile();
         await manager.ConnectAsync(profile);
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
         var pending = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(66));
         await pending.SendCompletedTask;
-        session.TryDequeueOutbound(out _);
 
         await manager.DisconnectAsync(profile.DeviceId);
 
@@ -1091,7 +1130,6 @@ public sealed class ConnectionManagerTests
         Assert.Equal(profile.DeviceId, exception.DeviceId);
         Assert.Equal("disconnect", exception.Operation);
         Assert.Equal("Device session closed before a pending response arrived.", exception.InnerException?.Message);
-        Assert.Equal(0, session.PendingRequestCount);
     }
 
     /// <summary>
@@ -1325,7 +1363,7 @@ public sealed class ConnectionManagerTests
         };
 
         await manager.ConnectAsync(profile);
-        var session = Assert.IsType<CommLib.Application.Sessions.DeviceSession>(manager.GetSession(profile.DeviceId));
+        var session = Assert.IsAssignableFrom<IDeviceSession>(manager.GetSession(profile.DeviceId));
 
         var first = session.Send<FakeRequestMessage, FakeResponseMessage>(new FakeRequestMessage(40));
         await first.SendCompletedTask;
@@ -1333,7 +1371,6 @@ public sealed class ConnectionManagerTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await second.SendCompletedTask);
         await Assert.ThrowsAsync<TimeoutException>(async () => await first.ResponseTask);
-        Assert.Equal(0, session.PendingRequestCount);
     }
 
     /// <summary>
