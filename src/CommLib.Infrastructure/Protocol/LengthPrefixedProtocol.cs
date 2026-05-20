@@ -6,7 +6,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 4바이트 big-endian 길이 prefix 프레임을 인코드하고 디코드합니다.
 /// </summary>
-public sealed class LengthPrefixedProtocol : IProtocol
+public sealed class LengthPrefixedProtocol : IProtocol, IZeroCopyProtocol
 {
     private const int HeaderSize = 4;
     private readonly int _maxFrameLength;
@@ -76,18 +76,57 @@ public sealed class LengthPrefixedProtocol : IProtocol
         payload = Array.Empty<byte>();
         bytesConsumed = 0;
 
+        if (!TryReadFrame(buffer, out var payloadOffset, out var payloadLength, out var frameLength))
+        {
+            return false;
+        }
+
+        payload = buffer.Slice(payloadOffset, payloadLength).ToArray();
+        bytesConsumed = frameLength;
+        return true;
+    }
+
+    /// <summary>
+    /// payload를 새 배열로 복사하지 않고 원본 frame memory의 slice로 반환합니다.
+    /// </summary>
+    /// <param name="buffer">decode할 frame 후보 memory입니다.</param>
+    /// <param name="result">성공 시 payload slice와 소비 길이를 담습니다.</param>
+    /// <returns>완성된 frame을 읽었으면 <see langword="true"/>입니다.</returns>
+    public bool TryDecode(ReadOnlyMemory<byte> buffer, out ProtocolDecodeResult result)
+    {
+        result = default;
+
+        if (!TryReadFrame(buffer.Span, out var payloadOffset, out var payloadLength, out var frameLength))
+        {
+            return false;
+        }
+
+        result = new ProtocolDecodeResult(buffer.Slice(payloadOffset, payloadLength), frameLength);
+        return true;
+    }
+
+    private bool TryReadFrame(
+        ReadOnlySpan<byte> buffer,
+        out int payloadOffset,
+        out int payloadLength,
+        out int frameLength)
+    {
+        payloadOffset = 0;
+        payloadLength = 0;
+        frameLength = 0;
+
         if (buffer.Length < HeaderSize)
         {
             return false;
         }
 
-        var payloadLength = BinaryPrimitives.ReadInt32BigEndian(buffer[..HeaderSize]);
+        payloadLength = BinaryPrimitives.ReadInt32BigEndian(buffer[..HeaderSize]);
         if (payloadLength < 0)
         {
             throw new InvalidOperationException("Frame length cannot be negative.");
         }
 
-        var frameLength = HeaderSize + payloadLength;
+        frameLength = checked(HeaderSize + payloadLength);
         if (frameLength > _maxFrameLength)
         {
             throw new InvalidOperationException(
@@ -99,8 +138,7 @@ public sealed class LengthPrefixedProtocol : IProtocol
             return false;
         }
 
-        payload = buffer.Slice(HeaderSize, payloadLength).ToArray();
-        bytesConsumed = frameLength;
+        payloadOffset = HeaderSize;
         return true;
     }
 }

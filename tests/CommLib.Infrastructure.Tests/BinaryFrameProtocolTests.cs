@@ -1,5 +1,7 @@
+using System.Runtime.InteropServices;
 using CommLib.Domain.Configuration;
 using CommLib.Domain.Messaging;
+using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
 
@@ -34,6 +36,23 @@ public sealed class BinaryFrameProtocolTests
         Assert.True(decoded);
         Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, payload);
         Assert.Equal(9, consumed);
+    }
+
+    [Fact]
+    public void TryDecodeMemory_WithStartLengthAndCrc16Modbus_ReturnsPayloadSliceWithoutCopy()
+    {
+        var protocol = Assert.IsAssignableFrom<IZeroCopyProtocol>(CreateProtocol());
+        var frame = new byte[] { 0xAA, 0x55, 0x00, 0x03, 0x10, 0x20, 0x30, 0x05, 0x5A, 0x99 };
+
+        var decoded = protocol.TryDecode(frame.AsMemory(), out var result);
+
+        Assert.True(decoded);
+        Assert.Equal(9, result.BytesConsumed);
+        Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, result.Payload.ToArray());
+        Assert.True(MemoryMarshal.TryGetArray(result.Payload, out var segment));
+        Assert.Same(frame, segment.Array);
+        Assert.Equal(4, segment.Offset);
+        Assert.Equal(3, segment.Count);
     }
 
     [Fact]

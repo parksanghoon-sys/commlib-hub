@@ -8,7 +8,7 @@ namespace CommLib.Infrastructure.Protocol;
 /// <summary>
 /// 설정으로 start bytes, payload length prefix, checksum을 조합하는 범용 binary frame protocol입니다.
 /// </summary>
-public sealed class BinaryFrameProtocol : IProtocol
+public sealed class BinaryFrameProtocol : IProtocol, IZeroCopyProtocol
 {
     private readonly byte[] _startBytes;
     private readonly int _lengthPrefixSizeBytes;
@@ -109,6 +109,45 @@ public sealed class BinaryFrameProtocol : IProtocol
         payload = Array.Empty<byte>();
         bytesConsumed = 0;
 
+        if (!TryReadFrame(buffer, out var payloadOffset, out var payloadLength, out var frameLength))
+        {
+            return false;
+        }
+
+        payload = buffer.Slice(payloadOffset, payloadLength).ToArray();
+        bytesConsumed = frameLength;
+        return true;
+    }
+
+    /// <summary>
+    /// payload를 복사하지 않고 BinaryFrame envelope 내부의 원본 memory slice로 반환합니다.
+    /// </summary>
+    /// <param name="buffer">decode할 frame 후보 memory입니다.</param>
+    /// <param name="result">성공 시 payload slice와 소비 길이를 담습니다.</param>
+    /// <returns>완성된 frame을 읽었으면 <see langword="true"/>입니다.</returns>
+    public bool TryDecode(ReadOnlyMemory<byte> buffer, out ProtocolDecodeResult result)
+    {
+        result = default;
+
+        if (!TryReadFrame(buffer.Span, out var payloadOffset, out var payloadLength, out var frameLength))
+        {
+            return false;
+        }
+
+        result = new ProtocolDecodeResult(buffer.Slice(payloadOffset, payloadLength), frameLength);
+        return true;
+    }
+
+    private bool TryReadFrame(
+        ReadOnlySpan<byte> buffer,
+        out int payloadOffset,
+        out int payloadLength,
+        out int frameLength)
+    {
+        payloadOffset = 0;
+        payloadLength = 0;
+        frameLength = 0;
+
         if (buffer.Length < _startBytes.Length)
         {
             return false;
@@ -125,8 +164,8 @@ public sealed class BinaryFrameProtocol : IProtocol
             return false;
         }
 
-        var payloadLength = ReadLengthPrefix(buffer.Slice(lengthPrefixOffset, _lengthPrefixSizeBytes));
-        var frameLength = checked(_startBytes.Length + _lengthPrefixSizeBytes + payloadLength + _checksumSizeBytes);
+        payloadLength = ReadLengthPrefix(buffer.Slice(lengthPrefixOffset, _lengthPrefixSizeBytes));
+        frameLength = checked(_startBytes.Length + _lengthPrefixSizeBytes + payloadLength + _checksumSizeBytes);
         if (frameLength > _maxFrameLength)
         {
             throw new InvalidOperationException(
@@ -138,7 +177,7 @@ public sealed class BinaryFrameProtocol : IProtocol
             return false;
         }
 
-        var payloadOffset = lengthPrefixOffset + _lengthPrefixSizeBytes;
+        payloadOffset = lengthPrefixOffset + _lengthPrefixSizeBytes;
         var payloadSpan = buffer.Slice(payloadOffset, payloadLength);
 
         if (_checksumSizeBytes > 0)
@@ -152,8 +191,6 @@ public sealed class BinaryFrameProtocol : IProtocol
             }
         }
 
-        payload = payloadSpan.ToArray();
-        bytesConsumed = frameLength;
         return true;
     }
 

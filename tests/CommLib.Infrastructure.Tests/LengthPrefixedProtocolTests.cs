@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using CommLib.Domain.Protocol;
 using CommLib.Infrastructure.Protocol;
 using Xunit;
 
@@ -47,6 +49,23 @@ public sealed class LengthPrefixedProtocolTests
         Assert.True(decoded);
         Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, payload);
         Assert.Equal(7, consumed);
+    }
+
+    [Fact]
+    public void TryDecodeMemory_CompleteFrame_ReturnsPayloadSliceWithoutCopy()
+    {
+        var protocol = Assert.IsAssignableFrom<IZeroCopyProtocol>(new LengthPrefixedProtocol());
+        var frame = new byte[] { 0x00, 0x00, 0x00, 0x03, 0x10, 0x20, 0x30 };
+
+        var decoded = protocol.TryDecode(frame.AsMemory(), out var result);
+
+        Assert.True(decoded);
+        Assert.Equal(7, result.BytesConsumed);
+        Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, result.Payload.ToArray());
+        Assert.True(MemoryMarshal.TryGetArray(result.Payload, out var segment));
+        Assert.Same(frame, segment.Array);
+        Assert.Equal(4, segment.Offset);
+        Assert.Equal(3, segment.Count);
     }
 
     [Fact]
