@@ -75,12 +75,47 @@ See the detailed operator notes in [examples/CommLib.Examples.WinUI/README.md](.
 CommLib is intentionally narrow right now:
 
 - transport types: `TcpClient`, `Udp`, `Serial`, `Multicast`
-- framing: `LengthPrefixed`
+- framing: `LengthPrefixed`, or `BinaryFrame` for configurable start bytes, payload length prefixes, and optional CRC16/Modbus checksums
 - serializers: `AutoBinary`, `RawHex`
 - reconnect behavior: transport-open retries inside the initial `ConnectAsync()` call only
 - failed receive loop behavior: the session becomes terminal until the caller reconnects explicitly
 
-If you are integrating the library into another app, keep those boundaries in mind before assuming richer framing or runtime reconnect behavior.
+If you are integrating the library into another app, keep those boundaries in mind before assuming richer device workflows or runtime reconnect behavior.
+
+`BinaryFrame` is intended for custom binary devices whose wire envelope can be expressed as:
+
+```json
+{
+  "Protocol": {
+    "Type": "BinaryFrame",
+    "MaxFrameLength": 512,
+    "BinaryFrame": {
+      "StartHex": "AA 55",
+      "LengthPrefix": {
+        "SizeBytes": 2,
+        "Endianness": "BigEndian"
+      },
+      "Checksum": {
+        "Type": "Crc16Modbus",
+        "Endianness": "LittleEndian",
+        "Coverage": "FrameWithoutChecksum"
+      }
+    }
+  }
+}
+```
+
+Keep address, command/function code, register values, and bit-level fields in the payload layer. Use `RawHex` plus `BitFieldSchema` when you need config-backed payload compose/inspect behavior.
+
+For code-first payload parsing, read a value from a specific byte and inclusive bit range:
+
+```csharp
+var mode = BitFieldCodec.ReadUnsigned<byte>(payload, byteIndex: 1, startBit: 2, endBit: 5);
+var signedNibble = BitFieldCodec.ReadSigned<sbyte>(payload, byteIndex: 2, startBit: 4, endBit: 7);
+```
+
+For a protocol that cannot be expressed by `BinaryFrame`, register a custom `IProtocolFactory`
+before `AddCommLibCore()` so DI keeps your C# implementation as the protocol escape hatch.
 
 ## 5. Use It With Generic Host Configuration
 
@@ -156,7 +191,7 @@ var profile = new DeviceProfile
     },
     Protocol = new ProtocolOptions
     {
-        Type = "LengthPrefixed",
+        Type = ProtocolTypes.LengthPrefixed,
         MaxFrameLength = 4096
     },
     Serializer = new SerializerOptions

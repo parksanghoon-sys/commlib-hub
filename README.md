@@ -7,7 +7,8 @@ connections, plus a lightweight application/bootstrap layer and runnable example
 ## What It Supports Today
 
 - Transports: `TcpClient`, `Udp`, `Serial`, `Multicast`
-- Framing: `LengthPrefixed`
+- Framing: `LengthPrefixed`, plus configurable `BinaryFrame` envelopes for start bytes,
+  payload length prefixes, and optional CRC16/Modbus checksums
 - Serializers: `AutoBinary`, `RawHex`
 - Request/response session flow with pending-request limits and timeouts
 - Config-driven device profiles via `DeviceProfileRaw -> DeviceProfile` mapping
@@ -21,7 +22,9 @@ connections, plus a lightweight application/bootstrap layer and runnable example
 This repository intentionally keeps the public contract narrower than the long-term roadmap.
 Before using it in another project, these current boundaries are important:
 
-- `ProtocolOptions` currently represents `LengthPrefixed` framing only.
+- `ProtocolOptions` currently supports `LengthPrefixed` framing and the first
+  configurable `BinaryFrame` envelope. It does not yet model a full Modbus register/function
+  workflow by itself.
 - `ReconnectOptions` currently controls transport-open retries inside the initial `ConnectAsync()` call only.
 - A session whose background receive loop fails is treated as terminal until the caller reconnects it explicitly.
 - The WinUI example is Windows-only and is provided as an operator/developer sample, not as a reusable UI package.
@@ -92,6 +95,41 @@ The overall shape looks like this:
 The `Reconnect` section in that sample applies only while `ConnectAsync()` is still trying to open
 the transport. It does not mean the library will auto-recover a session later after a successful
 connection has already transitioned into a receive failure.
+
+For custom binary devices, `BinaryFrame` can describe a simple reusable wire envelope while
+`RawHex` and `BitFieldSchema` continue to describe the payload bytes:
+
+```json
+{
+  "Protocol": {
+    "Type": "BinaryFrame",
+    "MaxFrameLength": 512,
+    "BinaryFrame": {
+      "StartHex": "AA 55",
+      "LengthPrefix": {
+        "SizeBytes": 2,
+        "Endianness": "BigEndian"
+      },
+      "Checksum": {
+        "Type": "Crc16Modbus",
+        "Endianness": "LittleEndian",
+        "Coverage": "FrameWithoutChecksum"
+      }
+    }
+  }
+}
+```
+
+Protocols that need behavior beyond this envelope can still use a custom `IProtocolFactory`
+registered through DI.
+
+For payload-level bit values, keep the frame protocol out of it and read from the decoded
+payload directly:
+
+```csharp
+var mode = BitFieldCodec.ReadUnsigned<byte>(payload, byteIndex: 1, startBit: 2, endBit: 5);
+var signedNibble = BitFieldCodec.ReadSigned<sbyte>(payload, byteIndex: 2, startBit: 4, endBit: 7);
+```
 
 ## Build And Test
 
