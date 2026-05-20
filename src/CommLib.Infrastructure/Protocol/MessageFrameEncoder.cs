@@ -29,6 +29,20 @@ public sealed class MessageFrameEncoder
     /// <returns>전송 가능한 프레임 바이트 배열입니다.</returns>
     public byte[] Encode(IMessage message)
     {
+        if (_serializer is ISpanSerializer spanSerializer &&
+            _protocol is IFrameEncodingProtocol frameProtocol)
+        {
+            var payloadLength = spanSerializer.GetSerializedLength(message);
+            var layout = frameProtocol.CreateFrameLayout(payloadLength);
+            var frame = new byte[layout.FrameLength];
+
+            // checksum이 payload를 포함할 수 있으므로 prefix -> payload -> suffix 순서를 반드시 유지합니다.
+            frameProtocol.WriteFramePrefix(frame, layout);
+            spanSerializer.Serialize(message, frame.AsSpan(layout.PayloadOffset, layout.PayloadLength));
+            frameProtocol.WriteFrameSuffix(frame, layout);
+            return frame;
+        }
+
         var payload = _serializer.Serialize(message);
         return _protocol.Encode(payload);
     }

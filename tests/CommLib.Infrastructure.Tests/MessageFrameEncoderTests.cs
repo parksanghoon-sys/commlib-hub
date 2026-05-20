@@ -47,6 +47,22 @@ public sealed class MessageFrameEncoderTests
             frame);
     }
 
+    [Fact]
+    public void Encode_WhenSerializerAndProtocolSupportSpanWriters_WritesPayloadDirectlyIntoFinalFrame()
+    {
+        var serializer = new SpanFakeSerializer(new byte[] { 0x10, 0x20, 0x30 });
+        var protocol = new SpanFakeProtocol();
+        var encoder = new MessageFrameEncoder(serializer, protocol);
+
+        var frame = encoder.Encode(new FakeMessage(7));
+
+        Assert.Equal(new byte[] { 0xAA, 0x03, 0x10, 0x20, 0x30, 0x55 }, frame);
+        Assert.True(serializer.SpanSerializeCalled);
+        Assert.False(serializer.LegacySerializeCalled);
+        Assert.True(protocol.FrameWriterCalled);
+        Assert.False(protocol.LegacyEncodeCalled);
+    }
+
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
     private sealed class FakeSerializer : ISerializer
@@ -89,6 +105,78 @@ public sealed class MessageFrameEncoderTests
         {
             LastPayload = payload.ToArray();
             return _frame;
+        }
+
+        public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
+        {
+            payload = Array.Empty<byte>();
+            bytesConsumed = 0;
+            return false;
+        }
+    }
+
+    private sealed class SpanFakeSerializer : ISpanSerializer
+    {
+        private readonly byte[] _payload;
+
+        public SpanFakeSerializer(byte[] payload)
+        {
+            _payload = payload;
+        }
+
+        public bool SpanSerializeCalled { get; private set; }
+        public bool LegacySerializeCalled { get; private set; }
+
+        public int GetSerializedLength(IMessage message)
+        {
+            return _payload.Length;
+        }
+
+        public void Serialize(IMessage message, Span<byte> destination)
+        {
+            SpanSerializeCalled = true;
+            _payload.CopyTo(destination);
+        }
+
+        public byte[] Serialize(IMessage message)
+        {
+            LegacySerializeCalled = true;
+            return _payload;
+        }
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class SpanFakeProtocol : IFrameEncodingProtocol
+    {
+        public string Name => "SpanFake";
+        public bool FrameWriterCalled { get; private set; }
+        public bool LegacyEncodeCalled { get; private set; }
+
+        public ProtocolFrameLayout CreateFrameLayout(int payloadLength)
+        {
+            return new ProtocolFrameLayout(FrameLength: payloadLength + 3, PayloadOffset: 2, PayloadLength: payloadLength);
+        }
+
+        public void WriteFramePrefix(Span<byte> frame, ProtocolFrameLayout layout)
+        {
+            FrameWriterCalled = true;
+            frame[0] = 0xAA;
+            frame[1] = checked((byte)layout.PayloadLength);
+        }
+
+        public void WriteFrameSuffix(Span<byte> frame, ProtocolFrameLayout layout)
+        {
+            frame[layout.PayloadOffset + layout.PayloadLength] = 0x55;
+        }
+
+        public byte[] Encode(ReadOnlySpan<byte> payload)
+        {
+            LegacyEncodeCalled = true;
+            return payload.ToArray();
         }
 
         public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
