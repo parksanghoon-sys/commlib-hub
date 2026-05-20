@@ -9,9 +9,12 @@ namespace CommLib.Infrastructure.Transport;
 /// </summary>
 public sealed class TransportMessageReceiver
 {
+    private const int InitialPendingBufferSize = 256;
     private readonly MessageFrameDecoder _frameDecoder;
     private readonly ITransport _transport;
     private byte[] _pendingBuffer = Array.Empty<byte>();
+    private int _pendingOffset;
+    private int _pendingLength;
 
     /// <summary>
     /// <see cref="TransportMessageReceiver"/> 클래스의 새 인스턴스를 초기화합니다.
@@ -69,28 +72,82 @@ public sealed class TransportMessageReceiver
             return;
         }
 
-        if (_pendingBuffer.Length == 0)
-        {
-            _pendingBuffer = chunk.ToArray();
-            return;
-        }
-
-        var merged = new byte[_pendingBuffer.Length + chunk.Length];
-        _pendingBuffer.AsSpan().CopyTo(merged);
-        chunk.CopyTo(merged.AsSpan(_pendingBuffer.Length));
-        _pendingBuffer = merged;
+        EnsureWritableCapacity(chunk.Length);
+        chunk.CopyTo(_pendingBuffer.AsSpan(_pendingOffset + _pendingLength, chunk.Length));
+        _pendingLength += chunk.Length;
     }
 
     private bool TryDecodePending(out IMessage message)
     {
-        if (!TryDecode(_pendingBuffer, out message, out var bytesConsumed))
+        if (_pendingLength == 0 ||
+            !_frameDecoder.TryDecode(_pendingBuffer.AsMemory(_pendingOffset, _pendingLength), out var decodedMessage, out var bytesConsumed) ||
+            decodedMessage is null)
         {
+            message = null!;
             return false;
         }
 
-        _pendingBuffer = bytesConsumed >= _pendingBuffer.Length
-            ? Array.Empty<byte>()
-            : _pendingBuffer.AsSpan(bytesConsumed).ToArray();
+        AdvancePending(bytesConsumed);
+        message = decodedMessage;
         return true;
+    }
+
+    private void AdvancePending(int bytesConsumed)
+    {
+        _pendingOffset += bytesConsumed;
+        _pendingLength -= bytesConsumed;
+
+        if (_pendingLength == 0)
+        {
+            _pendingOffset = 0;
+            return;
+        }
+
+        // 앞쪽 절반 이상을 소비한 뒤에는 남은 조각을 앞으로 당겨 다음 append가 같은 배열을 재사용하게 합니다.
+        if (_pendingOffset > _pendingBuffer.Length / 2)
+        {
+            CompactPendingBuffer();
+        }
+    }
+
+    private void EnsureWritableCapacity(int additionalLength)
+    {
+        if (_pendingBuffer.Length == 0)
+        {
+            _pendingBuffer = new byte[Math.Max(InitialPendingBufferSize, additionalLength)];
+            _pendingOffset = 0;
+            return;
+        }
+
+        var requiredWithCurrentOffset = _pendingOffset + _pendingLength + additionalLength;
+        if (requiredWithCurrentOffset <= _pendingBuffer.Length)
+        {
+            return;
+        }
+
+        var requiredCompactedLength = _pendingLength + additionalLength;
+        if (requiredCompactedLength <= _pendingBuffer.Length)
+        {
+            CompactPendingBuffer();
+            return;
+        }
+
+        var nextLength = Math.Max(requiredCompactedLength, _pendingBuffer.Length * 2);
+        var next = new byte[nextLength];
+        _pendingBuffer.AsSpan(_pendingOffset, _pendingLength).CopyTo(next);
+        _pendingBuffer = next;
+        _pendingOffset = 0;
+    }
+
+    private void CompactPendingBuffer()
+    {
+        if (_pendingLength == 0)
+        {
+            _pendingOffset = 0;
+            return;
+        }
+
+        _pendingBuffer.AsSpan(_pendingOffset, _pendingLength).CopyTo(_pendingBuffer);
+        _pendingOffset = 0;
     }
 }

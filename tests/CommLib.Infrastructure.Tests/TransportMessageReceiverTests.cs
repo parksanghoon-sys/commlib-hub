@@ -106,6 +106,29 @@ public sealed class TransportMessageReceiverTests
         Assert.Equal(1, transport.ReceiveCount);
     }
 
+    [Fact]
+    public async Task ReceiveAsync_FragmentedFirstFrameWithSecondFrameRemainder_ReturnsBothMessages()
+    {
+        var encoder = new MessageFrameEncoder(new NoOpSerializer(), new LengthPrefixedProtocol());
+        var firstFrame = encoder.Encode(new MessageModel(42));
+        var secondFrame = encoder.Encode(new MessageModel(43));
+        var secondChunk = new byte[(firstFrame.Length - 3) + secondFrame.Length];
+        firstFrame.AsSpan(3).CopyTo(secondChunk);
+        secondFrame.CopyTo(secondChunk.AsSpan(firstFrame.Length - 3));
+
+        var transport = new FakeTransport(firstFrame[..3], secondChunk);
+        var receiver = new TransportMessageReceiver(
+            new MessageFrameDecoder(new LengthPrefixedProtocol(), new NoOpSerializer()),
+            transport);
+
+        var firstMessage = await receiver.ReceiveAsync();
+        var secondMessage = await receiver.ReceiveAsync();
+
+        Assert.Equal((ushort)42, firstMessage.MessageId);
+        Assert.Equal((ushort)43, secondMessage.MessageId);
+        Assert.Equal(2, transport.ReceiveCount);
+    }
+
     /// <summary>
     /// malformed frame으로 프로토콜 디코더가 예외를 던지면 그대로 전파하는지 확인합니다.
     /// </summary>
