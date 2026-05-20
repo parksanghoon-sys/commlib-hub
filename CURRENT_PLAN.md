@@ -9,10 +9,11 @@ Date: 2026-05-20
 Continue commercial-readiness hardening from the current repository state while keeping each slice small, verified, and release-trackable.
 
 ## Confirmed Facts
-- The current checkout is `main`, with local commits not yet pushed to `commlib-hub/main` and pre-existing dirty/untracked work still present:
-  - `src/CommLib.Application/Sessions/DeviceSession.cs`
-  - `.claude/`
-  - `docs/superpowers/`
+- The current checkout is `codex/span-minimal-copy-pipeline`, with local commits not yet pushed to `commlib-hub/main` and pre-existing dirty/untracked work still present:
+  - `.gitignore`
+  - `DESIGN_REVIEW.md`
+  - `VERIFICATION_REPORT.md`
+  - `docs/superpowers/plans/2026-05-08-reconnect-types-constants.md`
   - `todo.md`
 - The 2026-05-18 commercial-readiness review found that CommLib is suitable for controlled/internal pilot usage, but not yet a full external production-grade commercial release without more release governance, security, observability, and recovery-policy hardening.
 - The first commercial-readiness implementation slice is complete:
@@ -32,10 +33,11 @@ Continue commercial-readiness hardening from the current repository state while 
   - `BinaryFrameProtocol` can compose/decode configurable start bytes, 1/2/4-byte payload length prefixes, and optional CRC16/Modbus checksums.
   - Payload bit management remains in `BitFieldPayloadSchema` / `BitFieldPayloadSchemaCodec` instead of being folded into protocol framing.
   - `AddCommLibCore()` now preserves a caller pre-registered `IProtocolFactory` so custom C# protocol implementations remain the escape hatch.
-- The user then asked to plan a broader `Span` / minimal-copy data-management pass across the protocol pipeline:
+- The user then asked to plan and implement a broader `Span` / minimal-copy data-management pass across the protocol pipeline:
   - implementation plan saved at `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md`
-  - planned direction is additive optional contracts over breaking `IProtocol` / `ISerializer` changes
-  - no span-pipeline implementation has been applied yet in this planning cycle
+  - additive optional contracts now exist for zero-copy protocol decode, frame layout writing, and span serializer output
+  - `LengthPrefixedProtocol` and `BinaryFrameProtocol` now support memory decode plus span-based frame construction
+  - `MessageFrameDecoder`, `TransportMessageReceiver`, `MessageFrameEncoder`, `RawHexSerializer`, and `NoOpSerializer` now use the fast paths when available while preserving legacy `IProtocol` / `ISerializer` methods
 - The user asked to add simpler byte/start-bit/end-bit based generic value extraction without making the bitfield layer more complex:
   - `BitFieldDefinition.FromByteBits(...)` centralizes byte-local bit range conversion into `BitOffset` / `BitLength`
   - `BitFieldCodec.ReadUnsigned<T>(...)` and `ReadSigned<T>(...)` provide typed integral extraction while reusing the existing unsigned/signed bit reader
@@ -78,10 +80,17 @@ Continue commercial-readiness hardening from the current repository state while 
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --no-build`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --no-build`
+- Verification for the span/minimal-copy protocol pipeline passed with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "LengthPrefixedProtocolTests|BinaryFrameProtocolTests|MessageFrameDecoderTests|MessageFrameEncoderTests|TransportMessageReceiverTests|RawHexSerializerTests|NoOpSerializerTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `rg -n "public interface IZeroCopyProtocol|public interface IFrameEncodingProtocol|public interface ISpanSerializer|public readonly record struct ProtocolDecodeResult|public readonly record struct ProtocolFrameLayout" src/CommLib.Domain -S`
+  - `git diff --check`
 - NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
 ## Next Work Unit
-1. Continue `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` only after the user confirms the next span/minimal-copy pipeline slice; the session API/outbound-queue cleanup is now the most recent runtime design-review implementation.
+1. Resume the first production diagnostics slice over the existing `IConnectionEventSink` seam, unless the user redirects to publish/push the current span branch first.
 
 ## Next Slice Design
 1. Keep the next slice observability-focused and opt-in; do not redesign transport or reconnect behavior at the same time.

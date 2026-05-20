@@ -12,11 +12,12 @@
 - Avoid touching pre-existing dirty/untracked files unless they directly overlap with the selected slice.
 
 ## Confirmed State
-- The current checkout is `main`, with local commits not yet pushed to `commlib-hub/main`.
+- The current checkout is `codex/span-minimal-copy-pipeline`, with local commits not yet pushed to `commlib-hub/main`.
 - Pre-existing dirty/untracked work remains in:
-  - `src/CommLib.Application/Sessions/DeviceSession.cs`
-  - `.claude/`
-  - `docs/superpowers/`
+  - `.gitignore`
+  - `DESIGN_REVIEW.md`
+  - `VERIFICATION_REPORT.md`
+  - `docs/superpowers/plans/2026-05-08-reconnect-types-constants.md`
   - `todo.md`
 - The first production-hardening slice added TCP runtime-option validation:
   - reject non-positive `TcpClientTransportOptions.ConnectTimeoutMs`
@@ -30,11 +31,12 @@
 - A user-requested cleanup slice pruned dormant WinUI `DeviceLabTheme` templated-control helpers and removed the unused owner argument from `DeviceLabTheme.Get<T>()`.
 - Verification passed with focused validator tests, full unit tests, full infrastructure tests, console Release build, full solution Release build, four library pack commands, a NuGet vulnerability audit, and a WinUI Release build.
 - A user-requested generic binary protocol slice added configurable `BinaryFrame` framing alongside `LengthPrefixed`, with start bytes, 1/2/4-byte payload length prefix support, optional CRC16/Modbus checksum support, validator/factory coverage, a preserved pre-registered `IProtocolFactory` escape hatch, README/quick-start documentation, and verified unit/infrastructure/build baselines.
-- The user then asked for a broader `Span` / minimal-copy data-management plan across the protocol pipeline. The implementation plan is saved at `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md`; it has not been implemented yet.
+- The user then asked for a broader `Span` / minimal-copy data-management plan across the protocol pipeline. The implementation plan is saved at `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` and the first full additive fast-path slice is now implemented.
+- The span/minimal-copy slice was verified with focused span pipeline infrastructure tests, full infrastructure tests, full unit tests, full solution Release build, additive public API surface review, and `git diff --check`.
 - The latest protocol slice added simple byte-local generic bitfield extraction on top of the existing payload bitfield layer, without moving bit semantics into `BinaryFrame`.
 
 ## Next Work Unit
-1. Continue the span/minimal-copy protocol pipeline plan only after the user confirms that broader slice; the byte-local generic bitfield helper slice is the latest completed protocol work.
+1. Resume the first production diagnostics slice over the existing `IConnectionEventSink` seam, unless the user redirects to publish/push the current span branch first.
 
 ## Not In This Step
 - No cleanup of unrelated dirty files.

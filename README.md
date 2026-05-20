@@ -17,6 +17,8 @@ connections, plus a lightweight application/bootstrap layer and runnable example
   - [Console sample](examples/CommLib.Examples.Console/README.md)
   - [WinUI Device Lab](examples/CommLib.Examples.WinUI/README.md)
 
+Built-in frame protocols and serializers use additive `ReadOnlyMemory<byte>` / `Span<byte>` fast paths internally where possible. Existing custom `IProtocol` and `ISerializer` implementations remain supported through the original array-returning compatibility methods.
+
 ## Honest Contract Notes
 
 This repository intentionally keeps the public contract narrower than the long-term roadmap.

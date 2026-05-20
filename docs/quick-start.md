@@ -82,6 +82,8 @@ CommLib is intentionally narrow right now:
 
 If you are integrating the library into another app, keep those boundaries in mind before assuming richer device workflows or runtime reconnect behavior.
 
+For high-throughput binary devices, prefer the built-in `LengthPrefixed` or `BinaryFrame` protocols plus `RawHex`; those combinations now use the span-based fast path for receive decoding and outbound frame construction while preserving the older extension interfaces.
+
 `BinaryFrame` is intended for custom binary devices whose wire envelope can be expressed as:
 
 ```json

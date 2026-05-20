@@ -649,3 +649,19 @@
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --no-build`
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --no-build`
+- Completed the span/minimal-copy protocol pipeline slice:
+  - added additive zero-copy decode contracts (`IZeroCopyProtocol`, `ProtocolDecodeResult`)
+  - added additive outbound writer contracts (`IFrameEncodingProtocol`, `ISpanSerializer`, `ProtocolFrameLayout`)
+  - implemented memory decode and frame-writer paths in `LengthPrefixedProtocol` and `BinaryFrameProtocol`
+  - added `MessageFrameDecoder.TryDecode(ReadOnlyMemory<byte>, ...)` plus a `byte[]` compatibility shim to avoid source ambiguity for existing array callers
+  - changed `TransportMessageReceiver` from append-and-trim arrays to a reusable offset/length pending buffer window
+  - changed `MessageFrameEncoder` to use span serializer + frame writer fast paths when both sides support them
+  - implemented `ISpanSerializer` in `RawHexSerializer` and `NoOpSerializer`
+  - documented the internal fast paths in README and quick-start
+- Verified the span/minimal-copy slice with:
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --filter "LengthPrefixedProtocolTests|BinaryFrameProtocolTests|MessageFrameDecoderTests|MessageFrameEncoderTests|TransportMessageReceiverTests|RawHexSerializerTests|NoOpSerializerTests"`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `rg -n "public interface IZeroCopyProtocol|public interface IFrameEncodingProtocol|public interface ISpanSerializer|public readonly record struct ProtocolDecodeResult|public readonly record struct ProtocolFrameLayout" src/CommLib.Domain -S`
+  - `git diff --check`

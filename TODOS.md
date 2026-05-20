@@ -4,18 +4,18 @@
 > Not part of the public CommLib runtime or package contract.
 
 ## Execution Context
-- Active checkout: `main`, with local commits not yet pushed to `commlib-hub/main`.
-- Pre-existing dirty/untracked work remains in `src/CommLib.Application/Sessions/DeviceSession.cs`, `.claude/`, `docs/superpowers/`, and `todo.md`; do not overwrite or clean these unless explicitly asked.
+- Active checkout: `codex/span-minimal-copy-pipeline`, with local commits not yet pushed to `commlib-hub/main`.
+- Pre-existing dirty/untracked work remains in `.gitignore`, `DESIGN_REVIEW.md`, `VERIFICATION_REPORT.md`, `docs/superpowers/plans/2026-05-08-reconnect-types-constants.md`, and `todo.md`; do not overwrite or clean these unless explicitly asked.
 - Current direction: commercial-readiness hardening after the 2026-05-18 deployment-readiness review.
 - Truth note: core tests/builds pass, but external production-grade release still needs stronger release governance, security, observability, and recovery-policy guardrails.
 
 ## Current TODOs
 Order note: keep exactly one evidence-ready next execution slice promoted at a time.
 
-- [ ] Execute the span/minimal-copy protocol pipeline plan.
-  Scope: implement `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md` task-by-task, starting with additive zero-copy protocol decode contracts and receiver pending-buffer reuse before outbound span writer fast paths.
-  Objective: reduce avoidable payload/frame copies while preserving existing `IProtocol` and `ISerializer` compatibility for custom implementations.
-  Validation: focused protocol/serializer/encoder/decoder/receiver tests, full infrastructure tests, full unit tests, and full solution Release build.
+- [ ] Resume the first production diagnostics slice over the existing `IConnectionEventSink` seam.
+  Scope: inspect the current `IConnectionEventSink` call sites and hosting registration path, then add the smallest tested production-facing logging/diagnostic integration or documentation path.
+  Objective: reduce commercial deployment blind spots without redesigning transport, metrics, health checks, TLS, or reconnect behavior in the same slice.
+  Validation: focused hosting/DI or connection event tests, plus affected unit/infrastructure tests and solution Release build as appropriate.
 
 ## Deferred Backlog
 ### Runtime Hardening & Correctness
@@ -61,16 +61,6 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 - Most natural next step: wait for one concrete device frame contract, then add the smallest missing envelope feature with encode/decode tests and config validation.
 
 ### Production Integration & Hosting
-### [P1_SOON] Resume the first production diagnostics slice after the span/minimal-copy protocol work
-- What remains: reuse the existing `IConnectionEventSink` seam to make connect/retry/failure/backpressure events easier to wire into production logging, likely through an `ILogger`-backed adapter or focused hosting guidance.
-- Why deferred: the user explicitly redirected the active protocol line toward a `Span` / minimal-copy data pipeline plan after the generic `BinaryFrame` slice.
-- Objective: reduce commercial deployment blind spots without redesigning transport, metrics, health checks, or reconnect behavior in the same slice.
-- Relevant context: `AddCommLibCore()` already resolves caller-registered services and recently preserved a caller pre-registered `IProtocolFactory`; the diagnostics slice should similarly reuse existing DI seams before adding new hosting surface.
-- Scope: `src/CommLib.Hosting/ServiceCollectionExtensions.cs`, `src/CommLib.Infrastructure/Sessions/ConnectionManager.cs`, existing `IConnectionEventSink` types, focused DI/hosting tests, and quick-start documentation.
-- Current status: this was the prior current work item, but it has not been implemented in the current local changes.
-- Known blockers/open questions: whether the smallest useful production diagnostic output is an `ILogger` adapter, documentation-only registration guidance, or a narrowly registered hosting helper.
-- Most natural next step: after the span/minimal-copy work is complete or paused, inspect the existing `IConnectionEventSink` call sites and add the smallest tested production-registration path.
-
 ### [P2_LATER] Decide the production integration surface for diagnostics, health, and secure network transport
 - What remains: decide whether the core library, the hosting package, or a future integration package should own structured logging, metrics, health checks, and TLS/certificate-aware transport options.
 - Why deferred: the current review established that these hooks are not first-class yet, but it did not establish the target deployment model strongly enough to justify widening the library immediately.
@@ -126,6 +116,7 @@ Order note: keep exactly one evidence-ready next execution slice promoted at a t
 ## Completed
 Context note: `Completed` mixes repo history from this preserved worktree, the clean runtime branch, and earlier feature branches; read it as project memory, not as the exact state of the current checkout.
 
+- [x] 2026-05-20: completed the span/minimal-copy protocol pipeline slice from `docs/superpowers/plans/2026-05-19-span-minimal-copy-pipeline.md`; added additive `IZeroCopyProtocol`, `IFrameEncodingProtocol`, `ISpanSerializer`, `ProtocolDecodeResult`, and `ProtocolFrameLayout` contracts; implemented zero-copy memory decode for `LengthPrefixedProtocol` and `BinaryFrameProtocol`; added a memory decode fast path in `MessageFrameDecoder` while preserving `byte[]` caller compatibility; changed `TransportMessageReceiver` to reuse a windowed pending buffer; added span-based outbound frame construction in `MessageFrameEncoder`; implemented span serializers in `RawHexSerializer` and `NoOpSerializer`; documented the fast paths in README and quick-start; verified with focused span pipeline tests, full infrastructure tests, full unit tests, solution Release build, public API surface review, and `git diff --check`.
 - [x] 2026-05-20: added Korean intent and execution-flow comments to the recent session-boundary implementation and tests, covering the public `IDeviceSession` contract, `DeviceSession` pending-response lifecycle, `ConnectionManager` facade/direct-send sequence, and key test prepare/execute/verify steps; verified with solution Release build plus unit and infrastructure tests.
 - [x] 2026-05-20: implemented the highest-priority `DESIGN_REVIEW.md` session-boundary cleanup by removing runtime lifecycle methods from `IDeviceSession`, returning a public session facade from `ConnectionManager.GetSession()`, sending directly through `TransportMessageSender` instead of the old `DeviceSession` outbound queue hop, and reducing `DeviceSession` to pending request/response tracking; verified with focused red/green tests, full unit tests, full infrastructure tests, and full solution Release build.
 - [x] 2026-05-20: added the simple byte-local generic bitfield extraction slice by introducing `BitFieldDefinition.FromByteBits(...)` and `BitFieldCodec.ReadUnsigned<T>` / `ReadSigned<T>` overloads; kept the implementation in the payload bitfield layer instead of moving bit semantics into `BinaryFrame`; documented the code-first extraction example in README and quick-start.
