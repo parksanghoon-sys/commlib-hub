@@ -68,6 +68,25 @@ public sealed class MessageFrameDecoderTests
         Assert.Equal(15, bytesConsumed);
     }
 
+    [Fact]
+    public void TryDecodeMemory_WithZeroCopyProtocol_UsesMemoryDecodePath()
+    {
+        var protocol = new FakeZeroCopyProtocol(payloadOffset: 2, payloadLength: 3, bytesConsumed: 6);
+        var serializer = new CapturingSerializer(new FakeMessage(7));
+        var decoder = new MessageFrameDecoder(protocol, serializer);
+        var frame = new byte[] { 0xAA, 0xBB, 0x10, 0x20, 0x30, 0xCC };
+
+        var decoded = decoder.TryDecode(frame.AsMemory(), out var message, out var bytesConsumed);
+
+        Assert.True(decoded);
+        Assert.NotNull(message);
+        Assert.Equal((ushort)7, message.MessageId);
+        Assert.Equal(6, bytesConsumed);
+        Assert.True(protocol.MemoryDecodeCalled);
+        Assert.False(protocol.LegacyDecodeCalled);
+        Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, serializer.LastPayload);
+    }
+
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
     private sealed class FakeProtocol : IProtocol
@@ -114,6 +133,67 @@ public sealed class MessageFrameDecoderTests
 
         public IMessage Deserialize(ReadOnlySpan<byte> payload)
         {
+            return _message;
+        }
+    }
+
+    private sealed class FakeZeroCopyProtocol : IZeroCopyProtocol
+    {
+        private readonly int _payloadOffset;
+        private readonly int _payloadLength;
+        private readonly int _bytesConsumed;
+
+        public FakeZeroCopyProtocol(int payloadOffset, int payloadLength, int bytesConsumed)
+        {
+            _payloadOffset = payloadOffset;
+            _payloadLength = payloadLength;
+            _bytesConsumed = bytesConsumed;
+        }
+
+        public string Name => "ZeroCopyFake";
+        public bool MemoryDecodeCalled { get; private set; }
+        public bool LegacyDecodeCalled { get; private set; }
+
+        public byte[] Encode(ReadOnlySpan<byte> payload)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool TryDecode(ReadOnlySpan<byte> buffer, out byte[] payload, out int bytesConsumed)
+        {
+            LegacyDecodeCalled = true;
+            payload = Array.Empty<byte>();
+            bytesConsumed = 0;
+            return false;
+        }
+
+        public bool TryDecode(ReadOnlyMemory<byte> buffer, out ProtocolDecodeResult result)
+        {
+            MemoryDecodeCalled = true;
+            result = new ProtocolDecodeResult(buffer.Slice(_payloadOffset, _payloadLength), _bytesConsumed);
+            return true;
+        }
+    }
+
+    private sealed class CapturingSerializer : ISerializer
+    {
+        private readonly IMessage _message;
+
+        public CapturingSerializer(IMessage message)
+        {
+            _message = message;
+        }
+
+        public byte[] LastPayload { get; private set; } = Array.Empty<byte>();
+
+        public byte[] Serialize(IMessage message)
+        {
+            throw new NotSupportedException();
+        }
+
+        public IMessage Deserialize(ReadOnlySpan<byte> payload)
+        {
+            LastPayload = payload.ToArray();
             return _message;
         }
     }

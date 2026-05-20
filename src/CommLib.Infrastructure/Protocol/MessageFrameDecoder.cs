@@ -40,4 +40,43 @@ public sealed class MessageFrameDecoder
         message = _serializer.Deserialize(payload);
         return true;
     }
+
+    /// <summary>
+    /// 기존 byte[] 호출이 span/memory overload 사이에서 모호해지지 않도록 유지하는 호환성 경로입니다.
+    /// </summary>
+    /// <param name="buffer">decode할 frame byte 배열입니다.</param>
+    /// <param name="message">복원된 메시지입니다.</param>
+    /// <param name="bytesConsumed">소비한 frame byte 수입니다.</param>
+    /// <returns>완성된 메시지를 복원했으면 <see langword="true"/>입니다.</returns>
+    public bool TryDecode(byte[] buffer, out IMessage? message, out int bytesConsumed)
+    {
+        return TryDecode(buffer.AsSpan(), out message, out bytesConsumed);
+    }
+
+    /// <summary>
+    /// memory 기반 입력에서는 zero-copy protocol fast path를 우선 사용해 payload 배열 복사를 피합니다.
+    /// </summary>
+    /// <param name="buffer">decode할 frame 후보 memory입니다.</param>
+    /// <param name="message">복원된 메시지입니다.</param>
+    /// <param name="bytesConsumed">소비한 frame byte 수입니다.</param>
+    /// <returns>완성된 메시지를 복원했으면 <see langword="true"/>입니다.</returns>
+    public bool TryDecode(ReadOnlyMemory<byte> buffer, out IMessage? message, out int bytesConsumed)
+    {
+        message = null;
+        bytesConsumed = 0;
+
+        if (_protocol is IZeroCopyProtocol zeroCopyProtocol)
+        {
+            if (!zeroCopyProtocol.TryDecode(buffer, out var result))
+            {
+                return false;
+            }
+
+            message = _serializer.Deserialize(result.Payload.Span);
+            bytesConsumed = result.BytesConsumed;
+            return true;
+        }
+
+        return TryDecode(buffer.Span, out message, out bytesConsumed);
+    }
 }
