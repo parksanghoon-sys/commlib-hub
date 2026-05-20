@@ -63,6 +63,44 @@ public sealed class MessageFrameEncoderTests
         Assert.False(protocol.LegacyEncodeCalled);
     }
 
+    /// <summary>
+    /// serializer만 span writer를 지원하면 protocol이 최종 frame layout을 제공할 수 없으므로 기존 배열 경로로 되돌아가는지 검증합니다.
+    /// </summary>
+    [Fact]
+    public void Encode_WhenOnlySerializerSupportsSpanWriter_UsesLegacyFallback()
+    {
+        var serializer = new SpanFakeSerializer(new byte[] { 0x10, 0x20, 0x30 });
+        var protocol = new FakeProtocol(new byte[] { 0xAA, 0x10, 0x20, 0x30 });
+        var encoder = new MessageFrameEncoder(serializer, protocol);
+        var message = new FakeMessage(7);
+
+        var frame = encoder.Encode(message);
+
+        Assert.Equal(new byte[] { 0xAA, 0x10, 0x20, 0x30 }, frame);
+        Assert.False(serializer.SpanSerializeCalled);
+        Assert.True(serializer.LegacySerializeCalled);
+        Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, protocol.LastPayload);
+    }
+
+    /// <summary>
+    /// protocol만 frame writer를 지원하면 serializer가 payload slot에 직접 쓸 수 없으므로 기존 배열 경로로 되돌아가는지 검증합니다.
+    /// </summary>
+    [Fact]
+    public void Encode_WhenOnlyProtocolSupportsFrameWriter_UsesLegacyFallback()
+    {
+        var serializer = new FakeSerializer(new byte[] { 0x10, 0x20, 0x30 });
+        var protocol = new SpanFakeProtocol();
+        var encoder = new MessageFrameEncoder(serializer, protocol);
+        var message = new FakeMessage(7);
+
+        var frame = encoder.Encode(message);
+
+        Assert.Same(message, serializer.LastMessage);
+        Assert.Equal(new byte[] { 0x10, 0x20, 0x30 }, frame);
+        Assert.False(protocol.FrameWriterCalled);
+        Assert.True(protocol.LegacyEncodeCalled);
+    }
+
     private sealed record FakeMessage(ushort MessageId) : IMessage;
 
     private sealed class FakeSerializer : ISerializer
