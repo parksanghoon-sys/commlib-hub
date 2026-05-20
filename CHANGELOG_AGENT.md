@@ -641,3 +641,11 @@
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+- Added Korean comments to make the session-boundary implementation and tests easier to follow:
+  - converted the new public session contract and pending-response lifecycle comments to Korean
+  - documented the direct send and request/response facade execution order in `ConnectionManager`
+  - added Korean purpose and prepare/execute/verify comments to the key session tests
+- Verified the comment-only pass with:
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --no-build`

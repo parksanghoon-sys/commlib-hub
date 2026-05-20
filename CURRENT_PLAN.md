@@ -45,6 +45,9 @@ Continue commercial-readiness hardening from the current repository state while 
   - `ConnectionManager.GetSession()` returns a public session facade instead of the mutable runtime `DeviceSession`.
   - `ConnectionManager.SendAsync(...)` sends directly through `TransportMessageSender`; the old session outbound queue hop was removed.
   - `DeviceSession` is now a request/response pending tracker, not a transport send queue.
+- The user asked to make the recent session-boundary implementation comments clear and Korean:
+  - Korean XML comments now describe the public session contract, pending-response lifecycle, facade responsibilities, and request send execution order.
+  - Session-related tests now include Korean purpose comments and key prepare/execute/verify flow comments.
 - Verification for this slice passed with:
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --filter DeviceProfileValidatorTests`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
@@ -71,6 +74,10 @@ Continue commercial-readiness hardening from the current repository state while 
   - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore`
   - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore`
   - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+- Verification for the Korean comment clarity pass passed with:
+  - `dotnet build commlib-codex-full.sln --configuration Release --no-restore`
+  - `dotnet test tests/CommLib.Unit.Tests/CommLib.Unit.Tests.csproj --configuration Release --no-restore --no-build`
+  - `dotnet test tests/CommLib.Infrastructure.Tests/CommLib.Infrastructure.Tests.csproj --configuration Release --no-restore --no-build`
 - NuGet vulnerability audit was checked with `dotnet list commlib-codex-full.sln package --vulnerable --include-transitive` and reported no vulnerable packages from the configured sources.
 
 ## Next Work Unit
